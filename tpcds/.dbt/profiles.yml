@@ -1,0 +1,14 @@
+tpcds:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ./tpcds.db
+      database: tpcds
+      schema: main
+      threads: 4
+
+    prod:
+      type: duckdb
+      path: ./tpcds.db
+      threads: 4

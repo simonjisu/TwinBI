@@ -1,0 +1,30 @@
+version: 2
+sources:
+  - name: tpcds
+    database: "{{ target.database }}"
+    schema: main
+    tables:
+      - name: date_dim
+      - name: time_dim
+      - name: customer
+      - name: customer_address
+      - name: household_demographics
+      - name: customer_demographics
+      - name: item
+      - name: promotion
+      - name: reason
+      - name: ship_mode
+      - name: call_center
+      - name: web_site
+      - name: web_page
+      - name: catalog_page
+      - name: warehouse
+      - name: income_band
+      - name: store
+      - name: store_sales
+      - name: store_returns
+      - name: catalog_sales
+      - name: catalog_returns
+      - name: web_sales
+      - name: web_returns
+      - name: inventory

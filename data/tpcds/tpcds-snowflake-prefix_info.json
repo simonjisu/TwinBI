@@ -1,0 +1,98 @@
+{
+  "t": {
+    "table_name": "time_dim",
+    "path": "data/Table_2-24_Time_Dim_Column_Definitions.csv"
+  },
+  "inv": {
+    "table_name": "inventory",
+    "path": "data/Table_2-7_Inventory_Column_Definitions.csv"
+  },
+  "ca": {
+    "table_name": "customer_address",
+    "path": "data/Table_2-15_Customer_Address_Column_Definitions.csv"
+  },
+  "sr": {
+    "table_name": "store_returns",
+    "path": "data/Table_2-2_Store_Returns_Column_Definitions.csv"
+  },
+  "cs": {
+    "table_name": "catalog_sales",
+    "path": "data/Table_2-3_Catalog_Sales_Column_Definitions.csv"
+  },
+  "c": {
+    "table_name": "customer",
+    "path": "data/Table_2-14_Customer_Column_Definitions.csv"
+  },
+  "web": {
+    "table_name": "web_site",
+    "path": "data/Table_2-11_Web_Site_Column_Definitions.csv"
+  },
+  "cc": {
+    "table_name": "call_center",
+    "path": "data/Table_2-9_Call_Center_Column_Definitions.csv"
+  },
+  "wr": {
+    "table_name": "web_returns",
+    "path": "data/Table_2-6_Web_Returns_Column_Definitions.csv"
+  },
+  "cp": {
+    "table_name": "catalog_page",
+    "path": "data/Table_2-10_Catalog_Page_Column_Definitions.csv"
+  },
+  "r": {
+    "table_name": "reason",
+    "path": "data/Table_2-22_Reason_Column_Definitions.csv"
+  },
+  "ss": {
+    "table_name": "store_sales",
+    "path": "data/Table_2-1_Store_Sales_Column_Definitions.csv"
+  },
+  "wp": {
+    "table_name": "web_page",
+    "path": "data/Table_2-12_Web_Page_Column_Definitions.csv"
+  },
+  "hd": {
+    "table_name": "household_demographics",
+    "path": "data/Table_2-18_Household_Demographics_Column_Definitions.csv"
+  },
+  "w": {
+    "table_name": "warehouse",
+    "path": "data/Table_2-13_Warehouse_Column_Definitions.csv"
+  },
+  "cr": {
+    "table_name": "catalog_returns",
+    "path": "data/Table_2-4_Catalog_Returns_Column_Definitions.csv"
+  },
+  "ib": {
+    "table_name": "income_band",
+    "path": "data/Table_2-20_Income_Band_Column_Definitions.csv"
+  },
+  "i": {
+    "table_name": "item",
+    "path": "data/Table_2-19_Item_Column_Definitions.csv"
+  },
+  "p": {
+    "table_name": "promotion",
+    "path": "data/Table_2-21_Promotion_Column_Definitions.csv"
+  },
+  "cd": {
+    "table_name": "customer_demographics",
+    "path": "data/Table_2-16_Customer_Demographics_Column_Definitions.csv"
+  },
+  "sm": {
+    "table_name": "ship_mode",
+    "path": "data/Table_2-23_Ship_Mode_Column_Definitions.csv"
+  },
+  "ws": {
+    "table_name": "web_sales",
+    "path": "data/Table_2-5_Web_Sales_Column_Definitions.csv"
+  },
+  "s": {
+    "table_name": "store",
+    "path": "data/Table_2-8_Store_Column_Definitions.csv"
+  },
+  "d": {
+    "table_name": "date_dim",
+    "path": "data/Table_2-17_Date_Dim_Column_Definitions.csv"
+  }
+}
