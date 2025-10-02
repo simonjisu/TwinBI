@@ -1,0 +1,120 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 2001
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["date", "customer_address"],
+    "filters": [
+      {
+        "column": "d_qoy",
+        "operator": "in",
+        "value": [1, 2, 3]
+      },
+      {
+        "column": "d_year",
+        "operator": "equals_to",
+        "value": 2001
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "date",
+    "aggregation_level": "quarter",
+    "group_by": ["ca_county", "d_qoy", "d_year"],
+    "measure": "ss_ext_sales_price",
+    "aggregation_function": "SUM"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "date",
+    "aggregation_level": "quarter",
+    "group_by": ["ca_county", "d_qoy", "d_year"],
+    "measure": "ws_ext_sales_price",
+    "aggregation_function": "SUM"
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_qoy",
+      "operator": "equals_to",
+      "value": 1
+    },
+    "note": "Filter for Q1 data (ss1, ws1)"
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_qoy",
+      "operator": "equals_to",
+      "value": 2
+    },
+    "note": "Filter for Q2 data (ss2, ws2)"
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_qoy",
+      "operator": "equals_to",
+      "value": 3
+    },
+    "note": "Filter for Q3 data (ss3, ws3)"
+  },
+  {
+    "operation": "pivot",
+    "rows": ["ca_county", "d_year"],
+    "columns": ["d_qoy"],
+    "measures": ["store_sales", "web_sales"],
+    "note": "Pivot quarters to compare Q1, Q2, Q3 sales by county"
+  },
+  {
+    "operation": "calculated_measure",
+    "measure_name": "web_q1_q2_increase",
+    "formula": "ws2.web_sales / ws1.web_sales",
+    "description": "Ratio of Q2 to Q1 web sales"
+  },
+  {
+    "operation": "calculated_measure",
+    "measure_name": "store_q1_q2_increase",
+    "formula": "ss2.store_sales / ss1.store_sales",
+    "description": "Ratio of Q2 to Q1 store sales"
+  },
+  {
+    "operation": "calculated_measure",
+    "measure_name": "web_q2_q3_increase",
+    "formula": "ws3.web_sales / ws2.web_sales",
+    "description": "Ratio of Q3 to Q2 web sales"
+  },
+  {
+    "operation": "calculated_measure",
+    "measure_name": "store_q2_q3_increase",
+    "formula": "ss3.store_sales / ss2.store_sales",
+    "description": "Ratio of Q3 to Q2 store sales"
+  },
+  {
+    "operation": "filter",
+    "condition": "web_q1_q2_increase > store_q1_q2_increase AND web_q2_q3_increase > store_q2_q3_increase",
+    "description": "Filter counties where web sales growth exceeds store sales growth in both Q1-Q2 and Q2-Q3 periods"
+  },
+  {
+    "operation": "project",
+    "columns": ["ca_county", "d_year", "web_q1_q2_increase", "store_q1_q2_increase", "web_q2_q3_increase", "store_q2_q3_increase"],
+    "description": "Select final output columns"
+  },
+  {
+    "operation": "sort",
+    "dimension": "date",
+    "column": "d_year",
+    "order": "ascending"
+  }
+]

@@ -1,0 +1,72 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "item_category",
+    "filter": {
+      "column": "i_category",
+      "operator": "in",
+      "value": ["Jewelry"]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 1999
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_moy",
+      "operator": "equals_to",
+      "value": 8
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_address",
+    "filter": {
+      "column": "ca_gmt_offset",
+      "operator": "equals_to",
+      "value": -6
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item_id", "sales_channel"],
+    "description": "Selecting i_item_id dimension across three sales channels (store, catalog, web)"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "item_id",
+    "aggregation": {
+      "measure": "ext_sales_price",
+      "function": "sum",
+      "alias": "total_sales"
+    },
+    "description": "Aggregating sales by item_id within each sales channel"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "item_id",
+    "aggregation": {
+      "measure": "total_sales",
+      "function": "sum",
+      "alias": "total_sales"
+    },
+    "description": "Further aggregating total_sales across all sales channels by item_id"
+  },
+  {
+    "operation": "sort",
+    "columns": ["i_item_id", "total_sales"],
+    "order": "ascending"
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

@@ -1,0 +1,121 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_date",
+      "operator": "between",
+      "value": ["2001-08-16", "2001-09-15"]
+    },
+    "description": "Filter data for 30-day period starting from 2001-08-16"
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["store", "date"],
+    "measures": ["ss_ext_sales_price", "ss_net_profit"],
+    "description": "Create store sales cube with sales and profit measures"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "store",
+    "aggregation": "sum",
+    "measures": ["ss_ext_sales_price", "ss_net_profit"],
+    "group_by": ["s_store_sk"],
+    "description": "Aggregate store sales by store key"
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["store", "date"],
+    "measures": ["sr_return_amt", "sr_net_loss"],
+    "description": "Create store returns cube with returns and losses"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "store",
+    "aggregation": "sum",
+    "measures": ["sr_return_amt", "sr_net_loss"],
+    "group_by": ["s_store_sk"],
+    "description": "Aggregate store returns by store key"
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["call_center", "date"],
+    "measures": ["cs_ext_sales_price", "cs_net_profit"],
+    "description": "Create catalog sales cube"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "call_center",
+    "aggregation": "sum",
+    "measures": ["cs_ext_sales_price", "cs_net_profit"],
+    "group_by": ["cs_call_center_sk"],
+    "description": "Aggregate catalog sales by call center key"
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["call_center", "date"],
+    "measures": ["cr_return_amount", "cr_net_loss"],
+    "description": "Create catalog returns cube"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "call_center",
+    "aggregation": "sum",
+    "measures": ["cr_return_amount", "cr_net_loss"],
+    "group_by": ["cr_call_center_sk"],
+    "description": "Aggregate catalog returns by call center key"
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["web_page", "date"],
+    "measures": ["ws_ext_sales_price", "ws_net_profit"],
+    "description": "Create web sales cube"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "web_page",
+    "aggregation": "sum",
+    "measures": ["ws_ext_sales_price", "ws_net_profit"],
+    "group_by": ["wp_web_page_sk"],
+    "description": "Aggregate web sales by web page key"
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["web_page", "date"],
+    "measures": ["wr_return_amt", "wr_net_loss"],
+    "description": "Create web returns cube"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "web_page",
+    "aggregation": "sum",
+    "measures": ["wr_return_amt", "wr_net_loss"],
+    "group_by": ["wp_web_page_sk"],
+    "description": "Aggregate web returns by web page key"
+  },
+  {
+    "operation": "pivot",
+    "new_dimension": "channel",
+    "categories": ["store channel", "catalog channel", "web channel"],
+    "description": "Add channel dimension to combine all sales channels"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "channel",
+    "aggregation": "sum",
+    "measures": ["sales", "returns1", "profit"],
+    "group_by": ["channel", "id"],
+    "hierarchy": ["channel", "id"],
+    "description": "Aggregate across channel and id with ROLLUP creating subtotals and grand total"
+  },
+  {
+    "operation": "slice",
+    "dimension": "result",
+    "filter": {
+      "column": "row_number",
+      "operator": "less_than_or_equal",
+      "value": 100
+    },
+    "description": "Limit results to top 100 rows"
+  }
+]

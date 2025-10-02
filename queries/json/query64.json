@@ -1,0 +1,132 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "item_color",
+    "filter": {
+      "column": "i_color",
+      "operator": "in",
+      "value": ["cyan", "peach", "blush", "frosted", "powder", "orange"]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "item_price",
+    "filter": {
+      "column": "i_current_price",
+      "operator": "between",
+      "value": [59, 68]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_demographics",
+    "filter": {
+      "column": "cd_marital_status",
+      "operator": "not_equal",
+      "value": "current vs historical marital status comparison"
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item", "store", "customer_address", "date"],
+    "description": "Multi-dimensional filtering on catalog sales with refund conditions"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "catalog_sales",
+    "group_by": ["cs_item_sk"],
+    "aggregates": {
+      "sale": "sum(cs_ext_list_price)",
+      "refund": "sum(cr_refunded_cash + cr_reversed_charge + cr_store_credit)"
+    },
+    "having": "sum(cs_ext_list_price) > 2 * sum(refunds)"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "store_sales",
+    "group_by": [
+      "i_product_name",
+      "i_item_sk",
+      "s_store_name",
+      "s_zip",
+      "ad1.ca_street_number",
+      "ad1.ca_street_name",
+      "ad1.ca_city",
+      "ad1.ca_zip",
+      "ad2.ca_street_number",
+      "ad2.ca_street_name",
+      "ad2.ca_city",
+      "ad2.ca_zip",
+      "d1.d_year",
+      "d2.d_year",
+      "d3.d_year"
+    ],
+    "aggregates": {
+      "cnt": "count(*)",
+      "s1": "sum(ss_wholesale_cost)",
+      "s2": "sum(ss_list_price)",
+      "s3": "sum(ss_coupon_amt)"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date_year",
+    "filter": {
+      "column": "cs1.syear",
+      "operator": "equals",
+      "value": 2001
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date_year",
+    "filter": {
+      "column": "cs2.syear",
+      "operator": "equals",
+      "value": 2002
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item", "store_name", "store_zip"],
+    "description": "Self-join on cross_sales comparing 2001 vs 2002 with matching store attributes"
+  },
+  {
+    "operation": "slice",
+    "dimension": "transaction_count",
+    "filter": {
+      "column": "cs2.cnt",
+      "operator": "less_than_or_equal",
+      "value": "cs1.cnt"
+    }
+  },
+  {
+    "operation": "project",
+    "attributes": [
+      "product_name",
+      "store_name",
+      "store_zip",
+      "b_street_number",
+      "b_streen_name",
+      "b_city",
+      "b_zip",
+      "c_street_number",
+      "c_street_name",
+      "c_city",
+      "c_zip",
+      "syear",
+      "cnt",
+      "s1",
+      "s2",
+      "s3"
+    ]
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {"column": "cs1.product_name", "direction": "ascending"},
+      {"column": "cs1.store_name", "direction": "ascending"},
+      {"column": "cs2.cnt", "direction": "ascending"}
+    ]
+  }
+]

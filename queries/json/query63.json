@@ -1,0 +1,92 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_month_seq",
+      "operator": "in",
+      "value": [1200, 1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208, 1209, 1210, 1211]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item_category", "item_class", "item_brand"],
+    "filters": [
+      {
+        "condition": "OR",
+        "subconditions": [
+          {
+            "column": "i_category",
+            "operator": "in",
+            "value": ["Books", "Children", "Electronics"]
+          },
+          {
+            "column": "i_class",
+            "operator": "in",
+            "value": ["personal", "portable", "reference", "self-help"]
+          },
+          {
+            "column": "i_brand",
+            "operator": "in",
+            "value": ["scholaramalgamalg #14", "scholaramalgamalg #7", "exportiunivamalg #9", "scholaramalgamalg #9"]
+          }
+        ]
+      },
+      {
+        "condition": "OR",
+        "subconditions": [
+          {
+            "column": "i_category",
+            "operator": "in",
+            "value": ["Women", "Music", "Men"]
+          },
+          {
+            "column": "i_class",
+            "operator": "in",
+            "value": ["accessories", "classical", "fragrances", "pants"]
+          },
+          {
+            "column": "i_brand",
+            "operator": "in",
+            "value": ["amalgimporto #1", "edu packscholar #1", "exportiimporto #1", "importoamalg #1"]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": ["i_manager_id", "d_moy"],
+    "measure": "ss_sales_price",
+    "aggregation": "sum"
+  },
+  {
+    "operation": "pivot",
+    "row_dimension": "i_manager_id",
+    "measure": "sum_sales",
+    "aggregation": "avg",
+    "window": {
+      "partition_by": ["i_manager_id"],
+      "result_column": "avg_monthly_sales"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "calculated_metric",
+    "filter": {
+      "column": "deviation_ratio",
+      "operator": "greater_than",
+      "value": 0.1,
+      "calculation": "abs(sum_sales - avg_monthly_sales) / avg_monthly_sales"
+    }
+  },
+  {
+    "operation": "sort",
+    "columns": ["i_manager_id", "avg_monthly_sales", "sum_sales"],
+    "order": ["asc", "asc", "asc"]
+  },
+  {
+    "operation": "limit",
+    "count": 100
+  }
+]

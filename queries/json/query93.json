@@ -1,0 +1,56 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "reason",
+    "filter": {
+      "column": "r_reason_desc",
+      "operator": "equals_to",
+      "value": "reason 38"
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item", "ticket", "customer"],
+    "filters": [
+      {
+        "column": "sr_item_sk",
+        "operator": "not_null",
+        "value": null
+      },
+      {
+        "column": "sr_ticket_number",
+        "operator": "not_null",
+        "value": null
+      }
+    ]
+  },
+  {
+    "operation": "computed_measure",
+    "measure": "act_sales",
+    "formula": "CASE WHEN sr_return_quantity IS NOT NULL THEN (ss_quantity - sr_return_quantity) * ss_sales_price ELSE ss_quantity * ss_sales_price END"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "customer",
+    "aggregate_function": "sum",
+    "measure": "act_sales",
+    "group_by": ["ss_customer_sk"]
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {
+        "column": "sumsales",
+        "direction": "ascending"
+      },
+      {
+        "column": "ss_customer_sk",
+        "direction": "ascending"
+      }
+    ]
+  },
+  {
+    "operation": "limit",
+    "top_n": 100
+  }
+]

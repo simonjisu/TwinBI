@@ -1,0 +1,67 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "geography",
+    "filter": {
+      "column": "ca_county",
+      "operator": "in",
+      "value": ["Lycoming County", "Sheridan County", "Kandiyohi County", "Pike County", "Greene County"]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 2002
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_moy",
+      "operator": "between",
+      "value": [4, 7]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["customer_demographics", "geography", "date"],
+    "description": "Multi-dimensional filtering on customer demographics (via EXISTS clauses), geography (county), and date (year and month)"
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": [
+      "cd_gender",
+      "cd_marital_status",
+      "cd_education_status",
+      "cd_purchase_estimate",
+      "cd_credit_rating",
+      "cd_dep_count",
+      "cd_dep_employed_count",
+      "cd_dep_college_count"
+    ],
+    "aggregation": "count",
+    "measures": ["cnt1", "cnt2", "cnt3", "cnt4", "cnt5", "cnt6"]
+  },
+  {
+    "operation": "sort",
+    "dimensions": [
+      "cd_gender",
+      "cd_marital_status",
+      "cd_education_status",
+      "cd_purchase_estimate",
+      "cd_credit_rating",
+      "cd_dep_count",
+      "cd_dep_employed_count",
+      "cd_dep_college_count"
+    ],
+    "order": "ascending"
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

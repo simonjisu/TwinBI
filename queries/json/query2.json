@@ -1,0 +1,99 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_date_sk",
+      "operator": "is_not_null",
+      "value": null
+    },
+    "description": "Filter to include only records with valid date keys (implicit join condition)"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "date",
+    "from_level": "day",
+    "to_level": "week",
+    "grouping_attribute": "d_week_seq",
+    "description": "Aggregate from daily level to weekly level using d_week_seq"
+  },
+  {
+    "operation": "pivot",
+    "dimension": "date",
+    "pivot_attribute": "d_day_name",
+    "measure": "sales_price",
+    "aggregation": "sum",
+    "description": "Transform day names into separate measures (sun_sales, mon_sales, etc.)"
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 1998
+    },
+    "description": "Filter data for year 1998 (first dataset)"
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 1999
+    },
+    "description": "Filter data for year 1999 (second dataset)"
+  },
+  {
+    "operation": "drill-across",
+    "dimensions": ["date"],
+    "join_condition": {
+      "left": "d_week_seq1",
+      "operator": "equals",
+      "right": "d_week_seq2 - 53"
+    },
+    "description": "Combine two datasets (1998 and 1999) matching corresponding weeks"
+  },
+  {
+    "operation": "calculated-measure",
+    "measures": [
+      {
+        "name": "sun_sales_ratio",
+        "formula": "round(sun_sales1 / sun_sales2, 2)"
+      },
+      {
+        "name": "mon_sales_ratio",
+        "formula": "round(mon_sales1 / mon_sales2, 2)"
+      },
+      {
+        "name": "tue_sales_ratio",
+        "formula": "round(tue_sales1 / tue_sales2, 2)"
+      },
+      {
+        "name": "wed_sales_ratio",
+        "formula": "round(wed_sales1 / wed_sales2, 2)"
+      },
+      {
+        "name": "thu_sales_ratio",
+        "formula": "round(thu_sales1 / thu_sales2, 2)"
+      },
+      {
+        "name": "fri_sales_ratio",
+        "formula": "round(fri_sales1 / fri_sales2, 2)"
+      },
+      {
+        "name": "sat_sales_ratio",
+        "formula": "round(sat_sales1 / sat_sales2, 2)"
+      }
+    ],
+    "description": "Calculate year-over-year sales ratios for each day of the week"
+  },
+  {
+    "operation": "sort",
+    "dimension": "date",
+    "attribute": "d_week_seq1",
+    "order": "ascending",
+    "description": "Order results by week sequence"
+  }
+]

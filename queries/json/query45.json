@@ -1,0 +1,64 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_qoy",
+      "operator": "equals_to",
+      "value": 1
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 2000
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["customer_address", "item"],
+    "filters": [
+      {
+        "column": "ca_zip",
+        "operator": "substring_in",
+        "substring_params": {
+          "start": 1,
+          "length": 5
+        },
+        "value": ["85669", "86197", "88274", "83405", "86475", "85392", "85460", "80348", "81792"]
+      },
+      {
+        "column": "i_item_sk",
+        "operator": "in",
+        "value": [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
+      }
+    ],
+    "logical_operator": "OR"
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": ["ca_zip", "ca_state"],
+    "measure": "ws_sales_price",
+    "aggregation": "sum"
+  },
+  {
+    "operation": "sort",
+    "sort_by": [
+      {
+        "column": "ca_zip",
+        "order": "ascending"
+      },
+      {
+        "column": "ca_state",
+        "order": "ascending"
+      }
+    ]
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

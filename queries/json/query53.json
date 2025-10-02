@@ -1,0 +1,109 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_month_seq",
+      "operator": "in",
+      "value": [1199, 1200, 1201, 1202, 1203, 1204, 1205, 1206, 1207, 1208, 1209, 1210]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item_category", "item_class", "item_brand"],
+    "filter": {
+      "operator": "or",
+      "conditions": [
+        {
+          "operator": "and",
+          "conditions": [
+            {
+              "column": "i_category",
+              "operator": "in",
+              "value": ["Books", "Children", "Electronics"]
+            },
+            {
+              "column": "i_class",
+              "operator": "in",
+              "value": ["personal", "portable", "reference", "self-help"]
+            },
+            {
+              "column": "i_brand",
+              "operator": "in",
+              "value": ["scholaramalgamalg #14", "scholaramalgamalg #7", "exportiunivamalg #9", "scholaramalgamalg #9"]
+            }
+          ]
+        },
+        {
+          "operator": "and",
+          "conditions": [
+            {
+              "column": "i_category",
+              "operator": "in",
+              "value": ["Women", "Music", "Men"]
+            },
+            {
+              "column": "i_class",
+              "operator": "in",
+              "value": ["accessories", "classical", "fragrances", "pants"]
+            },
+            {
+              "column": "i_brand",
+              "operator": "in",
+              "value": ["amalgimporto #1", "edu packscholar #1", "exportiimporto #1", "importoamalg #1"]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": ["i_manufact_id", "d_qoy"],
+    "measure": {
+      "column": "ss_sales_price",
+      "aggregation": "sum",
+      "alias": "sum_sales"
+    }
+  },
+  {
+    "operation": "window_aggregation",
+    "measure": {
+      "column": "sum_sales",
+      "aggregation": "avg",
+      "alias": "avg_quarterly_sales"
+    },
+    "partition_by": ["i_manufact_id"]
+  },
+  {
+    "operation": "slice",
+    "dimension": "calculated_metric",
+    "filter": {
+      "column": "abs(sum_sales - avg_quarterly_sales) / avg_quarterly_sales",
+      "operator": "greater_than",
+      "value": 0.1,
+      "condition": "when avg_quarterly_sales > 0"
+    }
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {
+        "column": "avg_quarterly_sales",
+        "direction": "asc"
+      },
+      {
+        "column": "sum_sales",
+        "direction": "asc"
+      },
+      {
+        "column": "i_manufact_id",
+        "direction": "asc"
+      }
+    ]
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

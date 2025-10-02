@@ -1,0 +1,51 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_month_seq",
+      "operator": "between",
+      "value": [1188, 1199]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["customer", "date"],
+    "filters": [
+      {
+        "column": "c_last_name",
+        "operator": "is_not_null",
+        "value": null
+      },
+      {
+        "column": "c_first_name",
+        "operator": "is_not_null",
+        "value": null
+      },
+      {
+        "column": "d_date",
+        "operator": "is_not_null",
+        "value": null
+      }
+    ]
+  },
+  {
+    "operation": "pivot",
+    "dimensions": ["customer_last_name", "customer_first_name", "date"],
+    "description": "Project distinct combinations of c_last_name, c_first_name, d_date"
+  },
+  {
+    "operation": "set_difference",
+    "description": "Apply EXCEPT operation between store_sales cube and catalog_sales cube for the selected dimensions"
+  },
+  {
+    "operation": "set_difference",
+    "description": "Apply EXCEPT operation with web_sales cube for the selected dimensions"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "all",
+    "aggregate_function": "count",
+    "description": "Aggregate to count total number of distinct customer-date combinations"
+  }
+]

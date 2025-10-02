@@ -1,0 +1,73 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_month_seq",
+      "operator": "between",
+      "value": [1200, 1211]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "store",
+    "filter": {
+      "column": "s_state",
+      "operator": "in",
+      "value": "top 5 states by ss_net_profit",
+      "description": "States filtered by subquery ranking - only states ranked <= 5 by profit"
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["store_state", "store_county"],
+    "description": "Focus analysis on state and county dimensions"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "location_hierarchy",
+    "hierarchy": ["s_county", "s_state", "grand_total"],
+    "aggregation": {
+      "measure": "ss_net_profit",
+      "function": "sum"
+    },
+    "description": "ROLLUP creates aggregations at county level, state level, and grand total"
+  },
+  {
+    "operation": "pivot",
+    "computed_measures": [
+      {
+        "name": "lochierarchy",
+        "formula": "Grouping(s_state) + Grouping(s_county)",
+        "description": "Indicates aggregation level: 0=county, 1=state, 2=grand total"
+      },
+      {
+        "name": "rank_within_parent",
+        "formula": "RANK() partitioned by hierarchy level and parent state",
+        "description": "Ranks entities within their hierarchical parent by profit"
+      }
+    ]
+  },
+  {
+    "operation": "sort",
+    "order": [
+      {
+        "column": "lochierarchy",
+        "direction": "descending"
+      },
+      {
+        "column": "s_state",
+        "direction": "ascending",
+        "condition": "when lochierarchy = 0"
+      },
+      {
+        "column": "rank_within_parent",
+        "direction": "ascending"
+      }
+    ]
+  },
+  {
+    "operation": "limit",
+    "rows": 100
+  }
+]

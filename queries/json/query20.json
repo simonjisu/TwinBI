@@ -1,0 +1,67 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_date",
+      "operator": "between",
+      "value": ["2001-02-03", "2001-03-05"]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "item",
+    "filter": {
+      "column": "i_category",
+      "operator": "in",
+      "value": ["Children", "Women", "Electronics"]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item", "date"],
+    "filters": [
+      {
+        "column": "i_category",
+        "operator": "in",
+        "value": ["Children", "Women", "Electronics"]
+      },
+      {
+        "column": "d_date",
+        "operator": "between",
+        "value": ["2001-02-03", "2001-03-05"]
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "item",
+    "from_level": "item_id",
+    "to_level": "class",
+    "group_by": ["i_item_id", "i_item_desc", "i_category", "i_class", "i_current_price"],
+    "measure": "cs_ext_sales_price",
+    "aggregation": "sum"
+  },
+  {
+    "operation": "compute",
+    "type": "window_function",
+    "measure": "itemrevenue",
+    "function": "ratio_to_report",
+    "partition_by": ["i_class"],
+    "expression": "Sum(cs_ext_sales_price)*100/Sum(Sum(cs_ext_sales_price)) OVER (PARTITION BY i_class)"
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {"column": "i_category", "direction": "asc"},
+      {"column": "i_class", "direction": "asc"},
+      {"column": "i_item_id", "direction": "asc"},
+      {"column": "i_item_desc", "direction": "asc"},
+      {"column": "revenueratio", "direction": "asc"}
+    ]
+  },
+  {
+    "operation": "limit",
+    "top_n": 100
+  }
+]

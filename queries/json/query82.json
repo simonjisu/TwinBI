@@ -1,0 +1,54 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "item",
+    "filter": {
+      "column": "i_current_price",
+      "operator": "between",
+      "value": [63, 93]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_date",
+      "operator": "between",
+      "value": ["1998-04-27", "1998-06-26"]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "item",
+    "filter": {
+      "column": "i_manufact_id",
+      "operator": "in",
+      "value": [57, 293, 427, 320]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "inventory",
+    "filter": {
+      "column": "inv_quantity_on_hand",
+      "operator": "between",
+      "value": [100, 500]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item", "date", "inventory", "store_sales"],
+    "description": "Multi-dimensional filtering across item price, date range, manufacturer, and inventory quantity"
+  },
+  {
+    "operation": "project",
+    "attributes": ["i_item_id", "i_item_desc", "i_current_price"],
+    "description": "Select specific attributes for output"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "item",
+    "group_by": ["i_item_id", "i_item_desc", "i_current_price"],
+    "description": "Aggregate data at item level with distinct combinations"
+  }
+]

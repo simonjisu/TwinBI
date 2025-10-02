@@ -1,0 +1,59 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 1998
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_moy",
+      "operator": "equals_to",
+      "value": 7
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "item",
+    "filter": {
+      "column": "i_current_price",
+      "operator": "greater_than",
+      "value": "1.2 * AVG(i_current_price) per i_category",
+      "description": "Items priced above 1.2 times their category average"
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "customer_address",
+    "level": "state",
+    "aggregate": {
+      "measure": "count",
+      "function": "COUNT(*)"
+    }
+  },
+  {
+    "operation": "dice",
+    "filter": {
+      "column": "cnt",
+      "operator": "greater_than_or_equal_to",
+      "value": 10,
+      "description": "Filter aggregated results where count >= 10"
+    }
+  },
+  {
+    "operation": "sort",
+    "dimension": "result",
+    "order_by": "cnt",
+    "direction": "ascending"
+  },
+  {
+    "operation": "limit",
+    "dimension": "result",
+    "top_n": 100
+  }
+]

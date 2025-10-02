@@ -1,0 +1,62 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_month_seq",
+      "operator": "between",
+      "value": [1199, 1210]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["store", "item"],
+    "description": "Select specific dimensional attributes for store and item"
+  },
+  {
+    "operation": "roll-up",
+    "measure": "ss_sales_price",
+    "aggregation": "sum",
+    "grouping_dimensions": ["ss_store_sk", "ss_item_sk"],
+    "result": "revenue"
+  },
+  {
+    "operation": "roll-up",
+    "measure": "revenue",
+    "aggregation": "avg",
+    "grouping_dimensions": ["ss_store_sk"],
+    "result": "ave",
+    "description": "Aggregate to store level to compute average revenue"
+  },
+  {
+    "operation": "slice",
+    "dimension": "revenue_performance",
+    "filter": {
+      "column": "revenue",
+      "operator": "less_than_or_equal",
+      "value": "0.1 * ave",
+      "description": "Filter items with revenue <= 10% of store average"
+    }
+  },
+  {
+    "operation": "projection",
+    "attributes": [
+      "s_store_name",
+      "i_item_desc",
+      "revenue",
+      "i_current_price",
+      "i_wholesale_cost",
+      "i_brand"
+    ],
+    "description": "Select specific attributes from store and item dimensions"
+  },
+  {
+    "operation": "sort",
+    "order_by": ["s_store_name", "i_item_desc"],
+    "direction": "ascending"
+  },
+  {
+    "operation": "limit",
+    "top_n": 100
+  }
+]

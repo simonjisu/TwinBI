@@ -1,0 +1,51 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_date",
+      "operator": "between",
+      "value": ["2000-05-18", "2000-06-17"]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "item",
+    "filter": {
+      "column": "i_category",
+      "operator": "in",
+      "value": ["Men", "Home", "Electronics"]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item.i_item_id", "item.i_item_desc", "item.i_category", "item.i_class", "item.i_current_price", "date"],
+    "description": "Selecting specific dimensions and applying filters"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "item",
+    "grouping_levels": ["i_item_id", "i_item_desc", "i_category", "i_class", "i_current_price"],
+    "measure": "ss_ext_sales_price",
+    "aggregation": "sum",
+    "description": "Aggregating sales at item detail level"
+  },
+  {
+    "operation": "window_aggregation",
+    "type": "partition",
+    "partition_by": ["i_class"],
+    "measure": "ss_ext_sales_price",
+    "aggregation": "sum",
+    "description": "Computing total revenue per class for ratio calculation"
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {"column": "i_category", "direction": "ascending"},
+      {"column": "i_class", "direction": "ascending"},
+      {"column": "i_item_id", "direction": "ascending"},
+      {"column": "i_item_desc", "direction": "ascending"},
+      {"column": "revenueratio", "direction": "ascending"}
+    ]
+  }
+]

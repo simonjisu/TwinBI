@@ -1,0 +1,83 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "item",
+    "filter": {
+      "column": "i_current_price",
+      "operator": "between",
+      "value": [0.99, 1.49]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_date",
+      "operator": "between",
+      "value": ["2002-05-02", "2002-07-01"]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["warehouse", "item"],
+    "filters": [
+      {
+        "column": "w_state",
+        "operator": "not_null"
+      },
+      {
+        "column": "i_item_id",
+        "operator": "not_null"
+      }
+    ]
+  },
+  {
+    "operation": "pivot",
+    "dimension": "date",
+    "measures": [
+      {
+        "name": "sales_before",
+        "aggregation": "sum",
+        "expression": "cs_sales_price - COALESCE(cr_refunded_cash, 0)",
+        "condition": "d_date < '2002-06-01'"
+      },
+      {
+        "name": "sales_after",
+        "aggregation": "sum",
+        "expression": "cs_sales_price - COALESCE(cr_refunded_cash, 0)",
+        "condition": "d_date >= '2002-06-01'"
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": ["w_state", "i_item_id"],
+    "aggregations": [
+      {
+        "measure": "sales_before",
+        "function": "sum"
+      },
+      {
+        "measure": "sales_after",
+        "function": "sum"
+      }
+    ]
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {
+        "column": "w_state",
+        "direction": "ascending"
+      },
+      {
+        "column": "i_item_id",
+        "direction": "ascending"
+      }
+    ]
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

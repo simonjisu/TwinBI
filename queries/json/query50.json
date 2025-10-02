@@ -1,0 +1,104 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 2002
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_moy",
+      "operator": "equals_to",
+      "value": 9
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": [
+      "store_name",
+      "company_id",
+      "street_number",
+      "street_name",
+      "street_type",
+      "suite_number",
+      "city",
+      "county",
+      "state",
+      "zip"
+    ],
+    "description": "Project store dimension attributes at the most granular level"
+  },
+  {
+    "operation": "computed_measure",
+    "measures": [
+      {
+        "name": "30 days",
+        "formula": "SUM(CASE WHEN (sr_returned_date_sk - ss_sold_date_sk <= 30) THEN 1 ELSE 0 END)",
+        "description": "Count of returns within 30 days"
+      },
+      {
+        "name": "31-60 days",
+        "formula": "SUM(CASE WHEN (sr_returned_date_sk - ss_sold_date_sk > 30 AND sr_returned_date_sk - ss_sold_date_sk <= 60) THEN 1 ELSE 0 END)",
+        "description": "Count of returns between 31-60 days"
+      },
+      {
+        "name": "61-90 days",
+        "formula": "SUM(CASE WHEN (sr_returned_date_sk - ss_sold_date_sk > 60 AND sr_returned_date_sk - ss_sold_date_sk <= 90) THEN 1 ELSE 0 END)",
+        "description": "Count of returns between 61-90 days"
+      },
+      {
+        "name": "91-120 days",
+        "formula": "SUM(CASE WHEN (sr_returned_date_sk - ss_sold_date_sk > 90 AND sr_returned_date_sk - ss_sold_date_sk <= 120) THEN 1 ELSE 0 END)",
+        "description": "Count of returns between 91-120 days"
+      },
+      {
+        "name": ">120 days",
+        "formula": "SUM(CASE WHEN (sr_returned_date_sk - ss_sold_date_sk > 120) THEN 1 ELSE 0 END)",
+        "description": "Count of returns after 120 days"
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "store",
+    "group_by": [
+      "s_store_name",
+      "s_company_id",
+      "s_street_number",
+      "s_street_name",
+      "s_street_type",
+      "s_suite_number",
+      "s_city",
+      "s_county",
+      "s_state",
+      "s_zip"
+    ],
+    "description": "Aggregate at the store location level with full address details"
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      "s_store_name",
+      "s_company_id",
+      "s_street_number",
+      "s_street_name",
+      "s_street_type",
+      "s_suite_number",
+      "s_city",
+      "s_county",
+      "s_state",
+      "s_zip"
+    ],
+    "direction": "ascending"
+  },
+  {
+    "operation": "limit",
+    "top_n": 100,
+    "description": "Return top 100 results"
+  }
+]

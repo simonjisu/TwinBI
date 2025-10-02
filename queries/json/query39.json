@@ -1,0 +1,70 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 2002
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": ["w_warehouse_name", "w_warehouse_sk", "i_item_sk", "d_moy"],
+    "measures": [
+      {
+        "name": "stdev",
+        "aggregation": "stddev_samp",
+        "column": "inv_quantity_on_hand"
+      },
+      {
+        "name": "mean",
+        "aggregation": "avg",
+        "column": "inv_quantity_on_hand"
+      }
+    ]
+  },
+  {
+    "operation": "dice",
+    "filters": [
+      {
+        "column": "cov",
+        "operator": "greater_than",
+        "value": 1,
+        "note": "coefficient of variation (stdev/mean) > 1"
+      }
+    ]
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_moy",
+      "operator": "equals_to",
+      "value": 1,
+      "alias": "inv1"
+    }
+  },
+  {
+    "operation": "dice",
+    "filters": [
+      {
+        "column": "cov",
+        "operator": "greater_than",
+        "value": 1.5,
+        "alias": "inv1",
+        "note": "additional filter on inv1.cov > 1.5"
+      }
+    ]
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_moy",
+      "operator": "equals_to",
+      "value": 2,
+      "alias": "inv2"
+    }
+  }
+]

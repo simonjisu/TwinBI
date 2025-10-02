@@ -1,0 +1,110 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_date",
+      "operator": "in",
+      "value": ["1999-06-30", "1999-08-28", "1999-11-18"]
+    },
+    "description": "Filter to specific dates that determine the week sequences of interest"
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_week_seq",
+      "operator": "in",
+      "value": "week_sequences_from_specified_dates"
+    },
+    "description": "Filter to weeks containing the specified dates"
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_date",
+      "operator": "in",
+      "value": "dates_in_filtered_week_sequences"
+    },
+    "description": "Expand filter to all dates within the identified week sequences"
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item", "date", "return_channel"],
+    "filters": [
+      {
+        "dimension": "date",
+        "column": "d_date",
+        "operator": "in",
+        "value": "dates_in_filtered_week_sequences"
+      },
+      {
+        "dimension": "return_channel",
+        "column": "return_channel",
+        "operator": "in",
+        "value": ["store_returns", "catalog_returns", "web_returns"]
+      }
+    ],
+    "description": "Create a sub-cube focusing on items, dates, and return channels"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "item",
+    "from_level": "item_sk",
+    "to_level": "item_id",
+    "aggregation": {
+      "measure": "return_quantity",
+      "function": "sum"
+    },
+    "description": "Aggregate return quantities by item_id for each return channel"
+  },
+  {
+    "operation": "pivot",
+    "row_dimension": "item_id",
+    "column_dimension": "return_channel",
+    "measure": "sum_return_quantity",
+    "description": "Pivot return channels (store, catalog, web) into separate measures per item"
+  },
+  {
+    "operation": "derived_measure",
+    "new_measures": [
+      {
+        "name": "sr_dev",
+        "formula": "(sr_item_qty / (sr_item_qty + cr_item_qty + wr_item_qty) / 3.0) * 100"
+      },
+      {
+        "name": "cr_dev",
+        "formula": "(cr_item_qty / (sr_item_qty + cr_item_qty + wr_item_qty) / 3.0) * 100"
+      },
+      {
+        "name": "wr_dev",
+        "formula": "(wr_item_qty / (sr_item_qty + cr_item_qty + wr_item_qty) / 3.0) * 100"
+      },
+      {
+        "name": "average",
+        "formula": "(sr_item_qty + cr_item_qty + wr_item_qty) / 3.0"
+      }
+    ],
+    "description": "Calculate deviation percentages and average for each return channel"
+  },
+  {
+    "operation": "sort",
+    "dimensions": [
+      {
+        "column": "item_id",
+        "order": "ascending"
+      },
+      {
+        "column": "sr_item_qty",
+        "order": "ascending"
+      }
+    ],
+    "description": "Sort results by item_id and store return quantity"
+  },
+  {
+    "operation": "top_n",
+    "n": 100,
+    "description": "Limit results to top 100 rows"
+  }
+]

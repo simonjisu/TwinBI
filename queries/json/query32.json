@@ -1,0 +1,51 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "item",
+    "filter": {
+      "column": "i_manufact_id",
+      "operator": "equals_to",
+      "value": 610
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_date",
+      "operator": "between",
+      "value": ["2001-03-04", "2001-06-02"]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item", "date"],
+    "filters": [
+      {
+        "column": "i_manufact_id",
+        "operator": "equals_to",
+        "value": 610
+      },
+      {
+        "column": "d_date",
+        "operator": "between",
+        "value": ["2001-03-04", "2001-06-02"]
+      }
+    ]
+  },
+  {
+    "operation": "slice",
+    "dimension": "catalog_sales",
+    "filter": {
+      "column": "cs_ext_discount_amt",
+      "operator": "greater_than",
+      "value": "1.3 * AVG(cs_ext_discount_amt) for matching item and date range"
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "aggregate_all",
+    "measure": "cs_ext_discount_amt",
+    "aggregation_function": "SUM"
+  }
+]

@@ -1,0 +1,126 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "store",
+    "filter": {
+      "column": "s_market_id",
+      "operator": "equals_to",
+      "value": 6
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_address",
+    "filter": {
+      "column": "c_birth_country",
+      "operator": "equals_to",
+      "value": "Upper(ca_country)"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "store_customer_address",
+    "filter": {
+      "column": "s_zip",
+      "operator": "equals_to",
+      "value": "ca_zip"
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": [
+      "c_last_name",
+      "c_first_name",
+      "s_store_name",
+      "ca_state",
+      "s_state",
+      "i_color",
+      "i_current_price",
+      "i_manager_id",
+      "i_units",
+      "i_size"
+    ],
+    "measure": "ss_net_profit",
+    "aggregation": "sum"
+  },
+  {
+    "operation": "slice",
+    "dimension": "item",
+    "filter": {
+      "column": "i_color",
+      "operator": "equals_to",
+      "value": "papaya"
+    }
+  },
+  {
+    "operation": "roll-up",
+    "from_dimensions": [
+      "c_last_name",
+      "c_first_name",
+      "s_store_name",
+      "ca_state",
+      "s_state",
+      "i_color",
+      "i_current_price",
+      "i_manager_id",
+      "i_units",
+      "i_size"
+    ],
+    "to_dimensions": [
+      "c_last_name",
+      "c_first_name",
+      "s_store_name"
+    ],
+    "measure": "netpaid",
+    "aggregation": "sum"
+  },
+  {
+    "operation": "slice",
+    "dimension": "aggregate",
+    "filter": {
+      "column": "sum(netpaid)",
+      "operator": "greater_than",
+      "value": "0.05 * avg(netpaid)"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "item",
+    "filter": {
+      "column": "i_color",
+      "operator": "equals_to",
+      "value": "chartreuse"
+    }
+  },
+  {
+    "operation": "roll-up",
+    "from_dimensions": [
+      "c_last_name",
+      "c_first_name",
+      "s_store_name",
+      "ca_state",
+      "s_state",
+      "i_color",
+      "i_current_price",
+      "i_manager_id",
+      "i_units",
+      "i_size"
+    ],
+    "to_dimensions": [
+      "c_last_name",
+      "c_first_name",
+      "s_store_name"
+    ],
+    "measure": "netpaid",
+    "aggregation": "sum"
+  },
+  {
+    "operation": "slice",
+    "dimension": "aggregate",
+    "filter": {
+      "column": "sum(netpaid)",
+      "operator": "greater_than",
+      "value": "0.05 * avg(netpaid)"
+    }
+  }
+]

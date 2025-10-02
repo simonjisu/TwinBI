@@ -1,0 +1,125 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date_dim_1",
+    "filter": {
+      "column": "d_quarter_name",
+      "operator": "equals_to",
+      "value": "1999Q1"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date_dim_2",
+    "filter": {
+      "column": "d_quarter_name",
+      "operator": "in",
+      "value": ["1999Q1", "1999Q2", "1999Q3"]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date_dim_3",
+    "filter": {
+      "column": "d_quarter_name",
+      "operator": "in",
+      "value": ["1999Q1", "1999Q2", "1999Q3"]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item", "store", "date"],
+    "description": "Selecting a sub-cube with specific item, store, and date constraints"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "item",
+    "from_level": "item_sk",
+    "to_level": ["i_item_id", "i_item_desc"],
+    "aggregation": "group_by"
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "store",
+    "from_level": "store_sk",
+    "to_level": "s_state",
+    "aggregation": "group_by"
+  },
+  {
+    "operation": "aggregation",
+    "measures": [
+      {
+        "name": "store_sales_quantitycount",
+        "function": "COUNT",
+        "column": "ss_quantity"
+      },
+      {
+        "name": "store_sales_quantityave",
+        "function": "AVG",
+        "column": "ss_quantity"
+      },
+      {
+        "name": "store_sales_quantitystdev",
+        "function": "STDDEV_SAMP",
+        "column": "ss_quantity"
+      },
+      {
+        "name": "store_sales_quantitycov",
+        "function": "COMPUTED",
+        "formula": "STDDEV_SAMP(ss_quantity) / AVG(ss_quantity)"
+      },
+      {
+        "name": "store_returns_quantitycount",
+        "function": "COUNT",
+        "column": "sr_return_quantity"
+      },
+      {
+        "name": "store_returns_quantityave",
+        "function": "AVG",
+        "column": "sr_return_quantity"
+      },
+      {
+        "name": "store_returns_quantitystdev",
+        "function": "STDDEV_SAMP",
+        "column": "sr_return_quantity"
+      },
+      {
+        "name": "store_returns_quantitycov",
+        "function": "COMPUTED",
+        "formula": "STDDEV_SAMP(sr_return_quantity) / AVG(sr_return_quantity)"
+      },
+      {
+        "name": "catalog_sales_quantitycount",
+        "function": "COUNT",
+        "column": "cs_quantity"
+      },
+      {
+        "name": "catalog_sales_quantityave",
+        "function": "AVG",
+        "column": "cs_quantity"
+      },
+      {
+        "name": "catalog_sales_quantitystdev",
+        "function": "STDDEV_SAMP",
+        "column": "cs_quantity"
+      },
+      {
+        "name": "catalog_sales_quantitycov",
+        "function": "COMPUTED",
+        "formula": "STDDEV_SAMP(cs_quantity) / AVG(cs_quantity)"
+      }
+    ]
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {"column": "i_item_id", "direction": "ASC"},
+      {"column": "i_item_desc", "direction": "ASC"},
+      {"column": "s_state", "direction": "ASC"}
+    ]
+  },
+  {
+    "operation": "limit",
+    "row_count": 100
+  }
+]

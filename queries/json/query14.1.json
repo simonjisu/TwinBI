@@ -1,0 +1,62 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "between",
+      "value": [1999, 2001]
+    },
+    "purpose": "Filter cross_items identification period"
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item"],
+    "filter": {
+      "column": "i_item_sk",
+      "operator": "in",
+      "value": "cross_items"
+    },
+    "purpose": "Filter to cross-channel items"
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 2001
+    },
+    "purpose": "Focus on specific year"
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_moy",
+      "operator": "equals_to",
+      "value": 11
+    },
+    "purpose": "Focus on November"
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item", "date"],
+    "filter": {
+      "conditions": [
+        {"column": "d_year", "operator": "equals_to", "value": 2001},
+        {"column": "d_moy", "operator": "equals_to", "value": 11}
+      ]
+    },
+    "purpose": "Multi-dimensional filtering"
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": ["channel", "i_brand_id", "i_class_id", "i_category_id"],
+    "aggregation": {
+      "measures": ["sales", "number_sales"],
+      "function": "SUM"
+    },
+    "purpose": "Hierarchical aggregation with ROLLUP"
+  }
+]

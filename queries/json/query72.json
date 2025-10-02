@@ -1,0 +1,108 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 2002
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "household_demographics",
+    "filter": {
+      "column": "hd_buy_potential",
+      "operator": "equals_to",
+      "value": "501-1000"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_demographics",
+    "filter": {
+      "column": "cd_marital_status",
+      "operator": "equals_to",
+      "value": "M"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_week_seq",
+      "operator": "equals_to",
+      "value": "d1.d_week_seq = d2.d_week_seq"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "inventory",
+    "filter": {
+      "column": "inv_quantity_on_hand",
+      "operator": "less_than",
+      "value": "cs_quantity"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d3.d_date",
+      "operator": "greater_than",
+      "value": "d1.d_date + 5 days"
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item", "warehouse", "date"],
+    "attributes": ["i_item_desc", "w_warehouse_name", "d_week_seq"]
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "aggregation",
+    "group_by": ["i_item_desc", "w_warehouse_name", "d_week_seq"],
+    "measures": [
+      {
+        "name": "no_promo",
+        "aggregation": "sum",
+        "expression": "CASE WHEN p_promo_sk IS NULL THEN 1 ELSE 0 END"
+      },
+      {
+        "name": "promo",
+        "aggregation": "sum",
+        "expression": "CASE WHEN p_promo_sk IS NOT NULL THEN 1 ELSE 0 END"
+      },
+      {
+        "name": "total_cnt",
+        "aggregation": "count",
+        "expression": "*"
+      }
+    ]
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {
+        "column": "total_cnt",
+        "direction": "DESC"
+      },
+      {
+        "column": "i_item_desc",
+        "direction": "ASC"
+      },
+      {
+        "column": "w_warehouse_name",
+        "direction": "ASC"
+      },
+      {
+        "column": "d_week_seq",
+        "direction": "ASC"
+      }
+    ]
+  },
+  {
+    "operation": "limit",
+    "rows": 100
+  }
+]

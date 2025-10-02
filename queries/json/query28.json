@@ -1,0 +1,314 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "quantity",
+    "filter": {
+      "column": "ss_quantity",
+      "operator": "between",
+      "value": [0, 5]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "price_coupon_cost",
+    "filter": {
+      "column": "ss_list_price",
+      "operator": "between",
+      "value": [18, 28]
+    },
+    "logical_operator": "OR",
+    "additional_filters": [
+      {
+        "column": "ss_coupon_amt",
+        "operator": "between",
+        "value": [1939, 2939]
+      },
+      {
+        "column": "ss_wholesale_cost",
+        "operator": "between",
+        "value": [34, 54]
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "ss_list_price",
+    "aggregations": [
+      {
+        "function": "AVG",
+        "measure": "ss_list_price",
+        "alias": "B1_LP"
+      },
+      {
+        "function": "COUNT",
+        "measure": "ss_list_price",
+        "alias": "B1_CNT"
+      },
+      {
+        "function": "COUNT_DISTINCT",
+        "measure": "ss_list_price",
+        "alias": "B1_CNTD"
+      }
+    ]
+  },
+  {
+    "operation": "slice",
+    "dimension": "quantity",
+    "filter": {
+      "column": "ss_quantity",
+      "operator": "between",
+      "value": [6, 10]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "price_coupon_cost",
+    "filter": {
+      "column": "ss_list_price",
+      "operator": "between",
+      "value": [1, 11]
+    },
+    "logical_operator": "OR",
+    "additional_filters": [
+      {
+        "column": "ss_coupon_amt",
+        "operator": "between",
+        "value": [35, 1035]
+      },
+      {
+        "column": "ss_wholesale_cost",
+        "operator": "between",
+        "value": [50, 70]
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "ss_list_price",
+    "aggregations": [
+      {
+        "function": "AVG",
+        "measure": "ss_list_price",
+        "alias": "B2_LP"
+      },
+      {
+        "function": "COUNT",
+        "measure": "ss_list_price",
+        "alias": "B2_CNT"
+      },
+      {
+        "function": "COUNT_DISTINCT",
+        "measure": "ss_list_price",
+        "alias": "B2_CNTD"
+      }
+    ]
+  },
+  {
+    "operation": "slice",
+    "dimension": "quantity",
+    "filter": {
+      "column": "ss_quantity",
+      "operator": "between",
+      "value": [11, 15]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "price_coupon_cost",
+    "filter": {
+      "column": "ss_list_price",
+      "operator": "between",
+      "value": [91, 101]
+    },
+    "logical_operator": "OR",
+    "additional_filters": [
+      {
+        "column": "ss_coupon_amt",
+        "operator": "between",
+        "value": [1412, 2412]
+      },
+      {
+        "column": "ss_wholesale_cost",
+        "operator": "between",
+        "value": [17, 37]
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "ss_list_price",
+    "aggregations": [
+      {
+        "function": "AVG",
+        "measure": "ss_list_price",
+        "alias": "B3_LP"
+      },
+      {
+        "function": "COUNT",
+        "measure": "ss_list_price",
+        "alias": "B3_CNT"
+      },
+      {
+        "function": "COUNT_DISTINCT",
+        "measure": "ss_list_price",
+        "alias": "B3_CNTD"
+      }
+    ]
+  },
+  {
+    "operation": "slice",
+    "dimension": "quantity",
+    "filter": {
+      "column": "ss_quantity",
+      "operator": "between",
+      "value": [16, 20]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "price_coupon_cost",
+    "filter": {
+      "column": "ss_list_price",
+      "operator": "between",
+      "value": [9, 19]
+    },
+    "logical_operator": "OR",
+    "additional_filters": [
+      {
+        "column": "ss_coupon_amt",
+        "operator": "between",
+        "value": [5270, 6270]
+      },
+      {
+        "column": "ss_wholesale_cost",
+        "operator": "between",
+        "value": [29, 49]
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "ss_list_price",
+    "aggregations": [
+      {
+        "function": "AVG",
+        "measure": "ss_list_price",
+        "alias": "B4_LP"
+      },
+      {
+        "function": "COUNT",
+        "measure": "ss_list_price",
+        "alias": "B4_CNT"
+      },
+      {
+        "function": "COUNT_DISTINCT",
+        "measure": "ss_list_price",
+        "alias": "B4_CNTD"
+      }
+    ]
+  },
+  {
+    "operation": "slice",
+    "dimension": "quantity",
+    "filter": {
+      "column": "ss_quantity",
+      "operator": "between",
+      "value": [21, 25]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "price_coupon_cost",
+    "filter": {
+      "column": "ss_list_price",
+      "operator": "between",
+      "value": [45, 55]
+    },
+    "logical_operator": "OR",
+    "additional_filters": [
+      {
+        "column": "ss_coupon_amt",
+        "operator": "between",
+        "value": [826, 1826]
+      },
+      {
+        "column": "ss_wholesale_cost",
+        "operator": "between",
+        "value": [5, 25]
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "ss_list_price",
+    "aggregations": [
+      {
+        "function": "AVG",
+        "measure": "ss_list_price",
+        "alias": "B5_LP"
+      },
+      {
+        "function": "COUNT",
+        "measure": "ss_list_price",
+        "alias": "B5_CNT"
+      },
+      {
+        "function": "COUNT_DISTINCT",
+        "measure": "ss_list_price",
+        "alias": "B5_CNTD"
+      }
+    ]
+  },
+  {
+    "operation": "slice",
+    "dimension": "quantity",
+    "filter": {
+      "column": "ss_quantity",
+      "operator": "between",
+      "value": [26, 30]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "price_coupon_cost",
+    "filter": {
+      "column": "ss_list_price",
+      "operator": "between",
+      "value": [174, 184]
+    },
+    "logical_operator": "OR",
+    "additional_filters": [
+      {
+        "column": "ss_coupon_amt",
+        "operator": "between",
+        "value": [5548, 6548]
+      },
+      {
+        "column": "ss_wholesale_cost",
+        "operator": "between",
+        "value": [42, 62]
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "ss_list_price",
+    "aggregations": [
+      {
+        "function": "AVG",
+        "measure": "ss_list_price",
+        "alias": "B6_LP"
+      },
+      {
+        "function": "COUNT",
+        "measure": "ss_list_price",
+        "alias": "B6_CNT"
+      },
+      {
+        "function": "COUNT_DISTINCT",
+        "measure": "ss_list_price",
+        "alias": "B6_CNTD"
+      }
+    ]
+  }
+]

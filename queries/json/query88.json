@@ -1,0 +1,137 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "store",
+    "filter": {
+      "column": "s_store_name",
+      "operator": "equals_to",
+      "value": "ese"
+    }
+  },
+  {
+    "operation": "dice",
+    "dimension": "household_demographics",
+    "filter": {
+      "logical_operator": "OR",
+      "conditions": [
+        {
+          "logical_operator": "AND",
+          "conditions": [
+            {
+              "column": "hd_dep_count",
+              "operator": "equals_to",
+              "value": -1
+            },
+            {
+              "column": "hd_vehicle_count",
+              "operator": "less_than_or_equal_to",
+              "value": 1
+            }
+          ]
+        },
+        {
+          "logical_operator": "AND",
+          "conditions": [
+            {
+              "column": "hd_dep_count",
+              "operator": "equals_to",
+              "value": 2
+            },
+            {
+              "column": "hd_vehicle_count",
+              "operator": "less_than_or_equal_to",
+              "value": 4
+            }
+          ]
+        },
+        {
+          "logical_operator": "AND",
+          "conditions": [
+            {
+              "column": "hd_dep_count",
+              "operator": "equals_to",
+              "value": 3
+            },
+            {
+              "column": "hd_vehicle_count",
+              "operator": "less_than_or_equal_to",
+              "value": 5
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimension": "time",
+    "filter": {
+      "logical_operator": "OR",
+      "time_windows": [
+        {
+          "name": "h8_30_to_9",
+          "conditions": [
+            {"column": "t_hour", "operator": "equals_to", "value": 8},
+            {"column": "t_minute", "operator": "greater_than_or_equal_to", "value": 30}
+          ]
+        },
+        {
+          "name": "h9_to_9_30",
+          "conditions": [
+            {"column": "t_hour", "operator": "equals_to", "value": 9},
+            {"column": "t_minute", "operator": "less_than", "value": 30}
+          ]
+        },
+        {
+          "name": "h9_30_to_10",
+          "conditions": [
+            {"column": "t_hour", "operator": "equals_to", "value": 9},
+            {"column": "t_minute", "operator": "greater_than_or_equal_to", "value": 30}
+          ]
+        },
+        {
+          "name": "h10_to_10_30",
+          "conditions": [
+            {"column": "t_hour", "operator": "equals_to", "value": 10},
+            {"column": "t_minute", "operator": "less_than", "value": 30}
+          ]
+        },
+        {
+          "name": "h10_30_to_11",
+          "conditions": [
+            {"column": "t_hour", "operator": "equals_to", "value": 10},
+            {"column": "t_minute", "operator": "greater_than_or_equal_to", "value": 30}
+          ]
+        },
+        {
+          "name": "h11_to_11_30",
+          "conditions": [
+            {"column": "t_hour", "operator": "equals_to", "value": 11},
+            {"column": "t_minute", "operator": "less_than", "value": 30}
+          ]
+        },
+        {
+          "name": "h11_30_to_12",
+          "conditions": [
+            {"column": "t_hour", "operator": "equals_to", "value": 11},
+            {"column": "t_minute", "operator": "greater_than_or_equal_to", "value": 30}
+          ]
+        },
+        {
+          "name": "h12_to_12_30",
+          "conditions": [
+            {"column": "t_hour", "operator": "equals_to", "value": 12},
+            {"column": "t_minute", "operator": "less_than", "value": 30}
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "time",
+    "aggregation": "count",
+    "group_by": ["time_window"],
+    "description": "Aggregate sales count by 30-minute time windows"
+  }
+]

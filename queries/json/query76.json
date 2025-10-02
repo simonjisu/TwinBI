@@ -1,0 +1,70 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "store_sales",
+    "filter": {
+      "column": "ss_hdemo_sk",
+      "operator": "is_null",
+      "value": null
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "web_sales",
+    "filter": {
+      "column": "ws_ship_hdemo_sk",
+      "operator": "is_null",
+      "value": null
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "catalog_sales",
+    "filter": {
+      "column": "cs_warehouse_sk",
+      "operator": "is_null",
+      "value": null
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["channel", "col_name", "date", "item"],
+    "filters": [
+      {
+        "column": "channel",
+        "operator": "in",
+        "value": ["store", "web", "catalog"]
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": ["channel", "col_name", "d_year", "d_qoy", "i_category"],
+    "measures": [
+      {
+        "name": "sales_cnt",
+        "aggregation": "count",
+        "column": "*"
+      },
+      {
+        "name": "sales_amt",
+        "aggregation": "sum",
+        "column": "ext_sales_price"
+      }
+    ]
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {"column": "channel", "direction": "asc"},
+      {"column": "col_name", "direction": "asc"},
+      {"column": "d_year", "direction": "asc"},
+      {"column": "d_qoy", "direction": "asc"},
+      {"column": "i_category", "direction": "asc"}
+    ]
+  },
+  {
+    "operation": "limit",
+    "row_count": 100
+  }
+]

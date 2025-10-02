@@ -1,0 +1,91 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_date",
+      "operator": "between",
+      "value": ["2002-03-01", "2002-04-30"]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_address",
+    "filter": {
+      "column": "ca_state",
+      "operator": "equals_to",
+      "value": "IA"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "call_center",
+    "filter": {
+      "column": "cc_county",
+      "operator": "in",
+      "value": ["Williamson County"]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "catalog_sales",
+    "filter": {
+      "column": "cs_order_number",
+      "operator": "exists_multi_warehouse",
+      "value": "orders with multiple warehouses"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "catalog_sales",
+    "filter": {
+      "column": "cs_order_number",
+      "operator": "not_exists_return",
+      "value": "orders without returns"
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["date", "customer_address", "call_center"],
+    "filters": {
+      "d_date": "between 2002-03-01 and 2002-04-30",
+      "ca_state": "IA",
+      "cc_county": "Williamson County"
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "catalog_sales",
+    "aggregations": [
+      {
+        "function": "count_distinct",
+        "column": "cs_order_number",
+        "alias": "order count"
+      },
+      {
+        "function": "sum",
+        "column": "cs_ext_ship_cost",
+        "alias": "total shipping cost"
+      },
+      {
+        "function": "sum",
+        "column": "cs_net_profit",
+        "alias": "total net profit"
+      }
+    ],
+    "group_by": []
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {
+        "column": "order count",
+        "direction": "ascending"
+      }
+    ]
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

@@ -1,0 +1,175 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 2001
+    }
+  },
+  {
+    "operation": "dice",
+    "description": "Filter by customer demographics and household demographics - Scenario 1",
+    "filters": [
+      {
+        "column": "cd_marital_status",
+        "operator": "equals_to",
+        "value": "U"
+      },
+      {
+        "column": "cd_education_status",
+        "operator": "equals_to",
+        "value": "Advanced Degree"
+      },
+      {
+        "column": "ss_sales_price",
+        "operator": "between",
+        "value": [100.00, 150.00]
+      },
+      {
+        "column": "hd_dep_count",
+        "operator": "equals_to",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "operation": "dice",
+    "description": "Filter by customer demographics and household demographics - Scenario 2",
+    "filters": [
+      {
+        "column": "cd_marital_status",
+        "operator": "equals_to",
+        "value": "M"
+      },
+      {
+        "column": "cd_education_status",
+        "operator": "equals_to",
+        "value": "Primary"
+      },
+      {
+        "column": "ss_sales_price",
+        "operator": "between",
+        "value": [50.00, 100.00]
+      },
+      {
+        "column": "hd_dep_count",
+        "operator": "equals_to",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "operation": "dice",
+    "description": "Filter by customer demographics and household demographics - Scenario 3",
+    "filters": [
+      {
+        "column": "cd_marital_status",
+        "operator": "equals_to",
+        "value": "D"
+      },
+      {
+        "column": "cd_education_status",
+        "operator": "equals_to",
+        "value": "Secondary"
+      },
+      {
+        "column": "ss_sales_price",
+        "operator": "between",
+        "value": [150.00, 200.00]
+      },
+      {
+        "column": "hd_dep_count",
+        "operator": "equals_to",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "operation": "dice",
+    "description": "Filter by customer address - Geographic Scenario 1",
+    "filters": [
+      {
+        "column": "ca_country",
+        "operator": "equals_to",
+        "value": "United States"
+      },
+      {
+        "column": "ca_state",
+        "operator": "in",
+        "value": ["AZ", "NE", "IA"]
+      },
+      {
+        "column": "ss_net_profit",
+        "operator": "between",
+        "value": [100, 200]
+      }
+    ]
+  },
+  {
+    "operation": "dice",
+    "description": "Filter by customer address - Geographic Scenario 2",
+    "filters": [
+      {
+        "column": "ca_country",
+        "operator": "equals_to",
+        "value": "United States"
+      },
+      {
+        "column": "ca_state",
+        "operator": "in",
+        "value": ["MS", "CA", "NV"]
+      },
+      {
+        "column": "ss_net_profit",
+        "operator": "between",
+        "value": [150, 300]
+      }
+    ]
+  },
+  {
+    "operation": "dice",
+    "description": "Filter by customer address - Geographic Scenario 3",
+    "filters": [
+      {
+        "column": "ca_country",
+        "operator": "equals_to",
+        "value": "United States"
+      },
+      {
+        "column": "ca_state",
+        "operator": "in",
+        "value": ["GA", "TX", "NJ"]
+      },
+      {
+        "column": "ss_net_profit",
+        "operator": "between",
+        "value": [50, 250]
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "description": "Aggregate measures across all dimensions",
+    "aggregations": [
+      {
+        "measure": "ss_quantity",
+        "function": "AVG"
+      },
+      {
+        "measure": "ss_ext_sales_price",
+        "function": "AVG"
+      },
+      {
+        "measure": "ss_ext_wholesale_cost",
+        "function": "AVG"
+      },
+      {
+        "measure": "ss_ext_wholesale_cost",
+        "function": "SUM"
+      }
+    ],
+    "group_by": []
+  }
+]

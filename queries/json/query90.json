@@ -1,0 +1,80 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "time_dim",
+    "filter": {
+      "column": "t_hour",
+      "operator": "between",
+      "value": [12, 13]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "household_demographics",
+    "filter": {
+      "column": "hd_dep_count",
+      "operator": "equals_to",
+      "value": 8
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "web_page",
+    "filter": {
+      "column": "wp_char_count",
+      "operator": "between",
+      "value": [5000, 5200]
+    }
+  },
+  {
+    "operation": "aggregate",
+    "measure": "count",
+    "alias": "amc"
+  },
+  {
+    "operation": "slice",
+    "dimension": "time_dim",
+    "filter": {
+      "column": "t_hour",
+      "operator": "between",
+      "value": [20, 21]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "household_demographics",
+    "filter": {
+      "column": "hd_dep_count",
+      "operator": "equals_to",
+      "value": 8
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "web_page",
+    "filter": {
+      "column": "wp_char_count",
+      "operator": "between",
+      "value": [5000, 5200]
+    }
+  },
+  {
+    "operation": "aggregate",
+    "measure": "count",
+    "alias": "pmc"
+  },
+  {
+    "operation": "calculate",
+    "expression": "amc / pmc",
+    "alias": "am_pm_ratio"
+  },
+  {
+    "operation": "sort",
+    "column": "am_pm_ratio",
+    "order": "ascending"
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

@@ -1,0 +1,59 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_month_seq",
+      "operator": "between",
+      "value": [1188, 1199]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["customer", "date"],
+    "projection": {
+      "columns": ["c_last_name", "c_first_name", "d_date"]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "sales_channel",
+    "filter": {
+      "column": "channel_type",
+      "operator": "in",
+      "value": ["store", "catalog", "web"]
+    }
+  },
+  {
+    "operation": "intersect",
+    "description": "Find customers who purchased through all three channels (store, catalog, and web) within the date range",
+    "suboperations": [
+      {
+        "channel": "store_sales",
+        "distinct": true
+      },
+      {
+        "channel": "catalog_sales",
+        "distinct": true
+      },
+      {
+        "channel": "web_sales",
+        "distinct": true
+      }
+    ]
+  },
+  {
+    "operation": "aggregate",
+    "function": "count",
+    "description": "Count distinct customer-date combinations that appear in all three sales channels"
+  },
+  {
+    "operation": "slice",
+    "dimension": "result_set",
+    "filter": {
+      "column": "row_number",
+      "operator": "less_than_or_equal",
+      "value": 100
+    }
+  }
+]

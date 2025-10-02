@@ -1,0 +1,72 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 2001
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_demographics",
+    "filter": {
+      "column": "cd_gender",
+      "operator": "equals_to",
+      "value": "F"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_demographics",
+    "filter": {
+      "column": "cd_education_status",
+      "operator": "equals_to",
+      "value": "Secondary"
+    }
+  },
+  {
+    "operation": "dice",
+    "dimension": "customer",
+    "filter": {
+      "column": "c_birth_month",
+      "operator": "in",
+      "value": [8, 4, 2, 5, 11, 9]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimension": "customer_address",
+    "filter": {
+      "column": "ca_state",
+      "operator": "in",
+      "value": ["KS", "IA", "AL", "UT", "VA", "NC", "TX"]
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": ["i_item_id", "ca_country", "ca_state", "ca_county"],
+    "aggregation": {
+      "measures": [
+        {"name": "agg1", "function": "AVG", "column": "cs_quantity"},
+        {"name": "agg2", "function": "AVG", "column": "cs_list_price"},
+        {"name": "agg3", "function": "AVG", "column": "cs_coupon_amt"},
+        {"name": "agg4", "function": "AVG", "column": "cs_sales_price"},
+        {"name": "agg5", "function": "AVG", "column": "cs_net_profit"},
+        {"name": "agg6", "function": "AVG", "column": "c_birth_year"},
+        {"name": "agg7", "function": "AVG", "column": "cd_dep_count"}
+      ]
+    },
+    "hierarchy": "hierarchical rollup with subtotals at each level"
+  },
+  {
+    "operation": "sort",
+    "order_by": ["ca_country", "ca_state", "ca_county", "i_item_id"],
+    "direction": "ascending"
+  },
+  {
+    "operation": "limit",
+    "top": 100
+  }
+]

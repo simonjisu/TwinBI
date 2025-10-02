@@ -1,0 +1,77 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 1999
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_moy",
+      "operator": "equals_to",
+      "value": 11
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "item",
+    "filter": {
+      "column": "i_manager_id",
+      "operator": "equals_to",
+      "value": 1
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["date", "item"],
+    "filters": [
+      {
+        "column": "d_year",
+        "operator": "equals_to",
+        "value": 1999
+      },
+      {
+        "column": "d_moy",
+        "operator": "equals_to",
+        "value": 11
+      },
+      {
+        "column": "i_manager_id",
+        "operator": "equals_to",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": ["d_year", "i_brand", "i_brand_id"],
+    "measure": "ss_ext_sales_price",
+    "aggregation": "sum"
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {
+        "column": "d_year",
+        "direction": "asc"
+      },
+      {
+        "column": "ext_price",
+        "direction": "desc"
+      },
+      {
+        "column": "brand_id",
+        "direction": "asc"
+      }
+    ]
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

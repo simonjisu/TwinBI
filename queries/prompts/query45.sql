@@ -1,0 +1,47 @@
+
+You are an expert in OLAP. Assuming you have a cube of a denormalized table in a data warehouse, given an sql in TPC-DS below, your task is to transform it in to a series of OLAP operations like roll-up, roll-down, slide, dice. You can ignore any join and union operations as the table is denormalized. Please return a series of operations in JSON format.
+
+**Query**
+-- start query 45 in stream 0 using template query45.tpl 
+SELECT ca_zip, 
+               ca_state, 
+               Sum(ws_sales_price) 
+FROM   web_sales, 
+       customer, 
+       customer_address, 
+       date_dim, 
+       item 
+WHERE  ws_bill_customer_sk = c_customer_sk 
+       AND c_current_addr_sk = ca_address_sk 
+       AND ws_item_sk = i_item_sk 
+       AND ( Substr(ca_zip, 1, 5) IN ( '85669', '86197', '88274', '83405', 
+                                       '86475', '85392', '85460', '80348', 
+                                       '81792' ) 
+              OR i_item_id IN (SELECT i_item_id 
+                               FROM   item 
+                               WHERE  i_item_sk IN ( 2, 3, 5, 7, 
+                                                     11, 13, 17, 19, 
+                                                     23, 29 )) ) 
+       AND ws_sold_date_sk = d_date_sk 
+       AND d_qoy = 1 
+       AND d_year = 2000 
+GROUP  BY ca_zip, 
+          ca_state 
+ORDER  BY ca_zip, 
+          ca_state
+LIMIT 100; 
+
+
+**Response format**
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 2001
+    }
+  },
+  ...
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "customer_demographics",
+    "filter": {
+      "column": "cd_gender",
+      "operator": "equals_to",
+      "value": "F"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_demographics",
+    "filter": {
+      "column": "cd_marital_status",
+      "operator": "equals_to",
+      "value": "W"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_demographics",
+    "filter": {
+      "column": "cd_education_status",
+      "operator": "equals_to",
+      "value": "2 yr Degree"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 1998
+    }
+  },
+  {
+    "operation": "dice",
+    "dimension": "promotion",
+    "filter": {
+      "logical_operator": "OR",
+      "conditions": [
+        {
+          "column": "p_channel_email",
+          "operator": "equals_to",
+          "value": "N"
+        },
+        {
+          "column": "p_channel_event",
+          "operator": "equals_to",
+          "value": "N"
+        }
+      ]
+    }
+  },
+  {
+    "operation": "roll_up",
+    "dimension": "item",
+    "group_by": ["i_item_id"],
+    "aggregations": [
+      {
+        "function": "AVG",
+        "column": "ss_quantity",
+        "alias": "agg1"
+      },
+      {
+        "function": "AVG",
+        "column": "ss_list_price",
+        "alias": "agg2"
+      },
+      {
+        "function": "AVG",
+        "column": "ss_coupon_amt",
+        "alias": "agg3"
+      },
+      {
+        "function": "AVG",
+        "column": "ss_sales_price",
+        "alias": "agg4"
+      }
+    ]
+  },
+  {
+    "operation": "sort",
+    "dimension": "item",
+    "order_by": [
+      {
+        "column": "i_item_id",
+        "direction": "ASC"
+      }
+    ]
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

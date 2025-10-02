@@ -1,0 +1,94 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals",
+      "value": 1998
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "time",
+    "filter": {
+      "column": "t_time",
+      "operator": "between",
+      "value": [7249, 36049]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "ship_mode",
+    "filter": {
+      "column": "sm_carrier",
+      "operator": "in",
+      "value": ["ZOUROS", "ZHOU"]
+    }
+  },
+  {
+    "operation": "pivot",
+    "dimension": "month",
+    "source_column": "d_moy",
+    "measure_columns": [
+      "ws_ext_sales_price * ws_quantity",
+      "ws_net_paid_inc_ship * ws_quantity",
+      "cs_ext_sales_price * cs_quantity",
+      "cs_net_paid * cs_quantity"
+    ],
+    "target_columns": [
+      "jan_sales", "feb_sales", "mar_sales", "apr_sales", "may_sales", "jun_sales",
+      "jul_sales", "aug_sales", "sep_sales", "oct_sales", "nov_sales", "dec_sales",
+      "jan_net", "feb_net", "mar_net", "apr_net", "may_net", "jun_net",
+      "jul_net", "aug_net", "sep_net", "oct_net", "nov_net", "dec_net"
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimension": "warehouse",
+    "grouping_columns": [
+      "w_warehouse_name",
+      "w_warehouse_sq_ft",
+      "w_city",
+      "w_county",
+      "w_state",
+      "w_country"
+    ],
+    "aggregation": "sum",
+    "measures": [
+      "jan_sales", "feb_sales", "mar_sales", "apr_sales", "may_sales", "jun_sales",
+      "jul_sales", "aug_sales", "sep_sales", "oct_sales", "nov_sales", "dec_sales",
+      "jan_net", "feb_net", "mar_net", "apr_net", "may_net", "jun_net",
+      "jul_net", "aug_net", "sep_net", "oct_net", "nov_net", "dec_net"
+    ]
+  },
+  {
+    "operation": "derived_measure",
+    "calculation": "ratio",
+    "numerator_columns": [
+      "jan_sales", "feb_sales", "mar_sales", "apr_sales", "may_sales", "jun_sales",
+      "jul_sales", "aug_sales", "sep_sales", "oct_sales", "nov_sales", "dec_sales"
+    ],
+    "denominator_column": "w_warehouse_sq_ft",
+    "result_columns": [
+      "jan_sales_per_sq_foot", "feb_sales_per_sq_foot", "mar_sales_per_sq_foot",
+      "apr_sales_per_sq_foot", "may_sales_per_sq_foot", "jun_sales_per_sq_foot",
+      "jul_sales_per_sq_foot", "aug_sales_per_sq_foot", "sep_sales_per_sq_foot",
+      "oct_sales_per_sq_foot", "nov_sales_per_sq_foot", "dec_sales_per_sq_foot"
+    ]
+  },
+  {
+    "operation": "sort",
+    "dimension": "warehouse",
+    "order_by": [
+      {
+        "column": "w_warehouse_name",
+        "direction": "ascending"
+      }
+    ]
+  },
+  {
+    "operation": "limit",
+    "row_count": 100
+  }
+]

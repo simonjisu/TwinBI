@@ -1,0 +1,85 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals_to",
+      "value": 1999
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_address",
+    "filter": {
+      "column": "ca_state",
+      "operator": "equals_to",
+      "value": "TX"
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimension": ["cr_returning_customer_sk", "ca_state"],
+    "measure": "cr_return_amt_inc_tax",
+    "aggregation": "sum",
+    "result_measure": "ctr_total_return"
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_total_return",
+    "filter": {
+      "column": "ctr_total_return",
+      "operator": "greater_than",
+      "value": "1.2 * AVG(ctr_total_return) per ctr_state",
+      "description": "Filter customers whose total return exceeds 120% of the state average"
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["customer", "customer_address", "customer_total_return"],
+    "selected_attributes": [
+      "c_customer_id",
+      "c_salutation",
+      "c_first_name",
+      "c_last_name",
+      "ca_street_number",
+      "ca_street_name",
+      "ca_street_type",
+      "ca_suite_number",
+      "ca_city",
+      "ca_county",
+      "ca_state",
+      "ca_zip",
+      "ca_country",
+      "ca_gmt_offset",
+      "ca_location_type",
+      "ctr_total_return"
+    ]
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      "c_customer_id",
+      "c_salutation",
+      "c_first_name",
+      "c_last_name",
+      "ca_street_number",
+      "ca_street_name",
+      "ca_street_type",
+      "ca_suite_number",
+      "ca_city",
+      "ca_county",
+      "ca_state",
+      "ca_zip",
+      "ca_country",
+      "ca_gmt_offset",
+      "ca_location_type",
+      "ctr_total_return"
+    ],
+    "direction": "ascending"
+  },
+  {
+    "operation": "limit",
+    "top_n": 100
+  }
+]

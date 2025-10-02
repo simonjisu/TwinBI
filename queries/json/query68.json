@@ -1,0 +1,92 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_dom",
+      "operator": "between",
+      "value": [1, 2]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "in",
+      "value": [1998, 1999, 2000]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimension": "household_demographics",
+    "filter": {
+      "logical_operator": "or",
+      "conditions": [
+        {
+          "column": "hd_dep_count",
+          "operator": "equals_to",
+          "value": 8
+        },
+        {
+          "column": "hd_vehicle_count",
+          "operator": "equals_to",
+          "value": 3
+        }
+      ]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "store",
+    "filter": {
+      "column": "s_city",
+      "operator": "in",
+      "value": ["Fairview", "Midway"]
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": ["ss_ticket_number", "ss_customer_sk", "ss_addr_sk", "ca_city"],
+    "measures": [
+      {
+        "name": "extended_price",
+        "aggregation": "sum",
+        "column": "ss_ext_sales_price"
+      },
+      {
+        "name": "list_price",
+        "aggregation": "sum",
+        "column": "ss_ext_list_price"
+      },
+      {
+        "name": "extended_tax",
+        "aggregation": "sum",
+        "column": "ss_ext_tax"
+      }
+    ]
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_address",
+    "filter": {
+      "column": "ca_city",
+      "operator": "not_equals",
+      "value": "bought_city",
+      "note": "Filter where current city differs from purchase city"
+    }
+  },
+  {
+    "operation": "project",
+    "attributes": [
+      "c_last_name",
+      "c_first_name",
+      "ca_city",
+      "bought_city",
+      "ss_ticket_number",
+      "extended_price",
+      "extended_tax",
+      "list_price"
+    ]
+  }
+]

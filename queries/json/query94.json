@@ -1,0 +1,83 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_date",
+      "operator": "between",
+      "value": ["2000-03-01", "2000-04-30"]
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "customer_address",
+    "filter": {
+      "column": "ca_state",
+      "operator": "equals_to",
+      "value": "MT"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "web_site",
+    "filter": {
+      "column": "web_company_name",
+      "operator": "equals_to",
+      "value": "pri"
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["date", "customer_address", "web_site"],
+    "description": "Apply all slice filters simultaneously to create a sub-cube"
+  },
+  {
+    "operation": "filter",
+    "dimension": "web_sales",
+    "filter": {
+      "column": "ws_order_number",
+      "operator": "exists_in_subquery",
+      "condition": "orders with multiple warehouses (ws1.ws_warehouse_sk <> ws2.ws_warehouse_sk)"
+    }
+  },
+  {
+    "operation": "filter",
+    "dimension": "web_sales",
+    "filter": {
+      "column": "ws_order_number",
+      "operator": "not_exists_in_subquery",
+      "condition": "orders without returns (NOT IN web_returns)"
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": [],
+    "aggregations": [
+      {
+        "measure": "ws_order_number",
+        "function": "count_distinct",
+        "alias": "order count"
+      },
+      {
+        "measure": "ws_ext_ship_cost",
+        "function": "sum",
+        "alias": "total shipping cost"
+      },
+      {
+        "measure": "ws_net_profit",
+        "function": "sum",
+        "alias": "total net profit"
+      }
+    ],
+    "description": "Aggregate to the all level (grand total)"
+  },
+  {
+    "operation": "sort",
+    "dimension": "order count",
+    "order": "ascending"
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

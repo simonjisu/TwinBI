@@ -1,0 +1,58 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_date",
+      "operator": "between",
+      "value": ["2002-08-22", "2002-09-05"]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["channel", "store_id", "catalog_page_id", "web_site_id"],
+    "description": "Select specific dimensions for analysis across three sales channels"
+  },
+  {
+    "operation": "pivot",
+    "rows": ["channel", "id"],
+    "measures": ["sales", "returns1", "profit"],
+    "description": "Reshape data with channel and id as rows, aggregating sales, returns, and profit measures"
+  },
+  {
+    "operation": "aggregate",
+    "measures": [
+      {
+        "column": "ss_ext_sales_price",
+        "function": "sum",
+        "alias": "sales"
+      },
+      {
+        "column": "sr_return_amt",
+        "function": "sum",
+        "alias": "returns1"
+      },
+      {
+        "column": "profit_calculation",
+        "function": "sum",
+        "alias": "profit",
+        "formula": "(ss_net_profit + cs_net_profit + ws_net_profit) - (sr_net_loss + cr_net_loss + wr_net_loss)"
+      }
+    ],
+    "group_by": ["s_store_id", "cp_catalog_page_id", "web_site_id"]
+  },
+  {
+    "operation": "roll-up",
+    "hierarchy": ["channel", "id"],
+    "description": "Perform rollup aggregation to create subtotals at channel level and grand total"
+  },
+  {
+    "operation": "sort",
+    "dimensions": ["channel", "id"],
+    "order": "ascending"
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

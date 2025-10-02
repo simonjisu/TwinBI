@@ -1,0 +1,79 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_moy",
+      "operator": "equals",
+      "value": 4
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "equals",
+      "value": 1998
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_moy",
+      "operator": "between",
+      "value": [4, 7]
+    },
+    "comment": "For store returns date dimension (d2)"
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_year",
+      "operator": "in",
+      "value": [1998, 1999, 2000]
+    },
+    "comment": "For catalog sales date dimension (d3)"
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item", "store", "date"],
+    "filters": {
+      "item": "all items involved in the matched transactions",
+      "store": "all stores involved in the matched transactions",
+      "date": "dates matching the slice conditions above"
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": ["i_item_id", "i_item_desc", "s_store_id", "s_store_name"],
+    "aggregations": [
+      {
+        "measure": "ss_quantity",
+        "function": "AVG",
+        "alias": "store_sales_quantity"
+      },
+      {
+        "measure": "sr_return_quantity",
+        "function": "AVG",
+        "alias": "store_returns_quantity"
+      },
+      {
+        "measure": "cs_quantity",
+        "function": "AVG",
+        "alias": "catalog_sales_quantity"
+      }
+    ]
+  },
+  {
+    "operation": "sort",
+    "order_by": ["i_item_id", "i_item_desc", "s_store_id", "s_store_name"],
+    "direction": "ascending"
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

@@ -1,0 +1,76 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_month_seq",
+      "operator": "between",
+      "value": [1181, 1192]
+    }
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["item", "date", "store"],
+    "attributes": [
+      "i_category",
+      "i_class",
+      "i_brand",
+      "i_product_name",
+      "d_year",
+      "d_qoy",
+      "d_moy",
+      "s_store_id"
+    ]
+  },
+  {
+    "operation": "roll-up",
+    "dimension_hierarchy": [
+      "i_category",
+      "i_class",
+      "i_brand",
+      "i_product_name",
+      "d_year",
+      "d_qoy",
+      "d_moy",
+      "s_store_id"
+    ],
+    "aggregation": {
+      "measure": "ss_sales_price * ss_quantity",
+      "function": "sum",
+      "result_name": "sumsales"
+    },
+    "rollup_type": "multi_level",
+    "description": "ROLLUP generates multiple aggregation levels including grand total"
+  },
+  {
+    "operation": "slice",
+    "dimension": "ranking",
+    "filter": {
+      "column": "rk",
+      "operator": "less_than_or_equal",
+      "value": 100
+    },
+    "description": "Filter rows where rank within category is <= 100"
+  },
+  {
+    "operation": "pivot",
+    "dimension": "i_category",
+    "ranking_measure": "sumsales",
+    "ranking_function": "rank",
+    "partition_by": "i_category",
+    "order_by": {
+      "column": "sumsales",
+      "direction": "desc"
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "result_set",
+    "filter": {
+      "column": "row_number",
+      "operator": "less_than_or_equal",
+      "value": 100
+    },
+    "description": "TOP 100 limit on final result set"
+  }
+]

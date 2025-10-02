@@ -1,0 +1,47 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "item",
+    "filter": {
+      "column": "i_manufact_id",
+      "operator": "equals_to",
+      "value": 427
+    }
+  },
+  {
+    "operation": "slice",
+    "dimension": "date",
+    "filter": {
+      "column": "d_moy",
+      "operator": "equals_to",
+      "value": 11
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimensions": ["d_year", "i_brand", "i_brand_id"],
+    "measure": "ss_ext_discount_amt",
+    "aggregation": "sum"
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {
+        "column": "d_year",
+        "direction": "ascending"
+      },
+      {
+        "column": "sum_agg",
+        "direction": "descending"
+      },
+      {
+        "column": "brand_id",
+        "direction": "ascending"
+      }
+    ]
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]

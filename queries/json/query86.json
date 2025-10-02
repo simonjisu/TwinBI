@@ -1,0 +1,62 @@
+[
+  {
+    "operation": "slice",
+    "dimension": "date_dim",
+    "filter": {
+      "column": "d_month_seq",
+      "operator": "between",
+      "value": [1183, 1194]
+    }
+  },
+  {
+    "operation": "roll-up",
+    "dimension_hierarchy": ["i_category", "i_class"],
+    "aggregation": {
+      "measure": "ws_net_paid",
+      "function": "sum"
+    },
+    "description": "ROLLUP operation creates multiple grouping levels: (i_category, i_class), (i_category), and grand total ()"
+  },
+  {
+    "operation": "dice",
+    "dimensions": ["i_category", "i_class"],
+    "description": "Project on item dimensions for hierarchical grouping"
+  },
+  {
+    "operation": "aggregate",
+    "measure": "ws_net_paid",
+    "function": "sum",
+    "alias": "total_sum"
+  },
+  {
+    "operation": "rank",
+    "partition_by": ["lochierarchy", "i_category"],
+    "order_by": {
+      "column": "total_sum",
+      "direction": "DESC"
+    },
+    "description": "Rank within each hierarchical level and category"
+  },
+  {
+    "operation": "sort",
+    "order_by": [
+      {
+        "column": "lochierarchy",
+        "direction": "DESC"
+      },
+      {
+        "column": "i_category",
+        "direction": "ASC",
+        "condition": "when lochierarchy = 0"
+      },
+      {
+        "column": "rank_within_parent",
+        "direction": "ASC"
+      }
+    ]
+  },
+  {
+    "operation": "limit",
+    "value": 100
+  }
+]
