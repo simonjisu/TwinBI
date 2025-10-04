@@ -1,0 +1,303 @@
+{
+  "table": "warehouse",
+  "children": [
+    {
+      "name": "w_warehouse_id",
+      "label": "Identity",
+      "stats": {
+        "count": 5,
+        "null_count": 0,
+        "distinct_count": 5,
+        "min": null,
+        "max": null,
+        "range": null,
+        "dtype": "string",
+        "unique_values": {
+          "type": "list",
+          "values": [
+            "AAAAAAAABAAAAAAA",
+            "AAAAAAAACAAAAAAA",
+            "AAAAAAAADAAAAAAA",
+            "AAAAAAAAEAAAAAAA",
+            "AAAAAAAAFAAAAAAA"
+          ]
+        }
+      },
+      "children": []
+    },
+    {
+      "name": "w_warehouse_name",
+      "label": "Warehouse_Info",
+      "stats": {
+        "count": 5,
+        "null_count": 1,
+        "distinct_count": 4,
+        "min": null,
+        "max": null,
+        "range": null,
+        "dtype": "string",
+        "unique_values": {
+          "type": "list",
+          "values": [
+            "Conventional childr",
+            "Of course ot",
+            "Social, royal laws m",
+            "Terms overcome instr"
+          ]
+        }
+      },
+      "children": [
+        {
+          "name": "w_warehouse_sq_ft",
+          "label": "Warehouse Sq Ft",
+          "stats": {
+            "count": 5,
+            "null_count": 1,
+            "distinct_count": 4,
+            "min": 138504,
+            "max": 977787,
+            "range": [
+              138504,
+              977787
+            ],
+            "dtype": "integer",
+            "unique_values": {
+              "type": "list",
+              "values": [
+                138504,
+                294242,
+                621234,
+                977787
+              ]
+            }
+          },
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "w_street_number",
+      "label": "Location",
+      "stats": {
+        "count": 5,
+        "null_count": 1,
+        "distinct_count": 4,
+        "min": null,
+        "max": null,
+        "range": null,
+        "dtype": "string",
+        "unique_values": {
+          "type": "list",
+          "values": [
+            "368",
+            "534",
+            "600",
+            "651"
+          ]
+        }
+      },
+      "children": [
+        {
+          "name": "w_street_name",
+          "label": "Street Name",
+          "stats": {
+            "count": 5,
+            "null_count": 1,
+            "distinct_count": 4,
+            "min": null,
+            "max": null,
+            "range": null,
+            "dtype": "string",
+            "unique_values": {
+              "type": "list",
+              "values": [
+                "6th ",
+                "Ash Laurel",
+                "View First",
+                "Wilson Elm"
+              ]
+            }
+          },
+          "children": [
+            {
+              "name": "w_street_type",
+              "label": "Street Type",
+              "stats": {
+                "count": 5,
+                "null_count": 1,
+                "distinct_count": 4,
+                "min": null,
+                "max": null,
+                "range": null,
+                "dtype": "string",
+                "unique_values": {
+                  "type": "list",
+                  "values": [
+                    "Avenue",
+                    "Dr.",
+                    "Drive",
+                    "Parkway"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "name": "w_suite_number",
+                  "label": "Suite Number",
+                  "stats": {
+                    "count": 5,
+                    "null_count": 1,
+                    "distinct_count": 4,
+                    "min": null,
+                    "max": null,
+                    "range": null,
+                    "dtype": "string",
+                    "unique_values": {
+                      "type": "list",
+                      "values": [
+                        "Suite 0",
+                        "Suite 470",
+                        "Suite 80",
+                        "Suite P"
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "name": "w_city",
+                      "label": "City",
+                      "stats": {
+                        "count": 5,
+                        "null_count": 0,
+                        "distinct_count": 1,
+                        "min": null,
+                        "max": null,
+                        "range": null,
+                        "dtype": "string",
+                        "unique_values": {
+                          "type": "list",
+                          "values": [
+                            "Fairview"
+                          ]
+                        }
+                      },
+                      "children": [
+                        {
+                          "name": "w_county",
+                          "label": "County",
+                          "stats": {
+                            "count": 5,
+                            "null_count": 0,
+                            "distinct_count": 1,
+                            "min": null,
+                            "max": null,
+                            "range": null,
+                            "dtype": "string",
+                            "unique_values": {
+                              "type": "list",
+                              "values": [
+                                "Williamson County"
+                              ]
+                            }
+                          },
+                          "children": [
+                            {
+                              "name": "w_state",
+                              "label": "State",
+                              "stats": {
+                                "count": 5,
+                                "null_count": 0,
+                                "distinct_count": 1,
+                                "min": null,
+                                "max": null,
+                                "range": null,
+                                "dtype": "string",
+                                "unique_values": {
+                                  "type": "list",
+                                  "values": [
+                                    "TN"
+                                  ]
+                                }
+                              },
+                              "children": [
+                                {
+                                  "name": "w_zip",
+                                  "label": "ZIP",
+                                  "stats": {
+                                    "count": 5,
+                                    "null_count": 0,
+                                    "distinct_count": 1,
+                                    "min": null,
+                                    "max": null,
+                                    "range": null,
+                                    "dtype": "string",
+                                    "unique_values": {
+                                      "type": "list",
+                                      "values": [
+                                        "35709"
+                                      ]
+                                    }
+                                  },
+                                  "children": [
+                                    {
+                                      "name": "w_country",
+                                      "label": "Country",
+                                      "stats": {
+                                        "count": 5,
+                                        "null_count": 0,
+                                        "distinct_count": 1,
+                                        "min": null,
+                                        "max": null,
+                                        "range": null,
+                                        "dtype": "string",
+                                        "unique_values": {
+                                          "type": "list",
+                                          "values": [
+                                            "United States"
+                                          ]
+                                        }
+                                      },
+                                      "children": [
+                                        {
+                                          "name": "w_gmt_offset",
+                                          "label": "GMT Offset",
+                                          "stats": {
+                                            "count": 5,
+                                            "null_count": 1,
+                                            "distinct_count": 1,
+                                            "min": "-5.00",
+                                            "max": "-5.00",
+                                            "range": [
+                                              "-5.00",
+                                              "-5.00"
+                                            ],
+                                            "dtype": "numeric",
+                                            "unique_values": {
+                                              "type": "list",
+                                              "values": [
+                                                "-5.00"
+                                              ]
+                                            }
+                                          },
+                                          "children": []
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

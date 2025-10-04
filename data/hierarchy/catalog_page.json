@@ -1,0 +1,128 @@
+{
+  "table": "catalog_page",
+  "children": [
+    {
+      "name": "cp_catalog_page_id",
+      "label": "Identity",
+      "stats": {
+        "count": 11718,
+        "null_count": 0,
+        "distinct_count": 11718,
+        "min": null,
+        "max": null,
+        "range": null,
+        "dtype": "string",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/index/catalog_page__cp_catalog_page_id"
+        }
+      },
+      "children": []
+    },
+    {
+      "name": "cp_catalog_page_number",
+      "label": "Catalog_Structure",
+      "stats": {
+        "count": 11718,
+        "null_count": 104,
+        "distinct_count": 108,
+        "min": 1,
+        "max": 108,
+        "range": [
+          1,
+          108
+        ],
+        "dtype": "integer",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/index/catalog_page__cp_catalog_page_number"
+        }
+      },
+      "children": [
+        {
+          "name": "cp_catalog_number",
+          "label": "Catalog Number",
+          "stats": {
+            "count": 11718,
+            "null_count": 120,
+            "distinct_count": 109,
+            "min": 1,
+            "max": 109,
+            "range": [
+              1,
+              109
+            ],
+            "dtype": "integer",
+            "unique_values": {
+              "type": "bplustree",
+              "values": "/home/jsjang/code/Agent4OLAP/data/index/catalog_page__cp_catalog_number"
+            }
+          },
+          "children": [
+            {
+              "name": "cp_department",
+              "label": "Department",
+              "stats": {
+                "count": 11718,
+                "null_count": 102,
+                "distinct_count": 1,
+                "min": null,
+                "max": null,
+                "range": null,
+                "dtype": "string",
+                "unique_values": {
+                  "type": "list",
+                  "values": [
+                    "DEPARTMENT"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "name": "cp_type",
+                  "label": "Type",
+                  "stats": {
+                    "count": 11718,
+                    "null_count": 109,
+                    "distinct_count": 3,
+                    "min": null,
+                    "max": null,
+                    "range": null,
+                    "dtype": "string",
+                    "unique_values": {
+                      "type": "list",
+                      "values": [
+                        "bi-annual",
+                        "monthly",
+                        "quarterly"
+                      ]
+                    }
+                  },
+                  "children": []
+                },
+                {
+                  "name": "cp_description",
+                  "label": "Description",
+                  "stats": {
+                    "count": 11718,
+                    "null_count": 116,
+                    "distinct_count": 11602,
+                    "min": null,
+                    "max": null,
+                    "range": null,
+                    "dtype": "string",
+                    "unique_values": {
+                      "type": "bplustree",
+                      "values": "/home/jsjang/code/Agent4OLAP/data/index/catalog_page__cp_description"
+                    }
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

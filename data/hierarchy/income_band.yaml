@@ -1,0 +1,7 @@
+table: income_band
+children:
+- name: ib_lower_bound
+  label: Income_Range
+  children:
+  - name: ib_upper_bound
+    label: Upper Bound

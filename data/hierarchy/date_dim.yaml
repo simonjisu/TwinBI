@@ -1,0 +1,150 @@
+table: date_dim
+children:
+- name: d_date
+  label: Calendar
+  children:
+  - name: d_dom
+    children:
+    - name: d_moy
+      children:
+      - name: d_qoy
+        children:
+        - name: d_year
+          label: Year
+        label: Qoy
+      label: Moy
+    label: Dom
+  - name: d_moy
+    children:
+    - name: d_qoy
+      children:
+      - name: d_year
+        label: Year
+      label: Qoy
+    label: Moy
+  - name: d_qoy
+    children:
+    - name: d_year
+      label: Year
+    label: Qoy
+- name: d_date
+  label: Calendar_Seq
+  children:
+  - name: d_month_seq
+    children:
+    - name: d_quarter_seq
+      children:
+      - name: d_year
+        label: Year
+      label: Quarter Seq
+    label: Month Seq
+- name: d_date
+  label: Week
+  children:
+  - name: d_date
+    children:
+    - name: d_dow
+      children:
+      - name: d_week_seq
+        children:
+        - name: d_year
+          label: Year
+        label: Week Seq
+      label: Dow
+    - name: d_week_seq
+      children:
+      - name: d_year
+        label: Year
+      label: Week Seq
+    label: Date
+- name: d_date
+  label: Fiscal
+  children:
+  - name: d_date
+    children:
+    - name: d_fy_week_seq
+      children:
+      - name: d_fy_quarter_seq
+        children:
+        - name: d_fy_year
+          label: FY Year
+        label: FY Quarter Seq
+      label: FY Week Seq
+    label: Date
+- name: d_date
+  label: Names_and_Labels
+  children:
+  - name: d_day_name
+    label: Day Name
+  - name: d_quarter_seq
+    children:
+    - name: d_quarter_name
+      label: Quarter Name
+    label: Quarter Seq
+- name: d_date
+  label: Holiday_and_Weekend
+  children:
+  - name: d_following_holiday
+    children:
+    - name: d_holiday
+      children:
+      - name: d_weekend
+        label: Weekend
+      label: Holiday
+    label: Following Holiday
+  - name: d_holiday
+    children:
+    - name: d_weekend
+      label: Weekend
+    label: Holiday
+- name: d_date
+  label: Relative_Anchors
+  children:
+  - name: d_first_dom
+    children:
+    - name: d_moy
+      children:
+      - name: d_year
+        label: Year
+      label: Moy
+    label: First Dom
+  - name: d_last_dom
+    children:
+    - name: d_moy
+      children:
+      - name: d_year
+        label: Year
+      label: Moy
+    label: Last Dom
+  - name: d_same_day_lq
+    children:
+    - name: d_qoy
+      children:
+      - name: d_year
+        label: Year
+      label: Qoy
+    label: Same Day Lq
+  - name: d_same_day_ly
+    children:
+    - name: d_year
+      label: Year
+    label: Same Day Ly
+- name: d_date
+  label: Current_Period_Flags
+  children:
+  - name: d_current_day
+    children:
+    - name: d_current_week
+      children:
+      - name: d_current_month
+        children:
+        - name: d_current_quarter
+          children:
+          - name: d_current_year
+            label: Current Year
+          label: Current Quarter
+        label: Current Month
+      label: Current Week
+    label: Current Day
+- name: d_date
+  label: Identity

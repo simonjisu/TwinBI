@@ -1,0 +1,17 @@
+table: catalog_page
+children:
+- name: cp_catalog_page_id
+  label: Identity
+- name: cp_catalog_page_number
+  label: Catalog_Structure
+  children:
+  - name: cp_catalog_number
+    children:
+    - name: cp_department
+      children:
+      - name: cp_type
+        label: Type
+      - name: cp_description
+        label: Description
+      label: Department
+    label: Catalog Number

@@ -1,0 +1,52 @@
+table: item
+children:
+- name: i_item_id
+  label: Identity
+- name: i_rec_start_date
+  label: Record_Lifecycle
+  children:
+  - name: i_rec_end_date
+    label: Rec End Date
+- name: i_product_name
+  label: Product_Taxonomy
+  children:
+  - name: i_brand_id
+    children:
+    - name: i_brand
+      label: Brand
+    - name: i_class_id
+      children:
+      - name: i_class
+        label: Class
+      - name: i_category_id
+        children:
+        - name: i_category
+          label: Category
+        - name: i_manufact_id
+          children:
+          - name: i_manufact
+            label: Manufact
+          label: Manufact ID
+        label: Category ID
+      label: Class ID
+    label: Brand ID
+- name: i_item_desc
+  label: Product_Attributes
+  children:
+  - name: i_size
+    label: Size
+  - name: i_formulation
+    label: Formulation
+  - name: i_color
+    label: Color
+  - name: i_units
+    label: Units
+  - name: i_container
+    label: Container
+  - name: i_manager_id
+    label: Manager ID
+- name: i_current_price
+  label: Pricing
+  children:
+  - name: i_wholesale_cost
+    label: Wholesale Cost

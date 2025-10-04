@@ -1,0 +1,61 @@
+table: web_site
+children:
+- name: web_site_id
+  label: Identity
+- name: web_rec_start_date
+  label: Record_Lifecycle
+  children:
+  - name: web_rec_end_date
+    label: Web Rec End Date
+- name: web_name
+  label: Site_Info
+  children:
+  - name: web_class
+    label: Web Class
+  - name: web_manager
+    label: Web Manager
+  - name: web_tax_percentage
+    label: Web Tax Percentage
+- name: web_mkt_id
+  label: Organization
+  children:
+  - name: web_mkt_class
+    label: Web Mkt Class
+  - name: web_mkt_desc
+    label: Web Mkt Desc
+  - name: web_market_manager
+    label: Web Market Manager
+  - name: web_company_id
+    children:
+    - name: web_company_name
+      label: Web Company Name
+    label: Web Company ID
+- name: web_street_number
+  label: Location
+  children:
+  - name: web_street_name
+    children:
+    - name: web_street_type
+      children:
+      - name: web_suite_number
+        children:
+        - name: web_city
+          children:
+          - name: web_county
+            children:
+            - name: web_state
+              children:
+              - name: web_zip
+                children:
+                - name: web_country
+                  children:
+                  - name: web_gmt_offset
+                    label: Web GMT Offset
+                  label: Web Country
+                label: Web ZIP
+              label: Web State
+            label: Web County
+          label: Web City
+        label: Web Suite Number
+      label: Web Street Type
+    label: Web Street Name

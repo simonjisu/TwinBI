@@ -62,21 +62,20 @@ select
   dp.dim_promotion_sk        as promo_dk
 
 from base b
-left join {{ ref('dim_date') }}          dds  on b.cs_sold_date_sk     = dds.date_sk
-left join {{ ref('dim_time') }}          dts  on b.cs_sold_time_sk     = dts.time_sk
-left join {{ ref('dim_date') }}          dsh  on b.cs_ship_date_sk     = dsh.date_sk
-left join {{ ref('dim_customer') }}      dbc  on b.cs_bill_customer_sk = dbc.customer_sk
-left join {{ ref('dim_customer_demo') }} dbcd on b.cs_bill_cdemo_sk    = dbcd.customer_demo_sk
-left join {{ ref('dim_household') }}     dbh  on b.cs_bill_hdemo_sk    = dbh.household_demo_sk
-left join {{ ref('dim_address') }}       dba  on b.cs_bill_addr_sk     = dba.address_sk
-left join {{ ref('dim_customer') }}      dsc  on b.cs_ship_customer_sk = dsc.customer_sk
-left join {{ ref('dim_customer_demo') }} dscd on b.cs_ship_cdemo_sk    = dscd.customer_demo_sk
-left join {{ ref('dim_household') }}     dshh on b.cs_ship_hdemo_sk    = dshh.household_demo_sk
-left join {{ ref('dim_address') }}       dsa  on b.cs_ship_addr_sk     = dsa.address_sk
-left join {{ ref('dim_call_center') }}   dcc  on b.cs_call_center_sk   = dcc.call_center_sk
-left join {{ ref('dim_catalog_page') }}  dcp  on b.cs_catalog_page_sk  = dcp.catalog_page_sk
-left join {{ ref('dim_ship_mode') }}     dsm  on b.cs_ship_mode_sk     = dsm.ship_mode_sk
-left join {{ ref('dim_warehouse') }}     dw   on b.cs_warehouse_sk     = dw.warehouse_sk
-left join {{ ref('dim_item') }}          di   on b.cs_item_sk          = di.item_sk
-left join {{ ref('dim_promotion') }}     dp   on b.cs_promo_sk         = dp.promo_sk
-
+left join {{ ref('dim_date') }}          dds  on b.cs_sold_date_sk     = dds.d_date_sk
+left join {{ ref('dim_time') }}          dts  on b.cs_sold_time_sk     = dts.t_time_sk
+left join {{ ref('dim_date') }}          dsh  on b.cs_ship_date_sk     = dsh.d_date_sk
+left join {{ ref('dim_customer') }}      dbc  on b.cs_bill_customer_sk = dbc.c_customer_sk
+left join {{ ref('dim_customer_demo') }} dbcd on b.cs_bill_cdemo_sk    = dbcd.cd_demo_sk
+left join {{ ref('dim_household') }}     dbh  on b.cs_bill_hdemo_sk    = dbh.hd_demo_sk
+left join {{ ref('dim_address') }}       dba  on b.cs_bill_addr_sk     = dba.ca_address_sk
+left join {{ ref('dim_customer') }}      dsc  on b.cs_ship_customer_sk = dsc.c_customer_sk
+left join {{ ref('dim_customer_demo') }} dscd on b.cs_ship_cdemo_sk    = dscd.cd_demo_sk
+left join {{ ref('dim_household') }}     dshh on b.cs_ship_hdemo_sk    = dshh.hd_demo_sk
+left join {{ ref('dim_address') }}       dsa  on b.cs_ship_addr_sk     = dsa.ca_address_sk
+left join {{ ref('dim_call_center') }}   dcc  on b.cs_call_center_sk   = dcc.cc_call_center_sk
+left join {{ ref('dim_catalog_page') }}  dcp  on b.cs_catalog_page_sk  = dcp.cp_catalog_page_sk
+left join {{ ref('dim_ship_mode') }}     dsm  on b.cs_ship_mode_sk     = dsm.sm_ship_mode_sk
+left join {{ ref('dim_warehouse') }}     dw   on b.cs_warehouse_sk     = dw.w_warehouse_sk
+left join {{ ref('dim_item') }}          di   on b.cs_item_sk          = di.i_item_sk
+left join {{ ref('dim_promotion') }}     dp   on b.cs_promo_sk         = dp.p_promo_sk

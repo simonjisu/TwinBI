@@ -40,13 +40,12 @@ select
   dr.dim_reason_sk         as reason_dk
 
 from base b
-left join {{ ref('dim_date') }}          dd  on b.sr_returned_date_sk = dd.date_sk
-left join {{ ref('dim_time') }}          dt  on b.sr_return_time_sk   = dt.time_sk
-left join {{ ref('dim_item') }}          di  on b.sr_item_sk          = di.item_sk
-left join {{ ref('dim_customer') }}      dc  on b.sr_customer_sk      = dc.customer_sk
-left join {{ ref('dim_customer_demo') }} dcd on b.sr_cdemo_sk         = dcd.customer_demo_sk
-left join {{ ref('dim_household') }}     dh  on b.sr_hdemo_sk         = dh.household_demo_sk
-left join {{ ref('dim_address') }}       da  on b.sr_addr_sk          = da.address_sk
-left join {{ ref('dim_store') }}         ds  on b.sr_store_sk         = ds.store_sk
-left join {{ ref('dim_reason') }}        dr  on b.sr_reason_sk        = dr.reason_sk
-
+left join {{ ref('dim_date') }}          dd  on b.sr_returned_date_sk = dd.d_date_sk
+left join {{ ref('dim_time') }}          dt  on b.sr_return_time_sk   = dt.t_time_sk
+left join {{ ref('dim_item') }}          di  on b.sr_item_sk          = di.i_item_sk
+left join {{ ref('dim_customer') }}      dc  on b.sr_customer_sk      = dc.c_customer_sk
+left join {{ ref('dim_customer_demo') }} dcd on b.sr_cdemo_sk         = dcd.cd_demo_sk
+left join {{ ref('dim_household') }}     dh  on b.sr_hdemo_sk         = dh.hd_demo_sk
+left join {{ ref('dim_address') }}       da  on b.sr_addr_sk          = da.ca_address_sk
+left join {{ ref('dim_store') }}         ds  on b.sr_store_sk         = ds.s_store_sk
+left join {{ ref('dim_reason') }}        dr  on b.sr_reason_sk        = dr.r_reason_sk

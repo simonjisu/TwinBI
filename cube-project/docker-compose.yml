@@ -1,0 +1,10 @@
+services:
+  cube:
+    image: cubejs/cube:latest
+    ports:
+      - 34000:4000
+      - 35432:15432
+    environment:
+      - CUBEJS_DEV_MODE=true
+    volumes:
+      - ./cube/conf:/cube/conf

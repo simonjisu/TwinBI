@@ -5,12 +5,12 @@
 
 with base as (
     select
-        sm_ship_mode_sk as ship_mode_sk,
-        sm_ship_mode_id as ship_mode_id,
-        sm_type         as type,
-        sm_code         as code,
-        sm_carrier      as carrier,
-        sm_contract     as contract
+        sm_ship_mode_sk,
+        sm_ship_mode_id,
+        sm_type,
+        sm_code,
+        sm_carrier,
+        sm_contract
     from {{ source('tpcds','ship_mode') }}
 )
 

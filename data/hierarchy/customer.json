@@ -1,0 +1,202 @@
+{
+  "table": "customer",
+  "children": [
+    {
+      "name": "c_customer_id",
+      "label": "Identity",
+      "stats": {
+        "count": 100000,
+        "null_count": 0,
+        "distinct_count": 100000,
+        "min": null,
+        "max": null,
+        "range": null,
+        "dtype": "string",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/index/customer__c_customer_id"
+        }
+      },
+      "children": []
+    },
+    {
+      "name": "c_salutation",
+      "label": "Name_and_Identity",
+      "stats": {
+        "count": 100000,
+        "null_count": 3410,
+        "distinct_count": 6,
+        "min": null,
+        "max": null,
+        "range": null,
+        "dtype": "string",
+        "unique_values": {
+          "type": "list",
+          "values": [
+            "Dr.",
+            "Miss",
+            "Mr.",
+            "Mrs.",
+            "Ms.",
+            "Sir"
+          ]
+        }
+      },
+      "children": [
+        {
+          "name": "c_first_name",
+          "label": "First Name",
+          "stats": {
+            "count": 100000,
+            "null_count": 3492,
+            "distinct_count": 4131,
+            "min": null,
+            "max": null,
+            "range": null,
+            "dtype": "string",
+            "unique_values": {
+              "type": "bplustree",
+              "values": "/home/jsjang/code/Agent4OLAP/data/index/customer__c_first_name"
+            }
+          },
+          "children": [
+            {
+              "name": "c_last_name",
+              "label": "Last Name",
+              "stats": {
+                "count": 100000,
+                "null_count": 3497,
+                "distinct_count": 4972,
+                "min": null,
+                "max": null,
+                "range": null,
+                "dtype": "string",
+                "unique_values": {
+                  "type": "bplustree",
+                  "values": "/home/jsjang/code/Agent4OLAP/data/index/customer__c_last_name"
+                }
+              },
+              "children": []
+            },
+            {
+              "name": "c_login",
+              "label": "Login",
+              "stats": {
+                "count": 100000,
+                "null_count": 3475,
+                "distinct_count": 1,
+                "min": null,
+                "max": null,
+                "range": null,
+                "dtype": "string",
+                "unique_values": {
+                  "type": "list",
+                  "values": [
+                    ""
+                  ]
+                }
+              },
+              "children": []
+            },
+            {
+              "name": "c_email_address",
+              "label": "Email Address",
+              "stats": {
+                "count": 100000,
+                "null_count": 3521,
+                "distinct_count": 96477,
+                "min": null,
+                "max": null,
+                "range": null,
+                "dtype": "string",
+                "unique_values": {
+                  "type": "bplustree",
+                  "values": "/home/jsjang/code/Agent4OLAP/data/index/customer__c_email_address"
+                }
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "c_birth_day",
+      "label": "Birth",
+      "stats": {
+        "count": 100000,
+        "null_count": 3461,
+        "distinct_count": 31,
+        "min": 1,
+        "max": 31,
+        "range": [
+          1,
+          31
+        ],
+        "dtype": "integer",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/index/customer__c_birth_day"
+        }
+      },
+      "children": [
+        {
+          "name": "c_birth_month",
+          "label": "Birth Month",
+          "stats": {
+            "count": 100000,
+            "null_count": 3449,
+            "distinct_count": 12,
+            "min": 1,
+            "max": 12,
+            "range": [
+              1,
+              12
+            ],
+            "dtype": "integer",
+            "unique_values": {
+              "type": "list",
+              "values": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12
+              ]
+            }
+          },
+          "children": [
+            {
+              "name": "c_birth_year",
+              "label": "Birth Year",
+              "stats": {
+                "count": 100000,
+                "null_count": 3453,
+                "distinct_count": 69,
+                "min": 1924,
+                "max": 1992,
+                "range": [
+                  1924,
+                  1992
+                ],
+                "dtype": "integer",
+                "unique_values": {
+                  "type": "bplustree",
+                  "values": "/home/jsjang/code/Agent4OLAP/data/index/customer__c_birth_year"
+                }
+              },
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

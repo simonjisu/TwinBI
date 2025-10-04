@@ -1,0 +1,41 @@
+{
+  "table": "reason",
+  "children": [
+    {
+      "name": "r_reason_id",
+      "label": "Identity",
+      "stats": {
+        "count": 35,
+        "null_count": 0,
+        "distinct_count": 35,
+        "min": null,
+        "max": null,
+        "range": null,
+        "dtype": "string",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/index/reason__r_reason_id"
+        }
+      },
+      "children": []
+    },
+    {
+      "name": "r_reason_desc",
+      "label": "Description",
+      "stats": {
+        "count": 35,
+        "null_count": 0,
+        "distinct_count": 34,
+        "min": null,
+        "max": null,
+        "range": null,
+        "dtype": "string",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/index/reason__r_reason_desc"
+        }
+      },
+      "children": []
+    }
+  ]
+}

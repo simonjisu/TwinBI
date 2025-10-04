@@ -1,4 +1,0 @@
-column,datatype,NULLs,Primary Key,Foreign Key
-r_reason_sk,identifier,N,Y,
-r_reason_id (B),char(16),N,,
-r_reason_desc,char(100),,,

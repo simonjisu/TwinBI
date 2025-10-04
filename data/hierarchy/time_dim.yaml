@@ -1,0 +1,26 @@
+table: time_dim
+children:
+- name: t_time_id
+  label: Identity
+- name: t_second
+  label: Time_Hierarchy
+  children:
+  - name: t_minute
+    children:
+    - name: t_hour
+      children:
+      - name: t_am_pm
+        children:
+        - name: t_shift
+          children:
+          - name: t_sub_shift
+            children:
+            - name: t_meal_time
+              label: Meal Time
+            label: Sub Shift
+          label: Shift
+        label: Am Pm
+      label: Hour
+    label: Minute
+- name: t_time
+  label: Time_Value

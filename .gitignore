@@ -207,3 +207,8 @@ marimo/_lsp/
 __marimo__/
 
 *.db
+cube/*
+node_modules
+data/index/*
+cube-project/cube/conf
+.cubestore

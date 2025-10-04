@@ -1,0 +1,1980 @@
+{
+  "catalog_returns": {
+    "schema_type": "star",
+    "fact": "catalog_returns",
+    "nodes": [
+      {
+        "id": "catalog_returns",
+        "type": "fact"
+      },
+      {
+        "id": "catalog_sales",
+        "type": "fact"
+      },
+      {
+        "id": "call_center",
+        "type": "dimension",
+        "attributes": [
+          "cc_call_center_id",
+          "cc_rec_start_date",
+          "cc_rec_end_date",
+          "cc_name",
+          "cc_class",
+          "cc_employees",
+          "cc_sq_ft",
+          "cc_hours",
+          "cc_manager",
+          "cc_mkt_id",
+          "cc_mkt_class",
+          "cc_mkt_desc",
+          "cc_market_manager",
+          "cc_division",
+          "cc_division_name",
+          "cc_company",
+          "cc_company_name",
+          "cc_street_number",
+          "cc_street_name",
+          "cc_street_type",
+          "cc_suite_number",
+          "cc_city",
+          "cc_county",
+          "cc_state",
+          "cc_zip",
+          "cc_country",
+          "cc_gmt_offset",
+          "cc_tax_percentage"
+        ]
+      },
+      {
+        "id": "catalog_page",
+        "type": "dimension",
+        "attributes": [
+          "cp_catalog_page_id",
+          "cp_department",
+          "cp_catalog_number",
+          "cp_catalog_page_number",
+          "cp_description",
+          "cp_type"
+        ]
+      },
+      {
+        "id": "customer",
+        "type": "dimension",
+        "attributes": [
+          "c_customer_id",
+          "c_salutation",
+          "c_first_name",
+          "c_last_name",
+          "c_preferred_cust_flag",
+          "c_birth_day",
+          "c_birth_month",
+          "c_birth_year",
+          "c_birth_country",
+          "c_login",
+          "c_email_address"
+        ]
+      },
+      {
+        "id": "customer_address",
+        "type": "dimension",
+        "attributes": [
+          "ca_address_id",
+          "ca_street_number",
+          "ca_street_name",
+          "ca_street_type",
+          "ca_suite_number",
+          "ca_city",
+          "ca_county",
+          "ca_state",
+          "ca_zip",
+          "ca_country",
+          "ca_gmt_offset",
+          "ca_location_type"
+        ]
+      },
+      {
+        "id": "customer_demographics",
+        "type": "dimension",
+        "attributes": [
+          "cd_gender",
+          "cd_marital_status",
+          "cd_education_status",
+          "cd_purchase_estimate",
+          "cd_credit_rating",
+          "cd_dep_count",
+          "cd_dep_employed_count",
+          "cd_dep_college_count"
+        ]
+      },
+      {
+        "id": "date_dim",
+        "type": "dimension",
+        "attributes": [
+          "d_date_id",
+          "d_date",
+          "d_month_seq",
+          "d_week_seq",
+          "d_quarter_seq",
+          "d_year",
+          "d_dow",
+          "d_moy",
+          "d_dom",
+          "d_qoy",
+          "d_fy_year",
+          "d_fy_quarter_seq",
+          "d_fy_week_seq",
+          "d_day_name",
+          "d_quarter_name",
+          "d_holiday",
+          "d_weekend",
+          "d_following_holiday",
+          "d_first_dom",
+          "d_last_dom",
+          "d_same_day_ly",
+          "d_same_day_lq",
+          "d_current_day",
+          "d_current_week",
+          "d_current_month",
+          "d_current_quarter",
+          "d_current_year"
+        ]
+      },
+      {
+        "id": "household_demographics",
+        "type": "dimension",
+        "attributes": [
+          "hd_buy_potential",
+          "hd_dep_count",
+          "hd_vehicle_count"
+        ]
+      },
+      {
+        "id": "item",
+        "type": "dimension",
+        "attributes": [
+          "i_item_id",
+          "i_rec_start_date",
+          "i_rec_end_date",
+          "i_item_desc",
+          "i_current_price",
+          "i_wholesale_cost",
+          "i_brand_id",
+          "i_brand",
+          "i_class_id",
+          "i_class",
+          "i_category_id",
+          "i_category",
+          "i_manufact_id",
+          "i_manufact",
+          "i_size",
+          "i_formulation",
+          "i_color",
+          "i_units",
+          "i_container",
+          "i_manager_id",
+          "i_product_name"
+        ]
+      },
+      {
+        "id": "reason",
+        "type": "dimension",
+        "attributes": [
+          "r_reason_id",
+          "r_reason_desc"
+        ]
+      },
+      {
+        "id": "ship_mode",
+        "type": "dimension",
+        "attributes": [
+          "sm_ship_mode_id",
+          "sm_type",
+          "sm_code",
+          "sm_carrier",
+          "sm_contract"
+        ]
+      },
+      {
+        "id": "time_dim",
+        "type": "dimension",
+        "attributes": [
+          "t_time_id",
+          "t_time",
+          "t_hour",
+          "t_minute",
+          "t_second",
+          "t_am_pm",
+          "t_shift",
+          "t_sub_shift",
+          "t_meal_time"
+        ]
+      },
+      {
+        "id": "warehouse",
+        "type": "dimension",
+        "attributes": [
+          "w_warehouse_id",
+          "w_warehouse_name",
+          "w_warehouse_sq_ft",
+          "w_street_number",
+          "w_street_name",
+          "w_street_type",
+          "w_suite_number",
+          "w_city",
+          "w_county",
+          "w_state",
+          "w_zip",
+          "w_country",
+          "w_gmt_offset"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "source": "catalog_returns",
+        "target": "call_center",
+        "relationship": "many_to_one",
+        "fk_field": "cr_call_center_sk",
+        "pk_field": "cc_call_center_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "catalog_page",
+        "relationship": "many_to_one",
+        "fk_field": "cr_catalog_page_sk",
+        "pk_field": "cp_catalog_page_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "catalog_sales",
+        "relationship": "many_to_one",
+        "fk_field": "cr_order_number",
+        "pk_field": "cs_order_number"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "customer",
+        "relationship": "many_to_one",
+        "fk_field": "cr_refunded_customer_sk",
+        "pk_field": "c_customer_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "customer",
+        "relationship": "many_to_one",
+        "fk_field": "cr_returning_customer_sk",
+        "pk_field": "c_customer_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "customer_address",
+        "relationship": "many_to_one",
+        "fk_field": "cr_refunded_addr_sk",
+        "pk_field": "ca_address_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "customer_address",
+        "relationship": "many_to_one",
+        "fk_field": "cr_returning_addr_sk",
+        "pk_field": "ca_address_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "customer_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "cr_refunded_cdemo_sk",
+        "pk_field": "cd_demo_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "customer_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "cr_returning_cdemo_sk",
+        "pk_field": "cd_demo_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "date_dim",
+        "relationship": "many_to_one",
+        "fk_field": "cr_returned_date_sk",
+        "pk_field": "d_date_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "household_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "cr_refunded_hdemo_sk",
+        "pk_field": "hd_demo_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "household_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "cr_returning_hdemo_sk",
+        "pk_field": "hd_demo_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "item",
+        "relationship": "many_to_one",
+        "fk_field": "cr_item_sk",
+        "pk_field": "i_item_sk, cs_item_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "reason",
+        "relationship": "many_to_one",
+        "fk_field": "cr_reason_sk",
+        "pk_field": "r_reason_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "ship_mode",
+        "relationship": "many_to_one",
+        "fk_field": "cr_ship_mode_sk",
+        "pk_field": "sm_ship_mode_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "time_dim",
+        "relationship": "many_to_one",
+        "fk_field": "cr_returned_time_sk",
+        "pk_field": "t_time_sk"
+      },
+      {
+        "source": "catalog_returns",
+        "target": "warehouse",
+        "relationship": "many_to_one",
+        "fk_field": "cr_warehouse_sk",
+        "pk_field": "w_warehouse_sk"
+      }
+    ]
+  },
+  "catalog_sales": {
+    "schema_type": "star",
+    "fact": "catalog_sales",
+    "nodes": [
+      {
+        "id": "catalog_sales",
+        "type": "fact"
+      },
+      {
+        "id": "call_center",
+        "type": "dimension",
+        "attributes": [
+          "cc_call_center_id",
+          "cc_rec_start_date",
+          "cc_rec_end_date",
+          "cc_name",
+          "cc_class",
+          "cc_employees",
+          "cc_sq_ft",
+          "cc_hours",
+          "cc_manager",
+          "cc_mkt_id",
+          "cc_mkt_class",
+          "cc_mkt_desc",
+          "cc_market_manager",
+          "cc_division",
+          "cc_division_name",
+          "cc_company",
+          "cc_company_name",
+          "cc_street_number",
+          "cc_street_name",
+          "cc_street_type",
+          "cc_suite_number",
+          "cc_city",
+          "cc_county",
+          "cc_state",
+          "cc_zip",
+          "cc_country",
+          "cc_gmt_offset",
+          "cc_tax_percentage"
+        ]
+      },
+      {
+        "id": "catalog_page",
+        "type": "dimension",
+        "attributes": [
+          "cp_catalog_page_id",
+          "cp_department",
+          "cp_catalog_number",
+          "cp_catalog_page_number",
+          "cp_description",
+          "cp_type"
+        ]
+      },
+      {
+        "id": "customer",
+        "type": "dimension",
+        "attributes": [
+          "c_customer_id",
+          "c_salutation",
+          "c_first_name",
+          "c_last_name",
+          "c_preferred_cust_flag",
+          "c_birth_day",
+          "c_birth_month",
+          "c_birth_year",
+          "c_birth_country",
+          "c_login",
+          "c_email_address"
+        ]
+      },
+      {
+        "id": "customer_address",
+        "type": "dimension",
+        "attributes": [
+          "ca_address_id",
+          "ca_street_number",
+          "ca_street_name",
+          "ca_street_type",
+          "ca_suite_number",
+          "ca_city",
+          "ca_county",
+          "ca_state",
+          "ca_zip",
+          "ca_country",
+          "ca_gmt_offset",
+          "ca_location_type"
+        ]
+      },
+      {
+        "id": "customer_demographics",
+        "type": "dimension",
+        "attributes": [
+          "cd_gender",
+          "cd_marital_status",
+          "cd_education_status",
+          "cd_purchase_estimate",
+          "cd_credit_rating",
+          "cd_dep_count",
+          "cd_dep_employed_count",
+          "cd_dep_college_count"
+        ]
+      },
+      {
+        "id": "date_dim",
+        "type": "dimension",
+        "attributes": [
+          "d_date_id",
+          "d_date",
+          "d_month_seq",
+          "d_week_seq",
+          "d_quarter_seq",
+          "d_year",
+          "d_dow",
+          "d_moy",
+          "d_dom",
+          "d_qoy",
+          "d_fy_year",
+          "d_fy_quarter_seq",
+          "d_fy_week_seq",
+          "d_day_name",
+          "d_quarter_name",
+          "d_holiday",
+          "d_weekend",
+          "d_following_holiday",
+          "d_first_dom",
+          "d_last_dom",
+          "d_same_day_ly",
+          "d_same_day_lq",
+          "d_current_day",
+          "d_current_week",
+          "d_current_month",
+          "d_current_quarter",
+          "d_current_year"
+        ]
+      },
+      {
+        "id": "household_demographics",
+        "type": "dimension",
+        "attributes": [
+          "hd_buy_potential",
+          "hd_dep_count",
+          "hd_vehicle_count"
+        ]
+      },
+      {
+        "id": "item",
+        "type": "dimension",
+        "attributes": [
+          "i_item_id",
+          "i_rec_start_date",
+          "i_rec_end_date",
+          "i_item_desc",
+          "i_current_price",
+          "i_wholesale_cost",
+          "i_brand_id",
+          "i_brand",
+          "i_class_id",
+          "i_class",
+          "i_category_id",
+          "i_category",
+          "i_manufact_id",
+          "i_manufact",
+          "i_size",
+          "i_formulation",
+          "i_color",
+          "i_units",
+          "i_container",
+          "i_manager_id",
+          "i_product_name"
+        ]
+      },
+      {
+        "id": "promotion",
+        "type": "dimension",
+        "attributes": [
+          "p_promo_id",
+          "p_cost",
+          "p_response_target",
+          "p_promo_name",
+          "p_channel_dmail",
+          "p_channel_email",
+          "p_channel_catalog",
+          "p_channel_tv",
+          "p_channel_radio",
+          "p_channel_press",
+          "p_channel_event",
+          "p_channel_demo",
+          "p_channel_details",
+          "p_purpose",
+          "p_discount_active"
+        ]
+      },
+      {
+        "id": "ship_mode",
+        "type": "dimension",
+        "attributes": [
+          "sm_ship_mode_id",
+          "sm_type",
+          "sm_code",
+          "sm_carrier",
+          "sm_contract"
+        ]
+      },
+      {
+        "id": "time_dim",
+        "type": "dimension",
+        "attributes": [
+          "t_time_id",
+          "t_time",
+          "t_hour",
+          "t_minute",
+          "t_second",
+          "t_am_pm",
+          "t_shift",
+          "t_sub_shift",
+          "t_meal_time"
+        ]
+      },
+      {
+        "id": "warehouse",
+        "type": "dimension",
+        "attributes": [
+          "w_warehouse_id",
+          "w_warehouse_name",
+          "w_warehouse_sq_ft",
+          "w_street_number",
+          "w_street_name",
+          "w_street_type",
+          "w_suite_number",
+          "w_city",
+          "w_county",
+          "w_state",
+          "w_zip",
+          "w_country",
+          "w_gmt_offset"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "source": "catalog_sales",
+        "target": "call_center",
+        "relationship": "many_to_one",
+        "fk_field": "cs_call_center_sk",
+        "pk_field": "cc_call_center_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "catalog_page",
+        "relationship": "many_to_one",
+        "fk_field": "cs_catalog_page_sk",
+        "pk_field": "cp_catalog_page_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "customer",
+        "relationship": "many_to_one",
+        "fk_field": "cs_bill_customer_sk",
+        "pk_field": "c_customer_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "customer",
+        "relationship": "many_to_one",
+        "fk_field": "cs_ship_customer_sk",
+        "pk_field": "c_customer_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "customer_address",
+        "relationship": "many_to_one",
+        "fk_field": "cs_bill_addr_sk",
+        "pk_field": "ca_address_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "customer_address",
+        "relationship": "many_to_one",
+        "fk_field": "cs_ship_addr_sk",
+        "pk_field": "ca_address_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "customer_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "cs_bill_cdemo_sk",
+        "pk_field": "cd_demo_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "customer_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "cs_ship_cdemo_sk",
+        "pk_field": "cd_demo_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "date_dim",
+        "relationship": "many_to_one",
+        "fk_field": "cs_ship_date_sk",
+        "pk_field": "d_date_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "date_dim",
+        "relationship": "many_to_one",
+        "fk_field": "cs_sold_date_sk",
+        "pk_field": "d_date_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "household_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "cs_bill_hdemo_sk",
+        "pk_field": "hd_demo_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "household_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "cs_ship_hdemo_sk",
+        "pk_field": "hd_demo_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "item",
+        "relationship": "many_to_one",
+        "fk_field": "cs_item_sk",
+        "pk_field": "i_item_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "promotion",
+        "relationship": "many_to_one",
+        "fk_field": "cs_promo_sk",
+        "pk_field": "p_promo_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "ship_mode",
+        "relationship": "many_to_one",
+        "fk_field": "cs_ship_mode_sk",
+        "pk_field": "sm_ship_mode_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "time_dim",
+        "relationship": "many_to_one",
+        "fk_field": "cs_sold_time_sk",
+        "pk_field": "t_time_sk"
+      },
+      {
+        "source": "catalog_sales",
+        "target": "warehouse",
+        "relationship": "many_to_one",
+        "fk_field": "cs_warehouse_sk",
+        "pk_field": "w_warehouse_sk"
+      }
+    ]
+  },
+  "inventory": {
+    "schema_type": "star",
+    "fact": "inventory",
+    "nodes": [
+      {
+        "id": "inventory",
+        "type": "fact"
+      },
+      {
+        "id": "date_dim",
+        "type": "dimension",
+        "attributes": [
+          "d_date_id",
+          "d_date",
+          "d_month_seq",
+          "d_week_seq",
+          "d_quarter_seq",
+          "d_year",
+          "d_dow",
+          "d_moy",
+          "d_dom",
+          "d_qoy",
+          "d_fy_year",
+          "d_fy_quarter_seq",
+          "d_fy_week_seq",
+          "d_day_name",
+          "d_quarter_name",
+          "d_holiday",
+          "d_weekend",
+          "d_following_holiday",
+          "d_first_dom",
+          "d_last_dom",
+          "d_same_day_ly",
+          "d_same_day_lq",
+          "d_current_day",
+          "d_current_week",
+          "d_current_month",
+          "d_current_quarter",
+          "d_current_year"
+        ]
+      },
+      {
+        "id": "item",
+        "type": "dimension",
+        "attributes": [
+          "i_item_id",
+          "i_rec_start_date",
+          "i_rec_end_date",
+          "i_item_desc",
+          "i_current_price",
+          "i_wholesale_cost",
+          "i_brand_id",
+          "i_brand",
+          "i_class_id",
+          "i_class",
+          "i_category_id",
+          "i_category",
+          "i_manufact_id",
+          "i_manufact",
+          "i_size",
+          "i_formulation",
+          "i_color",
+          "i_units",
+          "i_container",
+          "i_manager_id",
+          "i_product_name"
+        ]
+      },
+      {
+        "id": "warehouse",
+        "type": "dimension",
+        "attributes": [
+          "w_warehouse_id",
+          "w_warehouse_name",
+          "w_warehouse_sq_ft",
+          "w_street_number",
+          "w_street_name",
+          "w_street_type",
+          "w_suite_number",
+          "w_city",
+          "w_county",
+          "w_state",
+          "w_zip",
+          "w_country",
+          "w_gmt_offset"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "source": "inventory",
+        "target": "date_dim",
+        "relationship": "many_to_one",
+        "fk_field": "inv_date_sk",
+        "pk_field": "d_date_sk"
+      },
+      {
+        "source": "inventory",
+        "target": "item",
+        "relationship": "many_to_one",
+        "fk_field": "inv_item_sk",
+        "pk_field": "i_item_sk"
+      },
+      {
+        "source": "inventory",
+        "target": "warehouse",
+        "relationship": "many_to_one",
+        "fk_field": "inv_warehouse_sk",
+        "pk_field": "w_warehouse_sk"
+      }
+    ]
+  },
+  "store_returns": {
+    "schema_type": "star",
+    "fact": "store_returns",
+    "nodes": [
+      {
+        "id": "store_returns",
+        "type": "fact"
+      },
+      {
+        "id": "store_sales",
+        "type": "fact"
+      },
+      {
+        "id": "customer",
+        "type": "dimension",
+        "attributes": [
+          "c_customer_id",
+          "c_salutation",
+          "c_first_name",
+          "c_last_name",
+          "c_preferred_cust_flag",
+          "c_birth_day",
+          "c_birth_month",
+          "c_birth_year",
+          "c_birth_country",
+          "c_login",
+          "c_email_address"
+        ]
+      },
+      {
+        "id": "customer_address",
+        "type": "dimension",
+        "attributes": [
+          "ca_address_id",
+          "ca_street_number",
+          "ca_street_name",
+          "ca_street_type",
+          "ca_suite_number",
+          "ca_city",
+          "ca_county",
+          "ca_state",
+          "ca_zip",
+          "ca_country",
+          "ca_gmt_offset",
+          "ca_location_type"
+        ]
+      },
+      {
+        "id": "customer_demographics",
+        "type": "dimension",
+        "attributes": [
+          "cd_gender",
+          "cd_marital_status",
+          "cd_education_status",
+          "cd_purchase_estimate",
+          "cd_credit_rating",
+          "cd_dep_count",
+          "cd_dep_employed_count",
+          "cd_dep_college_count"
+        ]
+      },
+      {
+        "id": "date_dim",
+        "type": "dimension",
+        "attributes": [
+          "d_date_id",
+          "d_date",
+          "d_month_seq",
+          "d_week_seq",
+          "d_quarter_seq",
+          "d_year",
+          "d_dow",
+          "d_moy",
+          "d_dom",
+          "d_qoy",
+          "d_fy_year",
+          "d_fy_quarter_seq",
+          "d_fy_week_seq",
+          "d_day_name",
+          "d_quarter_name",
+          "d_holiday",
+          "d_weekend",
+          "d_following_holiday",
+          "d_first_dom",
+          "d_last_dom",
+          "d_same_day_ly",
+          "d_same_day_lq",
+          "d_current_day",
+          "d_current_week",
+          "d_current_month",
+          "d_current_quarter",
+          "d_current_year"
+        ]
+      },
+      {
+        "id": "household_demographics",
+        "type": "dimension",
+        "attributes": [
+          "hd_buy_potential",
+          "hd_dep_count",
+          "hd_vehicle_count"
+        ]
+      },
+      {
+        "id": "item",
+        "type": "dimension",
+        "attributes": [
+          "i_item_id",
+          "i_rec_start_date",
+          "i_rec_end_date",
+          "i_item_desc",
+          "i_current_price",
+          "i_wholesale_cost",
+          "i_brand_id",
+          "i_brand",
+          "i_class_id",
+          "i_class",
+          "i_category_id",
+          "i_category",
+          "i_manufact_id",
+          "i_manufact",
+          "i_size",
+          "i_formulation",
+          "i_color",
+          "i_units",
+          "i_container",
+          "i_manager_id",
+          "i_product_name"
+        ]
+      },
+      {
+        "id": "reason",
+        "type": "dimension",
+        "attributes": [
+          "r_reason_id",
+          "r_reason_desc"
+        ]
+      },
+      {
+        "id": "store",
+        "type": "dimension",
+        "attributes": [
+          "s_store_id",
+          "s_rec_start_date",
+          "s_rec_end_date",
+          "s_store_name",
+          "s_number_employees",
+          "s_floor_space",
+          "s_hours",
+          "s_manager",
+          "s_market_id",
+          "s_geography_class",
+          "s_market_desc",
+          "s_market_manager",
+          "s_division_id",
+          "s_division_name",
+          "s_company_id",
+          "s_company_name",
+          "s_street_number",
+          "s_street_name",
+          "s_street_type",
+          "s_suite_number",
+          "s_city",
+          "s_county",
+          "s_state",
+          "s_zip",
+          "s_country",
+          "s_gmt_offset",
+          "s_tax_percentage"
+        ]
+      },
+      {
+        "id": "time_dim",
+        "type": "dimension",
+        "attributes": [
+          "t_time_id",
+          "t_time",
+          "t_hour",
+          "t_minute",
+          "t_second",
+          "t_am_pm",
+          "t_shift",
+          "t_sub_shift",
+          "t_meal_time"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "source": "store_returns",
+        "target": "customer",
+        "relationship": "many_to_one",
+        "fk_field": "sr_customer_sk",
+        "pk_field": "c_customer_sk"
+      },
+      {
+        "source": "store_returns",
+        "target": "customer_address",
+        "relationship": "many_to_one",
+        "fk_field": "sr_addr_sk",
+        "pk_field": "ca_address_sk"
+      },
+      {
+        "source": "store_returns",
+        "target": "customer_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "sr_cdemo_sk",
+        "pk_field": "cd_demo_sk"
+      },
+      {
+        "source": "store_returns",
+        "target": "date_dim",
+        "relationship": "many_to_one",
+        "fk_field": "sr_returned_date_sk",
+        "pk_field": "d_date_sk"
+      },
+      {
+        "source": "store_returns",
+        "target": "household_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "sr_hdemo_sk",
+        "pk_field": "hd_demo_sk"
+      },
+      {
+        "source": "store_returns",
+        "target": "item",
+        "relationship": "many_to_one",
+        "fk_field": "sr_item_sk",
+        "pk_field": "i_item_sk, ss_item_sk"
+      },
+      {
+        "source": "store_returns",
+        "target": "reason",
+        "relationship": "many_to_one",
+        "fk_field": "sr_reason_sk",
+        "pk_field": "r_reason_sk"
+      },
+      {
+        "source": "store_returns",
+        "target": "store",
+        "relationship": "many_to_one",
+        "fk_field": "sr_store_sk",
+        "pk_field": "s_store_sk"
+      },
+      {
+        "source": "store_returns",
+        "target": "store_sales",
+        "relationship": "many_to_one",
+        "fk_field": "sr_ticket_number",
+        "pk_field": "ss_ticket_number"
+      },
+      {
+        "source": "store_returns",
+        "target": "time_dim",
+        "relationship": "many_to_one",
+        "fk_field": "sr_return_time_sk",
+        "pk_field": "t_time_sk"
+      }
+    ]
+  },
+  "store_sales": {
+    "schema_type": "star",
+    "fact": "store_sales",
+    "nodes": [
+      {
+        "id": "store_sales",
+        "type": "fact"
+      },
+      {
+        "id": "customer",
+        "type": "dimension",
+        "attributes": [
+          "c_customer_id",
+          "c_salutation",
+          "c_first_name",
+          "c_last_name",
+          "c_preferred_cust_flag",
+          "c_birth_day",
+          "c_birth_month",
+          "c_birth_year",
+          "c_birth_country",
+          "c_login",
+          "c_email_address"
+        ]
+      },
+      {
+        "id": "customer_address",
+        "type": "dimension",
+        "attributes": [
+          "ca_address_id",
+          "ca_street_number",
+          "ca_street_name",
+          "ca_street_type",
+          "ca_suite_number",
+          "ca_city",
+          "ca_county",
+          "ca_state",
+          "ca_zip",
+          "ca_country",
+          "ca_gmt_offset",
+          "ca_location_type"
+        ]
+      },
+      {
+        "id": "customer_demographics",
+        "type": "dimension",
+        "attributes": [
+          "cd_gender",
+          "cd_marital_status",
+          "cd_education_status",
+          "cd_purchase_estimate",
+          "cd_credit_rating",
+          "cd_dep_count",
+          "cd_dep_employed_count",
+          "cd_dep_college_count"
+        ]
+      },
+      {
+        "id": "date_dim",
+        "type": "dimension",
+        "attributes": [
+          "d_date_id",
+          "d_date",
+          "d_month_seq",
+          "d_week_seq",
+          "d_quarter_seq",
+          "d_year",
+          "d_dow",
+          "d_moy",
+          "d_dom",
+          "d_qoy",
+          "d_fy_year",
+          "d_fy_quarter_seq",
+          "d_fy_week_seq",
+          "d_day_name",
+          "d_quarter_name",
+          "d_holiday",
+          "d_weekend",
+          "d_following_holiday",
+          "d_first_dom",
+          "d_last_dom",
+          "d_same_day_ly",
+          "d_same_day_lq",
+          "d_current_day",
+          "d_current_week",
+          "d_current_month",
+          "d_current_quarter",
+          "d_current_year"
+        ]
+      },
+      {
+        "id": "household_demographics",
+        "type": "dimension",
+        "attributes": [
+          "hd_buy_potential",
+          "hd_dep_count",
+          "hd_vehicle_count"
+        ]
+      },
+      {
+        "id": "item",
+        "type": "dimension",
+        "attributes": [
+          "i_item_id",
+          "i_rec_start_date",
+          "i_rec_end_date",
+          "i_item_desc",
+          "i_current_price",
+          "i_wholesale_cost",
+          "i_brand_id",
+          "i_brand",
+          "i_class_id",
+          "i_class",
+          "i_category_id",
+          "i_category",
+          "i_manufact_id",
+          "i_manufact",
+          "i_size",
+          "i_formulation",
+          "i_color",
+          "i_units",
+          "i_container",
+          "i_manager_id",
+          "i_product_name"
+        ]
+      },
+      {
+        "id": "promotion",
+        "type": "dimension",
+        "attributes": [
+          "p_promo_id",
+          "p_cost",
+          "p_response_target",
+          "p_promo_name",
+          "p_channel_dmail",
+          "p_channel_email",
+          "p_channel_catalog",
+          "p_channel_tv",
+          "p_channel_radio",
+          "p_channel_press",
+          "p_channel_event",
+          "p_channel_demo",
+          "p_channel_details",
+          "p_purpose",
+          "p_discount_active"
+        ]
+      },
+      {
+        "id": "store",
+        "type": "dimension",
+        "attributes": [
+          "s_store_id",
+          "s_rec_start_date",
+          "s_rec_end_date",
+          "s_store_name",
+          "s_number_employees",
+          "s_floor_space",
+          "s_hours",
+          "s_manager",
+          "s_market_id",
+          "s_geography_class",
+          "s_market_desc",
+          "s_market_manager",
+          "s_division_id",
+          "s_division_name",
+          "s_company_id",
+          "s_company_name",
+          "s_street_number",
+          "s_street_name",
+          "s_street_type",
+          "s_suite_number",
+          "s_city",
+          "s_county",
+          "s_state",
+          "s_zip",
+          "s_country",
+          "s_gmt_offset",
+          "s_tax_percentage"
+        ]
+      },
+      {
+        "id": "time_dim",
+        "type": "dimension",
+        "attributes": [
+          "t_time_id",
+          "t_time",
+          "t_hour",
+          "t_minute",
+          "t_second",
+          "t_am_pm",
+          "t_shift",
+          "t_sub_shift",
+          "t_meal_time"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "source": "store_sales",
+        "target": "customer",
+        "relationship": "many_to_one",
+        "fk_field": "ss_customer_sk",
+        "pk_field": "c_customer_sk"
+      },
+      {
+        "source": "store_sales",
+        "target": "customer_address",
+        "relationship": "many_to_one",
+        "fk_field": "ss_addr_sk",
+        "pk_field": "ca_address_sk"
+      },
+      {
+        "source": "store_sales",
+        "target": "customer_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "ss_cdemo_sk",
+        "pk_field": "cd_demo_sk"
+      },
+      {
+        "source": "store_sales",
+        "target": "date_dim",
+        "relationship": "many_to_one",
+        "fk_field": "ss_sold_date_sk",
+        "pk_field": "d_date_sk"
+      },
+      {
+        "source": "store_sales",
+        "target": "household_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "ss_hdemo_sk",
+        "pk_field": "hd_demo_sk"
+      },
+      {
+        "source": "store_sales",
+        "target": "item",
+        "relationship": "many_to_one",
+        "fk_field": "ss_item_sk",
+        "pk_field": "i_item_sk"
+      },
+      {
+        "source": "store_sales",
+        "target": "promotion",
+        "relationship": "many_to_one",
+        "fk_field": "ss_promo_sk",
+        "pk_field": "p_promo_sk"
+      },
+      {
+        "source": "store_sales",
+        "target": "store",
+        "relationship": "many_to_one",
+        "fk_field": "ss_store_sk",
+        "pk_field": "s_store_sk"
+      },
+      {
+        "source": "store_sales",
+        "target": "time_dim",
+        "relationship": "many_to_one",
+        "fk_field": "ss_sold_time_sk",
+        "pk_field": "t_time_sk"
+      }
+    ]
+  },
+  "web_returns": {
+    "schema_type": "star",
+    "fact": "web_returns",
+    "nodes": [
+      {
+        "id": "web_returns",
+        "type": "fact"
+      },
+      {
+        "id": "web_sales",
+        "type": "fact"
+      },
+      {
+        "id": "customer",
+        "type": "dimension",
+        "attributes": [
+          "c_customer_id",
+          "c_salutation",
+          "c_first_name",
+          "c_last_name",
+          "c_preferred_cust_flag",
+          "c_birth_day",
+          "c_birth_month",
+          "c_birth_year",
+          "c_birth_country",
+          "c_login",
+          "c_email_address"
+        ]
+      },
+      {
+        "id": "customer_address",
+        "type": "dimension",
+        "attributes": [
+          "ca_address_id",
+          "ca_street_number",
+          "ca_street_name",
+          "ca_street_type",
+          "ca_suite_number",
+          "ca_city",
+          "ca_county",
+          "ca_state",
+          "ca_zip",
+          "ca_country",
+          "ca_gmt_offset",
+          "ca_location_type"
+        ]
+      },
+      {
+        "id": "customer_demographics",
+        "type": "dimension",
+        "attributes": [
+          "cd_gender",
+          "cd_marital_status",
+          "cd_education_status",
+          "cd_purchase_estimate",
+          "cd_credit_rating",
+          "cd_dep_count",
+          "cd_dep_employed_count",
+          "cd_dep_college_count"
+        ]
+      },
+      {
+        "id": "date_dim",
+        "type": "dimension",
+        "attributes": [
+          "d_date_id",
+          "d_date",
+          "d_month_seq",
+          "d_week_seq",
+          "d_quarter_seq",
+          "d_year",
+          "d_dow",
+          "d_moy",
+          "d_dom",
+          "d_qoy",
+          "d_fy_year",
+          "d_fy_quarter_seq",
+          "d_fy_week_seq",
+          "d_day_name",
+          "d_quarter_name",
+          "d_holiday",
+          "d_weekend",
+          "d_following_holiday",
+          "d_first_dom",
+          "d_last_dom",
+          "d_same_day_ly",
+          "d_same_day_lq",
+          "d_current_day",
+          "d_current_week",
+          "d_current_month",
+          "d_current_quarter",
+          "d_current_year"
+        ]
+      },
+      {
+        "id": "household_demographics",
+        "type": "dimension",
+        "attributes": [
+          "hd_buy_potential",
+          "hd_dep_count",
+          "hd_vehicle_count"
+        ]
+      },
+      {
+        "id": "item",
+        "type": "dimension",
+        "attributes": [
+          "i_item_id",
+          "i_rec_start_date",
+          "i_rec_end_date",
+          "i_item_desc",
+          "i_current_price",
+          "i_wholesale_cost",
+          "i_brand_id",
+          "i_brand",
+          "i_class_id",
+          "i_class",
+          "i_category_id",
+          "i_category",
+          "i_manufact_id",
+          "i_manufact",
+          "i_size",
+          "i_formulation",
+          "i_color",
+          "i_units",
+          "i_container",
+          "i_manager_id",
+          "i_product_name"
+        ]
+      },
+      {
+        "id": "reason",
+        "type": "dimension",
+        "attributes": [
+          "r_reason_id",
+          "r_reason_desc"
+        ]
+      },
+      {
+        "id": "time_dim",
+        "type": "dimension",
+        "attributes": [
+          "t_time_id",
+          "t_time",
+          "t_hour",
+          "t_minute",
+          "t_second",
+          "t_am_pm",
+          "t_shift",
+          "t_sub_shift",
+          "t_meal_time"
+        ]
+      },
+      {
+        "id": "web_page",
+        "type": "dimension",
+        "attributes": [
+          "wp_web_page_id",
+          "wp_rec_start_date",
+          "wp_rec_end_date",
+          "wp_autogen_flag",
+          "wp_url",
+          "wp_type",
+          "wp_char_count",
+          "wp_link_count",
+          "wp_image_count",
+          "wp_max_ad_count"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "source": "web_returns",
+        "target": "customer",
+        "relationship": "many_to_one",
+        "fk_field": "wr_refunded_customer_sk",
+        "pk_field": "c_customer_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "customer",
+        "relationship": "many_to_one",
+        "fk_field": "wr_returning_customer_sk",
+        "pk_field": "c_customer_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "customer_address",
+        "relationship": "many_to_one",
+        "fk_field": "wr_refunded_addr_sk",
+        "pk_field": "ca_address_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "customer_address",
+        "relationship": "many_to_one",
+        "fk_field": "wr_returning_addr_sk",
+        "pk_field": "ca_address_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "customer_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "wr_refunded_cdemo_sk",
+        "pk_field": "cd_demo_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "customer_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "wr_returning_cdemo_sk",
+        "pk_field": "cd_demo_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "date_dim",
+        "relationship": "many_to_one",
+        "fk_field": "wr_returned_date_sk",
+        "pk_field": "d_date_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "household_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "wr_refunded_hdemo_sk",
+        "pk_field": "hd_demo_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "household_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "wr_returning_hdemo_sk",
+        "pk_field": "hd_demo_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "item",
+        "relationship": "many_to_one",
+        "fk_field": "wr_item_sk",
+        "pk_field": "i_item_sk, ws_item_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "reason",
+        "relationship": "many_to_one",
+        "fk_field": "wr_reason_sk",
+        "pk_field": "r_reason_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "time_dim",
+        "relationship": "many_to_one",
+        "fk_field": "wr_returned_time_sk",
+        "pk_field": "t_time_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "web_page",
+        "relationship": "many_to_one",
+        "fk_field": "wr_web_page_sk",
+        "pk_field": "wp_web_page_sk"
+      },
+      {
+        "source": "web_returns",
+        "target": "web_sales",
+        "relationship": "many_to_one",
+        "fk_field": "wr_order_number",
+        "pk_field": "ws_order_number"
+      }
+    ]
+  },
+  "web_sales": {
+    "schema_type": "star",
+    "fact": "web_sales",
+    "nodes": [
+      {
+        "id": "web_sales",
+        "type": "fact"
+      },
+      {
+        "id": "customer",
+        "type": "dimension",
+        "attributes": [
+          "c_customer_id",
+          "c_salutation",
+          "c_first_name",
+          "c_last_name",
+          "c_preferred_cust_flag",
+          "c_birth_day",
+          "c_birth_month",
+          "c_birth_year",
+          "c_birth_country",
+          "c_login",
+          "c_email_address"
+        ]
+      },
+      {
+        "id": "customer_address",
+        "type": "dimension",
+        "attributes": [
+          "ca_address_id",
+          "ca_street_number",
+          "ca_street_name",
+          "ca_street_type",
+          "ca_suite_number",
+          "ca_city",
+          "ca_county",
+          "ca_state",
+          "ca_zip",
+          "ca_country",
+          "ca_gmt_offset",
+          "ca_location_type"
+        ]
+      },
+      {
+        "id": "customer_demographics",
+        "type": "dimension",
+        "attributes": [
+          "cd_gender",
+          "cd_marital_status",
+          "cd_education_status",
+          "cd_purchase_estimate",
+          "cd_credit_rating",
+          "cd_dep_count",
+          "cd_dep_employed_count",
+          "cd_dep_college_count"
+        ]
+      },
+      {
+        "id": "date_dim",
+        "type": "dimension",
+        "attributes": [
+          "d_date_id",
+          "d_date",
+          "d_month_seq",
+          "d_week_seq",
+          "d_quarter_seq",
+          "d_year",
+          "d_dow",
+          "d_moy",
+          "d_dom",
+          "d_qoy",
+          "d_fy_year",
+          "d_fy_quarter_seq",
+          "d_fy_week_seq",
+          "d_day_name",
+          "d_quarter_name",
+          "d_holiday",
+          "d_weekend",
+          "d_following_holiday",
+          "d_first_dom",
+          "d_last_dom",
+          "d_same_day_ly",
+          "d_same_day_lq",
+          "d_current_day",
+          "d_current_week",
+          "d_current_month",
+          "d_current_quarter",
+          "d_current_year"
+        ]
+      },
+      {
+        "id": "household_demographics",
+        "type": "dimension",
+        "attributes": [
+          "hd_buy_potential",
+          "hd_dep_count",
+          "hd_vehicle_count"
+        ]
+      },
+      {
+        "id": "item",
+        "type": "dimension",
+        "attributes": [
+          "i_item_id",
+          "i_rec_start_date",
+          "i_rec_end_date",
+          "i_item_desc",
+          "i_current_price",
+          "i_wholesale_cost",
+          "i_brand_id",
+          "i_brand",
+          "i_class_id",
+          "i_class",
+          "i_category_id",
+          "i_category",
+          "i_manufact_id",
+          "i_manufact",
+          "i_size",
+          "i_formulation",
+          "i_color",
+          "i_units",
+          "i_container",
+          "i_manager_id",
+          "i_product_name"
+        ]
+      },
+      {
+        "id": "promotion",
+        "type": "dimension",
+        "attributes": [
+          "p_promo_id",
+          "p_cost",
+          "p_response_target",
+          "p_promo_name",
+          "p_channel_dmail",
+          "p_channel_email",
+          "p_channel_catalog",
+          "p_channel_tv",
+          "p_channel_radio",
+          "p_channel_press",
+          "p_channel_event",
+          "p_channel_demo",
+          "p_channel_details",
+          "p_purpose",
+          "p_discount_active"
+        ]
+      },
+      {
+        "id": "ship_mode",
+        "type": "dimension",
+        "attributes": [
+          "sm_ship_mode_id",
+          "sm_type",
+          "sm_code",
+          "sm_carrier",
+          "sm_contract"
+        ]
+      },
+      {
+        "id": "time_dim",
+        "type": "dimension",
+        "attributes": [
+          "t_time_id",
+          "t_time",
+          "t_hour",
+          "t_minute",
+          "t_second",
+          "t_am_pm",
+          "t_shift",
+          "t_sub_shift",
+          "t_meal_time"
+        ]
+      },
+      {
+        "id": "warehouse",
+        "type": "dimension",
+        "attributes": [
+          "w_warehouse_id",
+          "w_warehouse_name",
+          "w_warehouse_sq_ft",
+          "w_street_number",
+          "w_street_name",
+          "w_street_type",
+          "w_suite_number",
+          "w_city",
+          "w_county",
+          "w_state",
+          "w_zip",
+          "w_country",
+          "w_gmt_offset"
+        ]
+      },
+      {
+        "id": "web_page",
+        "type": "dimension",
+        "attributes": [
+          "wp_web_page_id",
+          "wp_rec_start_date",
+          "wp_rec_end_date",
+          "wp_autogen_flag",
+          "wp_url",
+          "wp_type",
+          "wp_char_count",
+          "wp_link_count",
+          "wp_image_count",
+          "wp_max_ad_count"
+        ]
+      },
+      {
+        "id": "web_site",
+        "type": "dimension",
+        "attributes": [
+          "web_site_id",
+          "web_rec_start_date",
+          "web_rec_end_date",
+          "web_name",
+          "web_class",
+          "web_manager",
+          "web_mkt_id",
+          "web_mkt_class",
+          "web_mkt_desc",
+          "web_market_manager",
+          "web_company_id",
+          "web_company_name",
+          "web_street_number",
+          "web_street_name",
+          "web_street_type",
+          "web_suite_number",
+          "web_city",
+          "web_county",
+          "web_state",
+          "web_zip",
+          "web_country",
+          "web_gmt_offset",
+          "web_tax_percentage"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "source": "web_sales",
+        "target": "customer",
+        "relationship": "many_to_one",
+        "fk_field": "ws_bill_customer_sk",
+        "pk_field": "c_customer_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "customer",
+        "relationship": "many_to_one",
+        "fk_field": "ws_ship_customer_sk",
+        "pk_field": "c_customer_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "customer_address",
+        "relationship": "many_to_one",
+        "fk_field": "ws_bill_addr_sk",
+        "pk_field": "ca_address_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "customer_address",
+        "relationship": "many_to_one",
+        "fk_field": "ws_ship_addr_sk",
+        "pk_field": "ca_address_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "customer_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "ws_bill_cdemo_sk",
+        "pk_field": "cd_demo_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "customer_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "ws_ship_cdemo_sk",
+        "pk_field": "cd_demo_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "date_dim",
+        "relationship": "many_to_one",
+        "fk_field": "ws_ship_date_sk",
+        "pk_field": "d_date_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "date_dim",
+        "relationship": "many_to_one",
+        "fk_field": "ws_sold_date_sk",
+        "pk_field": "d_date_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "household_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "ws_bill_hdemo_sk",
+        "pk_field": "hd_demo_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "household_demographics",
+        "relationship": "many_to_one",
+        "fk_field": "ws_ship_hdemo_sk",
+        "pk_field": "hd_demo_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "item",
+        "relationship": "many_to_one",
+        "fk_field": "ws_item_sk",
+        "pk_field": "i_item_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "promotion",
+        "relationship": "many_to_one",
+        "fk_field": "ws_promo_sk",
+        "pk_field": "p_promo_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "ship_mode",
+        "relationship": "many_to_one",
+        "fk_field": "ws_ship_mode_sk",
+        "pk_field": "sm_ship_mode_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "time_dim",
+        "relationship": "many_to_one",
+        "fk_field": "ws_sold_time_sk",
+        "pk_field": "t_time_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "warehouse",
+        "relationship": "many_to_one",
+        "fk_field": "ws_warehouse_sk",
+        "pk_field": "w_warehouse_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "web_page",
+        "relationship": "many_to_one",
+        "fk_field": "ws_web_page_sk",
+        "pk_field": "wp_web_page_sk"
+      },
+      {
+        "source": "web_sales",
+        "target": "web_site",
+        "relationship": "many_to_one",
+        "fk_field": "ws_web_site_sk",
+        "pk_field": "web_site_sk"
+      }
+    ]
+  }
+}

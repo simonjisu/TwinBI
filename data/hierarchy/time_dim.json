@@ -1,0 +1,227 @@
+{
+  "table": "time_dim",
+  "children": [
+    {
+      "name": "t_time_id",
+      "label": "Identity",
+      "stats": {
+        "count": 86400,
+        "null_count": 0,
+        "distinct_count": 86400,
+        "min": null,
+        "max": null,
+        "range": null,
+        "dtype": "string",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/index/time_dim__t_time_id"
+        }
+      },
+      "children": []
+    },
+    {
+      "name": "t_second",
+      "label": "Time_Hierarchy",
+      "stats": {
+        "count": 86400,
+        "null_count": 0,
+        "distinct_count": 60,
+        "min": 0,
+        "max": 59,
+        "range": [
+          0,
+          59
+        ],
+        "dtype": "integer",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/index/time_dim__t_second"
+        }
+      },
+      "children": [
+        {
+          "name": "t_minute",
+          "label": "Minute",
+          "stats": {
+            "count": 86400,
+            "null_count": 0,
+            "distinct_count": 60,
+            "min": 0,
+            "max": 59,
+            "range": [
+              0,
+              59
+            ],
+            "dtype": "integer",
+            "unique_values": {
+              "type": "bplustree",
+              "values": "/home/jsjang/code/Agent4OLAP/data/index/time_dim__t_minute"
+            }
+          },
+          "children": [
+            {
+              "name": "t_hour",
+              "label": "Hour",
+              "stats": {
+                "count": 86400,
+                "null_count": 0,
+                "distinct_count": 24,
+                "min": 0,
+                "max": 23,
+                "range": [
+                  0,
+                  23
+                ],
+                "dtype": "integer",
+                "unique_values": {
+                  "type": "list",
+                  "values": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14,
+                    15,
+                    16,
+                    17,
+                    18,
+                    19,
+                    20,
+                    21,
+                    22,
+                    23
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "name": "t_am_pm",
+                  "label": "Am Pm",
+                  "stats": {
+                    "count": 86400,
+                    "null_count": 0,
+                    "distinct_count": 2,
+                    "min": null,
+                    "max": null,
+                    "range": null,
+                    "dtype": "string",
+                    "unique_values": {
+                      "type": "list",
+                      "values": [
+                        "AM",
+                        "PM"
+                      ]
+                    }
+                  },
+                  "children": [
+                    {
+                      "name": "t_shift",
+                      "label": "Shift",
+                      "stats": {
+                        "count": 86400,
+                        "null_count": 0,
+                        "distinct_count": 3,
+                        "min": null,
+                        "max": null,
+                        "range": null,
+                        "dtype": "string",
+                        "unique_values": {
+                          "type": "list",
+                          "values": [
+                            "first",
+                            "second",
+                            "third"
+                          ]
+                        }
+                      },
+                      "children": [
+                        {
+                          "name": "t_sub_shift",
+                          "label": "Sub Shift",
+                          "stats": {
+                            "count": 86400,
+                            "null_count": 0,
+                            "distinct_count": 4,
+                            "min": null,
+                            "max": null,
+                            "range": null,
+                            "dtype": "string",
+                            "unique_values": {
+                              "type": "list",
+                              "values": [
+                                "afternoon",
+                                "evening",
+                                "morning",
+                                "night"
+                              ]
+                            }
+                          },
+                          "children": [
+                            {
+                              "name": "t_meal_time",
+                              "label": "Meal Time",
+                              "stats": {
+                                "count": 86400,
+                                "null_count": 0,
+                                "distinct_count": 4,
+                                "min": null,
+                                "max": null,
+                                "range": null,
+                                "dtype": "string",
+                                "unique_values": {
+                                  "type": "list",
+                                  "values": [
+                                    "",
+                                    "breakfast",
+                                    "dinner",
+                                    "lunch"
+                                  ]
+                                }
+                              },
+                              "children": []
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "t_time",
+      "label": "Time_Value",
+      "stats": {
+        "count": 86400,
+        "null_count": 0,
+        "distinct_count": 86400,
+        "min": 0,
+        "max": 86399,
+        "range": [
+          0,
+          86399
+        ],
+        "dtype": "integer",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/index/time_dim__t_time"
+        }
+      },
+      "children": []
+    }
+  ]
+}

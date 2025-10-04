@@ -5,16 +5,16 @@
 
 with base as (
     select
-        t_time_sk   as time_sk,
-        t_time_id   as time_id,
-        t_time      as time_actual,
-        t_hour      as hour,
-        t_minute    as minute,
-        t_second    as second,
-        t_am_pm     as am_pm,
-        t_shift     as shift,
-        t_sub_shift as sub_shift,
-        t_meal_time as meal_time
+        t_time_sk,
+        t_time_id,
+        t_time,
+        t_hour,
+        t_minute,
+        t_second,
+        t_am_pm,
+        t_shift,
+        t_sub_shift,
+        t_meal_time
     from {{ source('tpcds','time_dim') }}
 )
 

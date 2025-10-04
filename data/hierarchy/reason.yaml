@@ -1,0 +1,6 @@
+table: reason
+children:
+- name: r_reason_id
+  label: Identity
+- name: r_reason_desc
+  label: Description

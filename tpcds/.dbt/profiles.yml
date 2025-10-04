@@ -3,12 +3,12 @@ tpcds:
   outputs:
     dev:
       type: duckdb
-      path: ./tpcds.db
+      path: "{{ env_var('TPCDS_DB_PATH') }}"
       database: tpcds
       schema: main
       threads: 4
 
     prod:
       type: duckdb
-      path: ./tpcds.db
+      path: "{{ env_var('TPCDS_DB_PATH') }}"
       threads: 4

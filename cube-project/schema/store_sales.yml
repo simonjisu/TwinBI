@@ -1,0 +1,16 @@
+
+cubes:
+  - name: fct_store_sales
+    sql_table: '"tpcds"."main"."fct_store_sales"'
+    
+
+    dimensions:
+      
+
+    measures:
+      - name: sales_amount
+        sql: ss_net_paid_inc_tax
+        type: sum
+      - name: orders
+        sql: ss_ticket_number
+        type: countDistinct

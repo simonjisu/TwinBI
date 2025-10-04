@@ -54,20 +54,19 @@ select
   dr.dim_reason_sk          as reason_dk
 
 from base b
-left join {{ ref('dim_date') }}          dd    on b.cr_returned_date_sk   = dd.date_sk
-left join {{ ref('dim_time') }}          dt    on b.cr_returned_time_sk   = dt.time_sk
-left join {{ ref('dim_item') }}          di    on b.cr_item_sk            = di.item_sk
-left join {{ ref('dim_customer') }}      dcrc  on b.cr_refunded_customer_sk  = dcrc.customer_sk
-left join {{ ref('dim_customer_demo') }} drcd  on b.cr_refunded_cdemo_sk     = drcd.customer_demo_sk
-left join {{ ref('dim_household') }}     drh   on b.cr_refunded_hdemo_sk     = drh.household_demo_sk
-left join {{ ref('dim_address') }}       dra   on b.cr_refunded_addr_sk      = dra.address_sk
-left join {{ ref('dim_customer') }}      drrc  on b.cr_returning_customer_sk = drrc.customer_sk
-left join {{ ref('dim_customer_demo') }} drrcd on b.cr_returning_cdemo_sk    = drrcd.customer_demo_sk
-left join {{ ref('dim_household') }}     drrh  on b.cr_returning_hdemo_sk    = drrh.household_demo_sk
-left join {{ ref('dim_address') }}       drra  on b.cr_returning_addr_sk     = drra.address_sk
-left join {{ ref('dim_call_center') }}   dcc   on b.cr_call_center_sk        = dcc.call_center_sk
-left join {{ ref('dim_catalog_page') }}  dcp   on b.cr_catalog_page_sk       = dcp.catalog_page_sk
-left join {{ ref('dim_ship_mode') }}     dsm   on b.cr_ship_mode_sk          = dsm.ship_mode_sk
-left join {{ ref('dim_warehouse') }}     dw    on b.cr_warehouse_sk          = dw.warehouse_sk
-left join {{ ref('dim_reason') }}        dr    on b.cr_reason_sk             = dr.reason_sk
-
+left join {{ ref('dim_date') }}          dd    on b.cr_returned_date_sk   = dd.d_date_sk
+left join {{ ref('dim_time') }}          dt    on b.cr_returned_time_sk   = dt.t_time_sk
+left join {{ ref('dim_item') }}          di    on b.cr_item_sk            = di.i_item_sk
+left join {{ ref('dim_customer') }}      dcrc  on b.cr_refunded_customer_sk  = dcrc.c_customer_sk
+left join {{ ref('dim_customer_demo') }} drcd  on b.cr_refunded_cdemo_sk     = drcd.cd_demo_sk
+left join {{ ref('dim_household') }}     drh   on b.cr_refunded_hdemo_sk     = drh.hd_demo_sk
+left join {{ ref('dim_address') }}       dra   on b.cr_refunded_addr_sk      = dra.ca_address_sk
+left join {{ ref('dim_customer') }}      drrc  on b.cr_returning_customer_sk = drrc.c_customer_sk
+left join {{ ref('dim_customer_demo') }} drrcd on b.cr_returning_cdemo_sk    = drrcd.cd_demo_sk
+left join {{ ref('dim_household') }}     drrh  on b.cr_returning_hdemo_sk    = drrh.hd_demo_sk
+left join {{ ref('dim_address') }}       drra  on b.cr_returning_addr_sk     = drra.ca_address_sk
+left join {{ ref('dim_call_center') }}   dcc   on b.cr_call_center_sk        = dcc.cc_call_center_sk
+left join {{ ref('dim_catalog_page') }}  dcp   on b.cr_catalog_page_sk       = dcp.cp_catalog_page_sk
+left join {{ ref('dim_ship_mode') }}     dsm   on b.cr_ship_mode_sk          = dsm.sm_ship_mode_sk
+left join {{ ref('dim_warehouse') }}     dw    on b.cr_warehouse_sk          = dw.w_warehouse_sk
+left join {{ ref('dim_reason') }}        dr    on b.cr_reason_sk             = dr.r_reason_sk

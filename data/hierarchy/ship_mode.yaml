@@ -1,0 +1,15 @@
+table: ship_mode
+children:
+- name: sm_ship_mode_id
+  label: Identity
+- name: sm_contract
+  label: Shipping_Hierarchy
+  children:
+  - name: sm_code
+    children:
+    - name: sm_type
+      children:
+      - name: sm_carrier
+        label: Carrier
+      label: Type
+    label: Code

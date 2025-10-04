@@ -1,0 +1,90 @@
+{
+  "table": "income_band",
+  "children": [
+    {
+      "name": "ib_lower_bound",
+      "label": "Income_Range",
+      "stats": {
+        "count": 20,
+        "null_count": 0,
+        "distinct_count": 20,
+        "min": 0,
+        "max": 190001,
+        "range": [
+          0,
+          190001
+        ],
+        "dtype": "integer",
+        "unique_values": {
+          "type": "list",
+          "values": [
+            0,
+            10001,
+            20001,
+            30001,
+            40001,
+            50001,
+            60001,
+            70001,
+            80001,
+            90001,
+            100001,
+            110001,
+            120001,
+            130001,
+            140001,
+            150001,
+            160001,
+            170001,
+            180001,
+            190001
+          ]
+        }
+      },
+      "children": [
+        {
+          "name": "ib_upper_bound",
+          "label": "Upper Bound",
+          "stats": {
+            "count": 20,
+            "null_count": 0,
+            "distinct_count": 20,
+            "min": 10000,
+            "max": 200000,
+            "range": [
+              10000,
+              200000
+            ],
+            "dtype": "integer",
+            "unique_values": {
+              "type": "list",
+              "values": [
+                10000,
+                20000,
+                30000,
+                40000,
+                50000,
+                60000,
+                70000,
+                80000,
+                90000,
+                100000,
+                110000,
+                120000,
+                130000,
+                140000,
+                150000,
+                160000,
+                170000,
+                180000,
+                190000,
+                200000
+              ]
+            }
+          },
+          "children": []
+        }
+      ]
+    }
+  ]
+}

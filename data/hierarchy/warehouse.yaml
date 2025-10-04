@@ -1,0 +1,38 @@
+table: warehouse
+children:
+- name: w_warehouse_id
+  label: Identity
+- name: w_warehouse_name
+  label: Warehouse_Info
+  children:
+  - name: w_warehouse_sq_ft
+    label: Warehouse Sq Ft
+- name: w_street_number
+  label: Location
+  children:
+  - name: w_street_name
+    children:
+    - name: w_street_type
+      children:
+      - name: w_suite_number
+        children:
+        - name: w_city
+          children:
+          - name: w_county
+            children:
+            - name: w_state
+              children:
+              - name: w_zip
+                children:
+                - name: w_country
+                  children:
+                  - name: w_gmt_offset
+                    label: GMT Offset
+                  label: Country
+                label: ZIP
+              label: State
+            label: County
+          label: City
+        label: Suite Number
+      label: Street Type
+    label: Street Name

@@ -18,7 +18,6 @@ select
   dw.dim_warehouse_sk  as warehouse_dk
 
 from base b
-left join {{ ref('dim_date') }}      dd on b.inv_date_sk      = dd.date_sk
-left join {{ ref('dim_item') }}      di on b.inv_item_sk      = di.item_sk
-left join {{ ref('dim_warehouse') }} dw on b.inv_warehouse_sk = dw.warehouse_sk
-
+left join {{ ref('dim_date') }}      dd on b.inv_date_sk      = dd.d_date_sk
+left join {{ ref('dim_item') }}      di on b.inv_item_sk      = di.i_item_sk
+left join {{ ref('dim_warehouse') }} dw on b.inv_warehouse_sk = dw.w_warehouse_sk
