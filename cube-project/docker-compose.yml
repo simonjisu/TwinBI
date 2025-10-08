@@ -1,10 +1,15 @@
 services:
   cube:
     image: cubejs/cube:latest
+    user: "${UID}:${GID}"
     ports:
       - 34000:4000
       - 35432:15432
     environment:
+      - CUBEJS_DB_TYPE=duckdb
+      - CUBEJS_DB_DUCKDB_DATABASE_PATH=/cube/data/tpcds.db
       - CUBEJS_DEV_MODE=true
+      - CUBEJS_API_SECRET=secret
     volumes:
-      - ./cube/conf:/cube/conf
+      - ./data:/cube/data
+      - ./cube_conf:/cube/conf

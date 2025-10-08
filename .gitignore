@@ -210,5 +210,5 @@ __marimo__/
 cube/*
 node_modules
 data/index/*
-cube-project/cube/conf
+cube-project/cube_conf
 .cubestore
