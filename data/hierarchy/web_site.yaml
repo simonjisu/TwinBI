@@ -3,10 +3,10 @@ children:
 - name: web_site_id
   label: Identity
 - name: web_rec_start_date
-  label: Record_Lifecycle
+  label: Record Start Date
   children:
   - name: web_rec_end_date
-    label: Web Rec End Date
+    label: Record End Date
 - name: web_name
   label: Site_Info
   children:
@@ -17,19 +17,19 @@ children:
   - name: web_tax_percentage
     label: Web Tax Percentage
 - name: web_mkt_id
-  label: Organization
+  label: Market ID
   children:
   - name: web_mkt_class
-    label: Web Mkt Class
+    label: Web Market Class
   - name: web_mkt_desc
-    label: Web Mkt Desc
+    label: Web Market Desc
   - name: web_market_manager
     label: Web Market Manager
   - name: web_company_id
     children:
     - name: web_company_name
-      label: Web Company Name
-    label: Web Company ID
+      label: Company Name
+    label: Company ID
 - name: web_street_number
   label: Location
   children:
@@ -50,12 +50,12 @@ children:
                 - name: web_country
                   children:
                   - name: web_gmt_offset
-                    label: Web GMT Offset
-                  label: Web Country
-                label: Web ZIP
-              label: Web State
-            label: Web County
-          label: Web City
-        label: Web Suite Number
-      label: Web Street Type
-    label: Web Street Name
+                    label: GMT Offset
+                  label: Country
+                label: ZIP
+              label: State
+            label: County
+          label: City
+        label: Suite Number
+      label: Street Type
+    label: Street Name

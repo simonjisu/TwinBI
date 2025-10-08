@@ -3,7 +3,7 @@
   "children": [
     {
       "name": "ib_lower_bound",
-      "label": "Income_Range",
+      "label": "Income Range",
       "stats": {
         "count": 20,
         "null_count": 0,

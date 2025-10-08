@@ -262,336 +262,288 @@
       {
         "source": "call_center",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cc_closed_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "call_center",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cc_open_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "catalog_page",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cp_end_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "catalog_page",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cp_start_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "catalog_returns",
         "target": "call_center",
-        "relationship": "many_to_one",
         "fk_field": "cr_call_center_sk",
         "pk_field": "cc_call_center_sk"
       },
       {
         "source": "catalog_returns",
         "target": "catalog_page",
-        "relationship": "many_to_one",
         "fk_field": "cr_catalog_page_sk",
         "pk_field": "cp_catalog_page_sk"
       },
       {
         "source": "catalog_returns",
         "target": "catalog_sales",
-        "relationship": "many_to_one",
         "fk_field": "cr_order_number",
         "pk_field": "cs_order_number"
       },
       {
         "source": "catalog_returns",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "cr_refunded_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "catalog_returns",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "cr_returning_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "catalog_returns",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "cr_refunded_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "catalog_returns",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "cr_returning_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "catalog_returns",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "cr_refunded_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "catalog_returns",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "cr_returning_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "catalog_returns",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cr_returned_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "catalog_returns",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "cr_refunded_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "catalog_returns",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "cr_returning_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "catalog_returns",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "cr_item_sk",
         "pk_field": "i_item_sk, cs_item_sk"
       },
       {
         "source": "catalog_returns",
         "target": "reason",
-        "relationship": "many_to_one",
         "fk_field": "cr_reason_sk",
         "pk_field": "r_reason_sk"
       },
       {
         "source": "catalog_returns",
         "target": "ship_mode",
-        "relationship": "many_to_one",
         "fk_field": "cr_ship_mode_sk",
         "pk_field": "sm_ship_mode_sk"
       },
       {
         "source": "catalog_returns",
         "target": "time_dim",
-        "relationship": "many_to_one",
         "fk_field": "cr_returned_time_sk",
         "pk_field": "t_time_sk"
       },
       {
         "source": "catalog_returns",
         "target": "warehouse",
-        "relationship": "many_to_one",
         "fk_field": "cr_warehouse_sk",
         "pk_field": "w_warehouse_sk"
       },
       {
         "source": "catalog_sales",
         "target": "call_center",
-        "relationship": "many_to_one",
         "fk_field": "cs_call_center_sk",
         "pk_field": "cc_call_center_sk"
       },
       {
         "source": "catalog_sales",
         "target": "catalog_page",
-        "relationship": "many_to_one",
         "fk_field": "cs_catalog_page_sk",
         "pk_field": "cp_catalog_page_sk"
       },
       {
         "source": "catalog_sales",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "cs_bill_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "catalog_sales",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "cs_ship_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "catalog_sales",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "cs_bill_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "catalog_sales",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "cs_ship_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "catalog_sales",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "cs_bill_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "catalog_sales",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "cs_ship_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "catalog_sales",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cs_ship_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "catalog_sales",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cs_sold_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "catalog_sales",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "cs_bill_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "catalog_sales",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "cs_ship_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "catalog_sales",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "cs_item_sk",
         "pk_field": "i_item_sk"
       },
       {
         "source": "catalog_sales",
         "target": "promotion",
-        "relationship": "many_to_one",
         "fk_field": "cs_promo_sk",
         "pk_field": "p_promo_sk"
       },
       {
         "source": "catalog_sales",
         "target": "ship_mode",
-        "relationship": "many_to_one",
         "fk_field": "cs_ship_mode_sk",
         "pk_field": "sm_ship_mode_sk"
       },
       {
         "source": "catalog_sales",
         "target": "time_dim",
-        "relationship": "many_to_one",
         "fk_field": "cs_sold_time_sk",
         "pk_field": "t_time_sk"
       },
       {
         "source": "catalog_sales",
         "target": "warehouse",
-        "relationship": "many_to_one",
         "fk_field": "cs_warehouse_sk",
         "pk_field": "w_warehouse_sk"
       },
       {
         "source": "customer",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "c_current_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "customer",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "c_current_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_first_sales_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_first_shipto_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_last_review_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "c_current_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "household_demographics",
         "target": "income_band",
-        "relationship": "many_to_one",
         "fk_field": "hd_income_band_sk",
         "pk_field": "ib_income_band_sk"
       },
       {
         "source": "promotion",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "p_end_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "promotion",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "p_start_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "promotion",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "p_item_sk",
         "pk_field": "i_item_sk"
       }
@@ -848,217 +800,186 @@
       {
         "source": "call_center",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cc_closed_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "call_center",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cc_open_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "catalog_page",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cp_end_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "catalog_page",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cp_start_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "catalog_sales",
         "target": "call_center",
-        "relationship": "many_to_one",
         "fk_field": "cs_call_center_sk",
         "pk_field": "cc_call_center_sk"
       },
       {
         "source": "catalog_sales",
         "target": "catalog_page",
-        "relationship": "many_to_one",
         "fk_field": "cs_catalog_page_sk",
         "pk_field": "cp_catalog_page_sk"
       },
       {
         "source": "catalog_sales",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "cs_bill_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "catalog_sales",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "cs_ship_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "catalog_sales",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "cs_bill_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "catalog_sales",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "cs_ship_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "catalog_sales",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "cs_bill_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "catalog_sales",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "cs_ship_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "catalog_sales",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cs_ship_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "catalog_sales",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "cs_sold_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "catalog_sales",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "cs_bill_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "catalog_sales",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "cs_ship_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "catalog_sales",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "cs_item_sk",
         "pk_field": "i_item_sk"
       },
       {
         "source": "catalog_sales",
         "target": "promotion",
-        "relationship": "many_to_one",
         "fk_field": "cs_promo_sk",
         "pk_field": "p_promo_sk"
       },
       {
         "source": "catalog_sales",
         "target": "ship_mode",
-        "relationship": "many_to_one",
         "fk_field": "cs_ship_mode_sk",
         "pk_field": "sm_ship_mode_sk"
       },
       {
         "source": "catalog_sales",
         "target": "time_dim",
-        "relationship": "many_to_one",
         "fk_field": "cs_sold_time_sk",
         "pk_field": "t_time_sk"
       },
       {
         "source": "catalog_sales",
         "target": "warehouse",
-        "relationship": "many_to_one",
         "fk_field": "cs_warehouse_sk",
         "pk_field": "w_warehouse_sk"
       },
       {
         "source": "customer",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "c_current_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "customer",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "c_current_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_first_sales_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_first_shipto_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_last_review_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "c_current_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "household_demographics",
         "target": "income_band",
-        "relationship": "many_to_one",
         "fk_field": "hd_income_band_sk",
         "pk_field": "ib_income_band_sk"
       },
       {
         "source": "promotion",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "p_end_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "promotion",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "p_start_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "promotion",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "p_item_sk",
         "pk_field": "i_item_sk"
       }
@@ -1156,21 +1077,18 @@
       {
         "source": "inventory",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "inv_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "inventory",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "inv_item_sk",
         "pk_field": "i_item_sk"
       },
       {
         "source": "inventory",
         "target": "warehouse",
-        "relationship": "many_to_one",
         "fk_field": "inv_warehouse_sk",
         "pk_field": "w_warehouse_sk"
       }
@@ -1396,210 +1314,180 @@
       {
         "source": "customer",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "c_current_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "customer",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "c_current_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_first_sales_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_first_shipto_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_last_review_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "c_current_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "household_demographics",
         "target": "income_band",
-        "relationship": "many_to_one",
         "fk_field": "hd_income_band_sk",
         "pk_field": "ib_income_band_sk"
       },
       {
         "source": "promotion",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "p_end_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "promotion",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "p_start_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "promotion",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "p_item_sk",
         "pk_field": "i_item_sk"
       },
       {
         "source": "store",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "s_closed_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "store_returns",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "sr_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "store_returns",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "sr_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "store_returns",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "sr_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "store_returns",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "sr_returned_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "store_returns",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "sr_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "store_returns",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "sr_item_sk",
         "pk_field": "i_item_sk, ss_item_sk"
       },
       {
         "source": "store_returns",
         "target": "reason",
-        "relationship": "many_to_one",
         "fk_field": "sr_reason_sk",
         "pk_field": "r_reason_sk"
       },
       {
         "source": "store_returns",
         "target": "store",
-        "relationship": "many_to_one",
         "fk_field": "sr_store_sk",
         "pk_field": "s_store_sk"
       },
       {
         "source": "store_returns",
         "target": "store_sales",
-        "relationship": "many_to_one",
         "fk_field": "sr_ticket_number",
         "pk_field": "ss_ticket_number"
       },
       {
         "source": "store_returns",
         "target": "time_dim",
-        "relationship": "many_to_one",
         "fk_field": "sr_return_time_sk",
         "pk_field": "t_time_sk"
       },
       {
         "source": "store_sales",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "ss_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "store_sales",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "ss_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "store_sales",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "ss_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "store_sales",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "ss_sold_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "store_sales",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "ss_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "store_sales",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "ss_item_sk",
         "pk_field": "i_item_sk"
       },
       {
         "source": "store_sales",
         "target": "promotion",
-        "relationship": "many_to_one",
         "fk_field": "ss_promo_sk",
         "pk_field": "p_promo_sk"
       },
       {
         "source": "store_sales",
         "target": "store",
-        "relationship": "many_to_one",
         "fk_field": "ss_store_sk",
         "pk_field": "s_store_sk"
       },
       {
         "source": "store_sales",
         "target": "time_dim",
-        "relationship": "many_to_one",
         "fk_field": "ss_sold_time_sk",
         "pk_field": "t_time_sk"
       }
@@ -1813,140 +1701,120 @@
       {
         "source": "customer",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "c_current_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "customer",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "c_current_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_first_sales_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_first_shipto_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_last_review_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "c_current_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "household_demographics",
         "target": "income_band",
-        "relationship": "many_to_one",
         "fk_field": "hd_income_band_sk",
         "pk_field": "ib_income_band_sk"
       },
       {
         "source": "promotion",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "p_end_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "promotion",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "p_start_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "promotion",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "p_item_sk",
         "pk_field": "i_item_sk"
       },
       {
         "source": "store",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "s_closed_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "store_sales",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "ss_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "store_sales",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "ss_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "store_sales",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "ss_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "store_sales",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "ss_sold_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "store_sales",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "ss_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "store_sales",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "ss_item_sk",
         "pk_field": "i_item_sk"
       },
       {
         "source": "store_sales",
         "target": "promotion",
-        "relationship": "many_to_one",
         "fk_field": "ss_promo_sk",
         "pk_field": "p_promo_sk"
       },
       {
         "source": "store_sales",
         "target": "store",
-        "relationship": "many_to_one",
         "fk_field": "ss_store_sk",
         "pk_field": "s_store_sk"
       },
       {
         "source": "store_sales",
         "target": "time_dim",
-        "relationship": "many_to_one",
         "fk_field": "ss_sold_time_sk",
         "pk_field": "t_time_sk"
       }
@@ -2214,322 +2082,276 @@
       {
         "source": "customer",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "c_current_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "customer",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "c_current_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_first_sales_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_first_shipto_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_last_review_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "c_current_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "household_demographics",
         "target": "income_band",
-        "relationship": "many_to_one",
         "fk_field": "hd_income_band_sk",
         "pk_field": "ib_income_band_sk"
       },
       {
         "source": "promotion",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "p_end_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "promotion",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "p_start_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "promotion",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "p_item_sk",
         "pk_field": "i_item_sk"
       },
       {
         "source": "web_page",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "wp_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "web_page",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "wp_access_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "web_page",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "wp_creation_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "web_returns",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "wr_refunded_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "web_returns",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "wr_returning_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "web_returns",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "wr_refunded_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "web_returns",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "wr_returning_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "web_returns",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "wr_refunded_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "web_returns",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "wr_returning_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "web_returns",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "wr_returned_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "web_returns",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "wr_refunded_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "web_returns",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "wr_returning_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "web_returns",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "wr_item_sk",
         "pk_field": "i_item_sk, ws_item_sk"
       },
       {
         "source": "web_returns",
         "target": "reason",
-        "relationship": "many_to_one",
         "fk_field": "wr_reason_sk",
         "pk_field": "r_reason_sk"
       },
       {
         "source": "web_returns",
         "target": "time_dim",
-        "relationship": "many_to_one",
         "fk_field": "wr_returned_time_sk",
         "pk_field": "t_time_sk"
       },
       {
         "source": "web_returns",
         "target": "web_page",
-        "relationship": "many_to_one",
         "fk_field": "wr_web_page_sk",
         "pk_field": "wp_web_page_sk"
       },
       {
         "source": "web_returns",
         "target": "web_sales",
-        "relationship": "many_to_one",
         "fk_field": "wr_order_number",
         "pk_field": "ws_order_number"
       },
       {
         "source": "web_sales",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "ws_bill_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "web_sales",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "ws_ship_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "web_sales",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "ws_bill_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "web_sales",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "ws_ship_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "web_sales",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "ws_bill_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "web_sales",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "ws_ship_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "web_sales",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "ws_ship_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "web_sales",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "ws_sold_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "web_sales",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "ws_bill_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "web_sales",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "ws_ship_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "web_sales",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "ws_item_sk",
         "pk_field": "i_item_sk"
       },
       {
         "source": "web_sales",
         "target": "promotion",
-        "relationship": "many_to_one",
         "fk_field": "ws_promo_sk",
         "pk_field": "p_promo_sk"
       },
       {
         "source": "web_sales",
         "target": "ship_mode",
-        "relationship": "many_to_one",
         "fk_field": "ws_ship_mode_sk",
         "pk_field": "sm_ship_mode_sk"
       },
       {
         "source": "web_sales",
         "target": "time_dim",
-        "relationship": "many_to_one",
         "fk_field": "ws_sold_time_sk",
         "pk_field": "t_time_sk"
       },
       {
         "source": "web_sales",
         "target": "warehouse",
-        "relationship": "many_to_one",
         "fk_field": "ws_warehouse_sk",
         "pk_field": "w_warehouse_sk"
       },
       {
         "source": "web_sales",
         "target": "web_page",
-        "relationship": "many_to_one",
         "fk_field": "ws_web_page_sk",
         "pk_field": "wp_web_page_sk"
       },
       {
         "source": "web_sales",
         "target": "web_site",
-        "relationship": "many_to_one",
         "fk_field": "ws_web_site_sk",
         "pk_field": "web_site_sk"
       },
       {
         "source": "web_site",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "web_close_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "web_site",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "web_open_date_sk",
         "pk_field": "d_date_sk"
       }
@@ -2785,224 +2607,192 @@
       {
         "source": "customer",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "c_current_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "customer",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "c_current_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_first_sales_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_first_shipto_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "c_last_review_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "customer",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "c_current_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "household_demographics",
         "target": "income_band",
-        "relationship": "many_to_one",
         "fk_field": "hd_income_band_sk",
         "pk_field": "ib_income_band_sk"
       },
       {
         "source": "promotion",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "p_end_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "promotion",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "p_start_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "promotion",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "p_item_sk",
         "pk_field": "i_item_sk"
       },
       {
         "source": "web_page",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "wp_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "web_page",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "wp_access_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "web_page",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "wp_creation_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "web_sales",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "ws_bill_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "web_sales",
         "target": "customer",
-        "relationship": "many_to_one",
         "fk_field": "ws_ship_customer_sk",
         "pk_field": "c_customer_sk"
       },
       {
         "source": "web_sales",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "ws_bill_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "web_sales",
         "target": "customer_address",
-        "relationship": "many_to_one",
         "fk_field": "ws_ship_addr_sk",
         "pk_field": "ca_address_sk"
       },
       {
         "source": "web_sales",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "ws_bill_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "web_sales",
         "target": "customer_demographics",
-        "relationship": "many_to_one",
         "fk_field": "ws_ship_cdemo_sk",
         "pk_field": "cd_demo_sk"
       },
       {
         "source": "web_sales",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "ws_ship_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "web_sales",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "ws_sold_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "web_sales",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "ws_bill_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "web_sales",
         "target": "household_demographics",
-        "relationship": "many_to_one",
         "fk_field": "ws_ship_hdemo_sk",
         "pk_field": "hd_demo_sk"
       },
       {
         "source": "web_sales",
         "target": "item",
-        "relationship": "many_to_one",
         "fk_field": "ws_item_sk",
         "pk_field": "i_item_sk"
       },
       {
         "source": "web_sales",
         "target": "promotion",
-        "relationship": "many_to_one",
         "fk_field": "ws_promo_sk",
         "pk_field": "p_promo_sk"
       },
       {
         "source": "web_sales",
         "target": "ship_mode",
-        "relationship": "many_to_one",
         "fk_field": "ws_ship_mode_sk",
         "pk_field": "sm_ship_mode_sk"
       },
       {
         "source": "web_sales",
         "target": "time_dim",
-        "relationship": "many_to_one",
         "fk_field": "ws_sold_time_sk",
         "pk_field": "t_time_sk"
       },
       {
         "source": "web_sales",
         "target": "warehouse",
-        "relationship": "many_to_one",
         "fk_field": "ws_warehouse_sk",
         "pk_field": "w_warehouse_sk"
       },
       {
         "source": "web_sales",
         "target": "web_page",
-        "relationship": "many_to_one",
         "fk_field": "ws_web_page_sk",
         "pk_field": "wp_web_page_sk"
       },
       {
         "source": "web_sales",
         "target": "web_site",
-        "relationship": "many_to_one",
         "fk_field": "ws_web_site_sk",
         "pk_field": "web_site_sk"
       },
       {
         "source": "web_site",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "web_close_date_sk",
         "pk_field": "d_date_sk"
       },
       {
         "source": "web_site",
         "target": "date_dim",
-        "relationship": "many_to_one",
         "fk_field": "web_open_date_sk",
         "pk_field": "d_date_sk"
       }

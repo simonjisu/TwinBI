@@ -1,0 +1,40 @@
+cubes:
+  - name: ship_mode
+    sql_table: main.ship_mode
+    data_source: default
+
+    joins: []
+
+    dimensions:
+      - name: sm_ship_mode_sk
+        sql: sm_ship_mode_sk
+        type: number
+        primary_key: true
+
+      - name: sm_carrier
+        sql: sm_carrier
+        type: string
+
+      - name: sm_code
+        sql: sm_code
+        type: string
+
+      - name: sm_contract
+        sql: sm_contract
+        type: string
+
+      - name: sm_ship_mode_id
+        sql: sm_ship_mode_id
+        type: string
+
+      - name: sm_type
+        sql: sm_type
+        type: string
+
+    measures:
+      - name: count
+        type: count
+
+    pre_aggregations:
+      # Pre-aggregation definitions go here.
+      # Learn more in the documentation: https://cube.dev/docs/caching/pre-aggregations/getting-started

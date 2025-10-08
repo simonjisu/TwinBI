@@ -3,7 +3,7 @@
   "children": [
     {
       "name": "hd_dep_count",
-      "label": "Household_Structure",
+      "label": "Household Structure",
       "stats": {
         "count": 7200,
         "null_count": 0,

@@ -3,23 +3,22 @@ children:
 - name: wp_web_page_id
   label: Identity
 - name: wp_rec_start_date
-  label: Record_Lifecycle
+  label: Record Start Date
   children:
   - name: wp_rec_end_date
-    label: Rec End Date
+    label: Record End Date
 - name: wp_url
-  label: Page_Info
+  label: Page URL
   children:
   - name: wp_type
     label: Type
   - name: wp_autogen_flag
     label: Autogen Flag
 - name: wp_char_count
-  label: Page_Content_Stats
-  children:
-  - name: wp_link_count
-    label: Link Count
-  - name: wp_image_count
-    label: Image Count
-  - name: wp_max_ad_count
-    label: Max Ad Count
+  label: Page Char Count
+- name: wp_link_count
+  label: Link Count
+- name: wp_image_count
+  label: Image Count
+- name: wp_max_ad_count
+  label: Max Ad Count

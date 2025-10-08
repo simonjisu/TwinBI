@@ -1,18 +1,20 @@
 table: customer_demographics
 children:
 - name: cd_gender
-  label: Demographics
-  children:
-  - name: cd_marital_status
-    children:
-    - name: cd_education_status
-      children:
-      - name: cd_credit_rating
-        label: Credit Rating
-      - name: cd_purchase_estimate
-        label: Purchase Estimate
-      label: Education Status
-    label: Marital Status
+  label: Gender
+
+- name: cd_marital_status
+  label: Marital Status
+
+- name: cd_education_status
+  label: Education Status
+
+- name: cd_credit_rating
+  label: Credit Rating
+
+- name: cd_purchase_estimate
+  label: Purchase Estimate
+
 - name: cd_dep_count
   label: Dependents
   children:

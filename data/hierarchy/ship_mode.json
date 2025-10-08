@@ -42,7 +42,7 @@
     },
     {
       "name": "sm_contract",
-      "label": "Shipping_Hierarchy",
+      "label": "Contract",
       "stats": {
         "count": 20,
         "null_count": 0,

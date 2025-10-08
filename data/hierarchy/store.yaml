@@ -3,12 +3,12 @@ children:
 - name: s_store_id
   label: Identity
 - name: s_rec_start_date
-  label: Record_Lifecycle
+  label: Record Start Date
   children:
   - name: s_rec_end_date
-    label: Rec End Date
+    label: Record End Date
 - name: s_store_name
-  label: Store_Info
+  label: Store Info
   children:
   - name: s_manager
     label: Manager

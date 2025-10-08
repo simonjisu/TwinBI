@@ -21,7 +21,7 @@
     },
     {
       "name": "p_promo_name",
-      "label": "Promotion_Info",
+      "label": "Promotion Name",
       "stats": {
         "count": 300,
         "null_count": 7,
@@ -250,7 +250,7 @@
     },
     {
       "name": "p_discount_active",
-      "label": "Discount",
+      "label": "Discount Active",
       "stats": {
         "count": 300,
         "null_count": 7,
@@ -277,7 +277,7 @@
     },
     {
       "name": "p_cost",
-      "label": "Promotion_Costs",
+      "label": "Costs",
       "stats": {
         "count": 300,
         "null_count": 6,

@@ -3,7 +3,7 @@ children:
 - name: ca_address_id
   label: Identity
 - name: ca_street_number
-  label: Location
+  label: Street Number
   children:
   - name: ca_street_name
     children:

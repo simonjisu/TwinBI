@@ -1,0 +1,104 @@
+cubes:
+  - name: item
+    sql_table: main.item
+    data_source: default
+
+    joins: []
+
+    dimensions:
+      - name: i_item_sk
+        sql: i_item_sk
+        type: number
+        primary_key: true
+
+      - name: i_brand_id
+        sql: i_brand_id
+        type: number
+
+      - name: i_brand
+        sql: i_brand
+        type: string
+
+      - name: i_category
+        sql: i_category
+        type: string
+
+      - name: i_category_id
+        sql: i_category_id
+        type: number
+
+      - name: i_class
+        sql: i_class
+        type: string
+
+      - name: i_class_id
+        sql: i_class_id
+        type: number
+
+      - name: i_color
+        sql: i_color
+        type: string
+
+      - name: i_container
+        sql: i_container
+        type: string
+
+      - name: i_formulation
+        sql: i_formulation
+        type: string
+
+      - name: i_item_desc
+        sql: i_item_desc
+        type: string
+
+      - name: i_item_id
+        sql: i_item_id
+        type: string
+
+      - name: i_manufact_id
+        sql: i_manufact_id
+        type: number
+
+      - name: i_manufact
+        sql: i_manufact
+        type: string
+
+      - name: i_manager_id
+        sql: i_manager_id
+        type: number
+
+      - name: i_product_name
+        sql: i_product_name
+        type: string
+
+      - name: i_current_price
+        sql: i_current_price
+        type: number
+
+      - name: i_wholesale_cost
+        sql: i_wholesale_cost
+        type: number
+
+      - name: i_size
+        sql: i_size
+        type: string
+
+      - name: i_units
+        sql: i_units
+        type: string
+
+      - name: i_rec_end_date
+        sql: i_rec_end_date
+        type: time
+
+      - name: i_rec_start_date
+        sql: i_rec_start_date
+        type: time
+
+    measures:
+      - name: count
+        type: count
+
+    pre_aggregations:
+      # Pre-aggregation definitions go here.
+      # Learn more in the documentation: https://cube.dev/docs/caching/pre-aggregations/getting-started

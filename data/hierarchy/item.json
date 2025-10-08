@@ -21,7 +21,7 @@
     },
     {
       "name": "i_rec_start_date",
-      "label": "Record_Lifecycle",
+      "label": "Record Start Date",
       "stats": {
         "count": 18000,
         "null_count": 46,
@@ -46,7 +46,7 @@
       "children": [
         {
           "name": "i_rec_end_date",
-          "label": "Rec End Date",
+          "label": "Record End Date",
           "stats": {
             "count": 18000,
             "null_count": 9000,
@@ -73,7 +73,7 @@
     },
     {
       "name": "i_product_name",
-      "label": "Product_Taxonomy",
+      "label": "Product Name",
       "stats": {
         "count": 18000,
         "null_count": 36,
@@ -110,7 +110,7 @@
           "children": [
             {
               "name": "i_brand",
-              "label": "Brand",
+              "label": "Brand Name",
               "stats": {
                 "count": 18000,
                 "null_count": 40,
@@ -165,7 +165,7 @@
               "children": [
                 {
                   "name": "i_class",
-                  "label": "Class",
+                  "label": "Class Name",
                   "stats": {
                     "count": 18000,
                     "null_count": 43,
@@ -214,7 +214,7 @@
                   "children": [
                     {
                       "name": "i_category",
-                      "label": "Category",
+                      "label": "Category Name",
                       "stats": {
                         "count": 18000,
                         "null_count": 43,
@@ -263,7 +263,7 @@
                       "children": [
                         {
                           "name": "i_manufact",
-                          "label": "Manufact",
+                          "label": "Manufact Name",
                           "stats": {
                             "count": 18000,
                             "null_count": 43,
@@ -291,7 +291,7 @@
     },
     {
       "name": "i_item_desc",
-      "label": "Product_Attributes",
+      "label": "Product Attributes",
       "stats": {
         "count": 18000,
         "null_count": 51,

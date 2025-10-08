@@ -3,45 +3,45 @@ children:
 - name: cc_call_center_id
   label: Identity
 - name: cc_rec_start_date
-  label: Record_Lifecycle
+  label: Record Start Date
   children:
   - name: cc_rec_end_date
-    label: Rec End Date
+    label: Record End Date
 - name: cc_name
-  label: Center_Info
+  label: Center Name
   children:
   - name: cc_class
     label: Class
-  - name: cc_manager
-    label: Manager
   - name: cc_tax_percentage
     label: Tax Percentage
-- name: cc_employees
-  label: Capacity_and_Facility
-  children:
   - name: cc_sq_ft
     label: Sq Ft
   - name: cc_hours
     label: Hours
-- name: cc_mkt_id
-  label: Organization
-  children:
-  - name: cc_mkt_class
-    label: Mkt Class
-  - name: cc_mkt_desc
-    label: Mkt Desc
-  - name: cc_market_manager
-    label: Market Manager
-  - name: cc_division
+  - name: cc_employees
+    label: Employees
+  - name: cc_manager
+    label: Manager
+    
+  - name: cc_mkt_id
+    label: Market Organization
     children:
-    - name: cc_division_name
-      label: Division Name
-    - name: cc_company
+    - name: cc_mkt_class
+      label: Market Class
+    - name: cc_mkt_desc
+      label: Market Desc
+    - name: cc_market_manager
+      label: Market Manager
+    - name: cc_division
       children:
-      - name: cc_company_name
-        label: Company Name
-      label: Company
-    label: Division
+      - name: cc_division_name
+        label: Division Name
+      - name: cc_company
+        children:
+        - name: cc_company_name
+          label: Company Name
+        label: Company
+      label: Division
 - name: cc_street_number
   label: Location
   children:

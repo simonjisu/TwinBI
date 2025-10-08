@@ -1,0 +1,132 @@
+cubes:
+  - name: store
+    sql_table: main.store
+    data_source: default
+
+    joins: []
+
+    dimensions:
+      - name: s_store_sk
+        sql: s_store_sk
+        type: number
+        primary_key: true
+
+      - name: s_city
+        sql: s_city
+        type: string
+
+      - name: s_company_name
+        sql: s_company_name
+        type: string
+
+      - name: s_company_id
+        sql: s_company_id
+        type: number
+
+      - name: s_country
+        sql: s_country
+        type: string
+
+      - name: s_county
+        sql: s_county
+        type: string
+
+      - name: s_closed_date_sk
+        sql: s_closed_date_sk
+        type: number
+
+      - name: s_division_name
+        sql: s_division_name
+        type: string
+
+      - name: s_division_id
+        sql: s_division_id
+        type: number
+
+      - name: s_geography_class
+        sql: s_geography_class
+        type: string
+
+      - name: s_hours
+        sql: s_hours
+        type: string
+
+      - name: s_manager
+        sql: s_manager
+        type: string
+
+      - name: s_market_desc
+        sql: s_market_desc
+        type: string
+
+      - name: s_market_manager
+        sql: s_market_manager
+        type: string
+
+      - name: s_market_id
+        sql: s_market_id
+        type: number
+
+      - name: s_state
+        sql: s_state
+        type: string
+
+      - name: s_number_employees
+        sql: s_number_employees
+        type: number
+
+      - name: s_store_id
+        sql: s_store_id
+        type: string
+
+      - name: s_store_name
+        sql: s_store_name
+        type: string
+
+      - name: s_floor_space
+        sql: s_floor_space
+        type: number
+
+      - name: s_street_name
+        sql: s_street_name
+        type: string
+
+      - name: s_street_number
+        sql: s_street_number
+        type: string
+
+      - name: s_street_type
+        sql: s_street_type
+        type: string
+
+      - name: s_suite_number
+        sql: s_suite_number
+        type: string
+
+      - name: s_zip
+        sql: s_zip
+        type: string
+
+      - name: s_rec_end_date
+        sql: s_rec_end_date
+        type: time
+
+      - name: s_rec_start_date
+        sql: s_rec_start_date
+        type: time
+
+      - name: s_gmt_offset
+        sql: s_gmt_offset
+        type: number
+
+      - name: s_tax_percentage
+        sql: s_tax_percentage
+        type: number
+
+    measures:
+      - name: count
+        type: count
+
+    pre_aggregations:
+      # Pre-aggregation definitions go here.
+      # Learn more in the documentation: https://cube.dev/docs/caching/pre-aggregations/getting-started

@@ -21,7 +21,7 @@
     },
     {
       "name": "c_salutation",
-      "label": "Name_and_Identity",
+      "label": "Salutation",
       "stats": {
         "count": 100000,
         "null_count": 3410,

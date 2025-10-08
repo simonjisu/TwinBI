@@ -1,0 +1,190 @@
+# role_aliases.yml
+cubes:
+  - name: customer_refunded
+    extends: customer
+
+  - name: customer_returning
+    extends: customer
+
+  - name: customer_billing
+    extends: customer
+
+  - name: customer_shipping
+    extends: customer
+
+  - name: customer_address_refunded
+    extends: customer_address
+
+  - name: customer_address_returning
+    extends: customer_address
+
+  - name: customer_address_billing
+    extends: customer_address
+
+  - name: customer_address_shipping
+    extends: customer_address
+
+  - name: customer_address_current
+    extends: customer_address
+
+  - name: customer_demographics_refunded
+    extends: customer_demographics
+
+  - name: customer_demographics_returning
+    extends: customer_demographics
+
+  - name: customer_demographics_billing
+    extends: customer_demographics
+
+  - name: customer_demographics_shipping
+    extends: customer_demographics
+
+  - name: household_demographics_refunded
+    extends: household_demographics
+
+  - name: household_demographics_returning
+    extends: household_demographics
+
+  - name: household_demographics_billing
+    extends: household_demographics
+
+  - name: household_demographics_shipping
+    extends: household_demographics
+
+  - name: customer_current_demographics
+    extends: customer_demographics
+
+  - name: customer_current_demographics_billing
+    extends: customer_demographics
+
+  - name: customer_current_demographics_shipping
+    extends: customer_demographics
+
+  - name: customer_current_demographics_refunded
+    extends: customer_demographics
+
+  - name: customer_current_demographics_returning
+    extends: customer_demographics
+
+  - name: customer_current_household
+    extends: household_demographics
+
+  - name: customer_current_household_billing
+    extends: household_demographics
+
+  - name: customer_current_household_shipping
+    extends: household_demographics
+
+  - name: customer_current_household_refunded
+    extends: household_demographics
+
+  - name: customer_current_household_returning
+    extends: household_demographics
+
+  - name: customer_first_sales_date
+    extends: date_dim
+
+  - name: customer_first_sales_date_billing
+    extends: date_dim
+
+  - name: customer_first_sales_date_shipping
+    extends: date_dim
+
+  - name: customer_first_sales_date_refunded
+    extends: date_dim
+
+  - name: customer_first_sales_date_returning
+    extends: date_dim
+
+  - name: customer_first_shipto_date
+    extends: date_dim
+
+  - name: customer_first_shipto_date_billing
+    extends: date_dim
+
+  - name: customer_first_shipto_date_shipping
+    extends: date_dim
+
+  - name: customer_first_shipto_date_refunded
+    extends: date_dim
+
+  - name: customer_first_shipto_date_returning
+    extends: date_dim
+
+  - name: customer_last_review_date
+    extends: date_dim
+
+  - name: customer_last_review_date_billing
+    extends: date_dim
+
+  - name: customer_last_review_date_shipping
+    extends: date_dim
+
+  - name: customer_last_review_date_refunded
+    extends: date_dim
+
+  - name: customer_last_review_date_returning
+    extends: date_dim
+
+  - name: income_band_household
+    extends: income_band
+
+  - name: income_band_household_billing
+    extends: income_band
+
+  - name: income_band_household_shipping
+    extends: income_band
+
+  - name: income_band_household_refunded
+    extends: income_band
+
+  - name: income_band_household_returning
+    extends: income_band
+
+  - name: catalog_page_start_date
+    extends: date_dim
+
+  - name: catalog_page_end_date
+    extends: date_dim
+
+  - name: call_center_open_date
+    extends: date_dim
+
+  - name: call_center_closed_date
+    extends: date_dim
+
+  - name: promotion_start_date
+    extends: date_dim
+
+  - name: promotion_end_date
+    extends: date_dim
+
+  - name: store_closed_date
+    extends: date_dim
+
+  - name: web_site_open_date
+    extends: date_dim
+
+  - name: web_site_close_date
+    extends: date_dim
+
+  - name: web_page_creation_date
+    extends: date_dim
+
+  - name: web_page_access_date
+    extends: date_dim
+
+  - name: web_page_customer
+    extends: customer
+
+  - name: date_dim_sold
+    extends: date_dim
+
+  - name: date_dim_shipped
+    extends: date_dim
+
+  - name: time_dim_sold
+    extends: time_dim
+
+  - name: time_dim_shipped
+    extends: time_dim

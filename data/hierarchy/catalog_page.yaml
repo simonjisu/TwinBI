@@ -3,7 +3,7 @@ children:
 - name: cp_catalog_page_id
   label: Identity
 - name: cp_catalog_page_number
-  label: Catalog_Structure
+  label: Catalog Page Number
   children:
   - name: cp_catalog_number
     children:

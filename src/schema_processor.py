@@ -8,8 +8,8 @@ from IPython.display import display
 from ipycytoscape import CytoscapeWidget
 import ipywidgets as W
 
-from .hierarchy_duckdb import HierarchyTree, Node  # type: ignore
-from .unique_index import UniqueIndex  # type: ignore
+from hierarchy_duckdb import HierarchyTree, Node
+from unique_index import UniqueIndex
 
 
 
@@ -357,11 +357,18 @@ def extract_edges(data_path: Path) -> tuple[dict[str, list], dict[str, dict[str,
 def is_fact(tbl: str) -> bool:
     return tbl in FACT_TABLES
 
-def build_subgraph(out_edges: dict[list], fact_table: str, table_attributes: dict[str, list[str]] | None = None, schema_type: str = 'star'):
+def build_subgraph(
+        out_edges: dict[list], 
+        fact_table: str, 
+        table_attributes: dict[str, list[str]] | None = None, 
+        schema_filter: Optional[list[str]] = None,
+        schema_type: str = 'star'):
     nodes = {}  # id -> {'id': name, 'type': 'fact'|'dimension'}
     es = []     # edges for the subgraph
 
-    def ensure_node(name: str):
+    def ensure_node(name: str, schema_filter: Optional[list[str]] = None):
+        if schema_filter and name not in schema_filter:
+            return
         if name not in nodes:
             node_type = 'fact' if is_fact(name) else 'dimension'
             node = {'id': name, 'type': node_type}
@@ -416,18 +423,24 @@ def build_subgraph(out_edges: dict[list], fact_table: str, table_attributes: dic
     }
 
 def create_schema_graphs(data_path: Path):
+    # keep only for these schema
+    with open(data_path / 'tpcds-schema.json') as f:
+        schema: dict[str, list[str]] = json.load(f)
+
     for schema_type in ['star', 'snowflake']:
-        out_edges, prefix2info, table_attributes = extract_edges(data_path)
+        out_edges, prefix2info, table_attributes = extract_edges(data_path / 'tables')
         graph = {}
         for fact in sorted(FACT_TABLES):
-            graph[fact] = build_subgraph(out_edges, fact, table_attributes, schema_type=schema_type)
+            graph[fact] = build_subgraph(
+                out_edges, fact, table_attributes, 
+                schema_filter=schema.get(fact, []),
+                schema_type=schema_type)
             
         with open(data_path / f'tpcds-{schema_type}-graph.json', 'w') as f:
             json.dump(graph, f, indent=2)
 
         with open(data_path / f'tpcds-prefix_info.json', 'w') as f:
             json.dump(prefix2info, f, indent=2)
-
 
 def extract_fact_view(
     graph_dict: dict,
@@ -772,14 +785,16 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', type=str, default='./data', help='Path to the data directory containing CSV files.')
+    parser.add_argument('--data_path', type=str, default='./data/', help='Path to the data directory.')
     parser.add_argument('--create_graphs', action='store_true', help='Flag to create schema graphs.')
     parser.add_argument('--test', action='store_true', help='Run SchemaExplorer search tests.')
     args = parser.parse_args()
 
-    data_path = Path(args.data_path)
+    data_path = Path(args.data_path).resolve()
+    assert data_path.parent.stem == 'Agent4OLAP', "data_path.parent should be inside 'Agent4OLAP' directory."
 
     if args.create_graphs:
+        # uv run 
         if not data_path.exists():
             data_path.mkdir(parents=True)
         create_schema_graphs(data_path)

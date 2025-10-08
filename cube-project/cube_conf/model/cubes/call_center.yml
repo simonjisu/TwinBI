@@ -1,0 +1,140 @@
+cubes:
+  - name: call_center
+    sql_table: main.call_center
+    data_source: default
+
+    joins: []
+
+    dimensions:
+      - name: cc_call_center_sk
+        sql: cc_call_center_sk
+        type: number
+        primary_key: true
+
+      - name: cc_call_center_id
+        sql: cc_call_center_id
+        type: string
+
+      - name: cc_city
+        sql: cc_city
+        type: string
+
+      - name: cc_class
+        sql: cc_class
+        type: string
+
+      - name: cc_closed_date_sk
+        sql: cc_closed_date_sk
+        type: number
+
+      - name: cc_company_name
+        sql: cc_company_name
+        type: string
+
+      - name: cc_company
+        sql: cc_company
+        type: number
+
+      - name: cc_country
+        sql: cc_country
+        type: string
+
+      - name: cc_county
+        sql: cc_county
+        type: string
+
+      - name: cc_division_name
+        sql: cc_division_name
+        type: string
+
+      - name: cc_division
+        sql: cc_division
+        type: number
+
+      - name: cc_hours
+        sql: cc_hours
+        type: string
+
+      - name: cc_manager
+        sql: cc_manager
+        type: string
+
+      - name: cc_market_manager
+        sql: cc_market_manager
+        type: string
+
+      - name: cc_mkt_class
+        sql: cc_mkt_class
+        type: string
+
+      - name: cc_mkt_desc
+        sql: cc_mkt_desc
+        type: string
+
+      - name: cc_mkt_id
+        sql: cc_mkt_id
+        type: number
+
+      - name: cc_name
+        sql: cc_name
+        type: string
+
+      - name: cc_open_date_sk
+        sql: cc_open_date_sk
+        type: number
+
+      - name: cc_state
+        sql: cc_state
+        type: string
+
+      - name: cc_street_name
+        sql: cc_street_name
+        type: string
+
+      - name: cc_street_number
+        sql: cc_street_number
+        type: string
+
+      - name: cc_street_type
+        sql: cc_street_type
+        type: string
+
+      - name: cc_suite_number
+        sql: cc_suite_number
+        type: string
+
+      - name: cc_zip
+        sql: cc_zip
+        type: string
+
+      - name: cc_employees
+        sql: cc_employees
+        type: number
+
+      - name: cc_sq_ft
+        sql: cc_sq_ft
+        type: number
+
+      - name: cc_rec_end_date
+        sql: cc_rec_end_date
+        type: time
+
+      - name: cc_rec_start_date
+        sql: cc_rec_start_date
+        type: time
+
+      - name: cc_gmt_offset
+        sql: cc_gmt_offset
+        type: number
+
+      - name: cc_tax_percentage
+        sql: cc_tax_percentage
+        type: number
+
+    measures:
+      - name: count
+        type: count
+
+    pre_aggregations:
+      # Pre-aggregation definitions go here.
+      # Learn more in the documentation: https://cube.dev/docs/caching/pre-aggregations/getting-started

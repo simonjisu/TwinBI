@@ -2,36 +2,38 @@ table: item
 children:
 - name: i_item_id
   label: Identity
+
 - name: i_rec_start_date
-  label: Record_Lifecycle
+  label: Record Start Date
   children:
   - name: i_rec_end_date
-    label: Rec End Date
+    label: Record End Date
+
 - name: i_product_name
-  label: Product_Taxonomy
+  label: Product Name
   children:
   - name: i_brand_id
     children:
     - name: i_brand
-      label: Brand
+      label: Brand Name
     - name: i_class_id
       children:
       - name: i_class
-        label: Class
+        label: Class Name
       - name: i_category_id
         children:
         - name: i_category
-          label: Category
+          label: Category Name
         - name: i_manufact_id
           children:
           - name: i_manufact
-            label: Manufact
+            label: Manufact Name
           label: Manufact ID
         label: Category ID
       label: Class ID
     label: Brand ID
 - name: i_item_desc
-  label: Product_Attributes
+  label: Product Attributes
   children:
   - name: i_size
     label: Size

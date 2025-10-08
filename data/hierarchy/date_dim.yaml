@@ -1,89 +1,51 @@
 table: date_dim
 children:
+- name: d_date_id
+  label: Identity
+
 - name: d_date
-  label: Calendar
+  label: Calendar Date
   children:
-  - name: d_dom
+  - name: d_dow
     children:
-    - name: d_moy
+    - name: d_dom
       children:
-      - name: d_qoy
+      - name: d_moy
         children:
-        - name: d_year
-          label: Year
-        label: Qoy
-      label: Moy
-    label: Dom
-  - name: d_moy
-    children:
-    - name: d_qoy
-      children:
-      - name: d_year
-        label: Year
-      label: Qoy
-    label: Moy
-  - name: d_qoy
-    children:
-    - name: d_year
-      label: Year
-    label: Qoy
-- name: d_date
-  label: Calendar_Seq
-  children:
-  - name: d_month_seq
-    children:
-    - name: d_quarter_seq
-      children:
-      - name: d_year
-        label: Year
-      label: Quarter Seq
-    label: Month Seq
-- name: d_date
-  label: Week
-  children:
-  - name: d_date
-    children:
-    - name: d_dow
-      children:
-      - name: d_week_seq
-        children:
-        - name: d_year
-          label: Year
-        label: Week Seq
-      label: Dow
-    - name: d_week_seq
-      children:
-      - name: d_year
-        label: Year
-      label: Week Seq
-    label: Date
-- name: d_date
-  label: Fiscal
-  children:
-  - name: d_date
-    children:
-    - name: d_fy_week_seq
-      children:
-      - name: d_fy_quarter_seq
-        children:
-        - name: d_fy_year
-          label: FY Year
-        label: FY Quarter Seq
-      label: FY Week Seq
-    label: Date
-- name: d_date
-  label: Names_and_Labels
-  children:
+        - name: d_qoy
+          children:
+          - name: d_year
+            label: Year
+          label: Quarter of year
+        label: Month of year
+      label: Day of month
+    label: Day of week
   - name: d_day_name
-    label: Day Name
-  - name: d_quarter_seq
-    children:
+    children: 
     - name: d_quarter_name
       label: Quarter Name
-    label: Quarter Seq
-- name: d_date
-  label: Holiday_and_Weekend
-  children:
+    label: Day of week name
+
+
+
+  - name: d_week_seq
+    children:
+    - name: d_month_seq
+      children:
+      - name: d_quarter_seq
+        label: Quarter Sequence
+      label: Month Sequence
+    label: Week Sequence
+
+  - name: d_fy_week_seq
+    children:
+    - name: d_fy_quarter_seq
+      children:
+      - name: d_fy_year
+        label: FY Year
+      label: FY Quarter Sequence
+    label: FY Week Sequence
+  
   - name: d_following_holiday
     children:
     - name: d_holiday
@@ -92,46 +54,19 @@ children:
         label: Weekend
       label: Holiday
     label: Following Holiday
-  - name: d_holiday
-    children:
-    - name: d_weekend
-      label: Weekend
-    label: Holiday
-- name: d_date
-  label: Relative_Anchors
-  children:
+  
   - name: d_first_dom
     children:
-    - name: d_moy
-      children:
-      - name: d_year
-        label: Year
-      label: Moy
+    - name: d_last_dom
+      label: Last Dom
     label: First Dom
-  - name: d_last_dom
-    children:
-    - name: d_moy
-      children:
-      - name: d_year
-        label: Year
-      label: Moy
-    label: Last Dom
+
   - name: d_same_day_lq
     children:
-    - name: d_qoy
-      children:
-      - name: d_year
-        label: Year
-      label: Qoy
+    - name: d_same_day_ly
+      label: Same Day Ly
     label: Same Day Lq
-  - name: d_same_day_ly
-    children:
-    - name: d_year
-      label: Year
-    label: Same Day Ly
-- name: d_date
-  label: Current_Period_Flags
-  children:
+  
   - name: d_current_day
     children:
     - name: d_current_week
@@ -146,5 +81,3 @@ children:
         label: Current Month
       label: Current Week
     label: Current Day
-- name: d_date
-  label: Identity

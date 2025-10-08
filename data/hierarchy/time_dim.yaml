@@ -3,7 +3,7 @@ children:
 - name: t_time_id
   label: Identity
 - name: t_second
-  label: Time_Hierarchy
+  label: Second
   children:
   - name: t_minute
     children:

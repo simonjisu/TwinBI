@@ -1,0 +1,72 @@
+cubes:
+  - name: warehouse
+    sql_table: main.warehouse
+    data_source: default
+
+    joins: []
+
+    dimensions:
+      - name: w_warehouse_sk
+        sql: w_warehouse_sk
+        type: number
+        primary_key: true
+
+      - name: w_city
+        sql: w_city
+        type: string
+
+      - name: w_country
+        sql: w_country
+        type: string
+
+      - name: w_county
+        sql: w_county
+        type: string
+
+      - name: w_state
+        sql: w_state
+        type: string
+
+      - name: w_street_name
+        sql: w_street_name
+        type: string
+
+      - name: w_street_number
+        sql: w_street_number
+        type: string
+
+      - name: w_street_type
+        sql: w_street_type
+        type: string
+
+      - name: w_suite_number
+        sql: w_suite_number
+        type: string
+
+      - name: w_warehouse_id
+        sql: w_warehouse_id
+        type: string
+
+      - name: w_warehouse_name
+        sql: w_warehouse_name
+        type: string
+
+      - name: w_warehouse_sq_ft
+        sql: w_warehouse_sq_ft
+        type: number
+
+      - name: w_zip
+        sql: w_zip
+        type: string
+
+      - name: w_gmt_offset
+        sql: w_gmt_offset
+        type: number
+
+    measures:
+      - name: count
+        type: count
+
+    pre_aggregations:
+      # Pre-aggregation definitions go here.
+      # Learn more in the documentation: https://cube.dev/docs/caching/pre-aggregations/getting-started

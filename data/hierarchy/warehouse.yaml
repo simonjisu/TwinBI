@@ -3,12 +3,12 @@ children:
 - name: w_warehouse_id
   label: Identity
 - name: w_warehouse_name
-  label: Warehouse_Info
+  label: Warehouse Name
   children:
   - name: w_warehouse_sq_ft
     label: Warehouse Sq Ft
 - name: w_street_number
-  label: Location
+  label: Stree Number
   children:
   - name: w_street_name
     children:

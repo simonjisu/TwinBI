@@ -37,7 +37,7 @@
     },
     {
       "name": "web_rec_start_date",
-      "label": "Record_Lifecycle",
+      "label": "Record Start Date",
       "stats": {
         "count": 30,
         "null_count": 0,
@@ -62,7 +62,7 @@
       "children": [
         {
           "name": "web_rec_end_date",
-          "label": "Web Rec End Date",
+          "label": "Record End Date",
           "stats": {
             "count": 30,
             "null_count": 15,
@@ -207,7 +207,7 @@
     },
     {
       "name": "web_mkt_id",
-      "label": "Organization",
+      "label": "Market ID",
       "stats": {
         "count": 30,
         "null_count": 0,
@@ -234,7 +234,7 @@
       "children": [
         {
           "name": "web_mkt_class",
-          "label": "Web Mkt Class",
+          "label": "Web Market Class",
           "stats": {
             "count": 30,
             "null_count": 0,
@@ -276,7 +276,7 @@
         },
         {
           "name": "web_mkt_desc",
-          "label": "Web Mkt Desc",
+          "label": "Web Market Desc",
           "stats": {
             "count": 30,
             "null_count": 0,
@@ -365,7 +365,7 @@
         },
         {
           "name": "web_company_id",
-          "label": "Web Company ID",
+          "label": "Company ID",
           "stats": {
             "count": 30,
             "null_count": 0,
@@ -392,7 +392,7 @@
           "children": [
             {
               "name": "web_company_name",
-              "label": "Web Company Name",
+              "label": "Company Name",
               "stats": {
                 "count": 30,
                 "null_count": 0,
@@ -462,7 +462,7 @@
       "children": [
         {
           "name": "web_street_name",
-          "label": "Web Street Name",
+          "label": "Street Name",
           "stats": {
             "count": 30,
             "null_count": 0,
@@ -510,7 +510,7 @@
           "children": [
             {
               "name": "web_street_type",
-              "label": "Web Street Type",
+              "label": "Street Type",
               "stats": {
                 "count": 30,
                 "null_count": 0,
@@ -543,7 +543,7 @@
               "children": [
                 {
                   "name": "web_suite_number",
-                  "label": "Web Suite Number",
+                  "label": "Suite Number",
                   "stats": {
                     "count": 30,
                     "null_count": 0,
@@ -584,7 +584,7 @@
                   "children": [
                     {
                       "name": "web_city",
-                      "label": "Web City",
+                      "label": "City",
                       "stats": {
                         "count": 30,
                         "null_count": 0,
@@ -604,7 +604,7 @@
                       "children": [
                         {
                           "name": "web_county",
-                          "label": "Web County",
+                          "label": "County",
                           "stats": {
                             "count": 30,
                             "null_count": 0,
@@ -623,7 +623,7 @@
                           "children": [
                             {
                               "name": "web_state",
-                              "label": "Web State",
+                              "label": "State",
                               "stats": {
                                 "count": 30,
                                 "null_count": 0,
@@ -642,7 +642,7 @@
                               "children": [
                                 {
                                   "name": "web_zip",
-                                  "label": "Web ZIP",
+                                  "label": "ZIP",
                                   "stats": {
                                     "count": 30,
                                     "null_count": 0,
@@ -662,7 +662,7 @@
                                   "children": [
                                     {
                                       "name": "web_country",
-                                      "label": "Web Country",
+                                      "label": "Country",
                                       "stats": {
                                         "count": 30,
                                         "null_count": 0,
@@ -681,7 +681,7 @@
                                       "children": [
                                         {
                                           "name": "web_gmt_offset",
-                                          "label": "Web GMT Offset",
+                                          "label": "GMT Offset",
                                           "stats": {
                                             "count": 30,
                                             "null_count": 0,

@@ -1,7 +1,7 @@
 table: household_demographics
 children:
 - name: hd_dep_count
-  label: Household_Structure
+  label: Household Structure
   children:
   - name: hd_vehicle_count
     label: Vehicle Count

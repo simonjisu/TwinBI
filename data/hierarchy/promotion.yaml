@@ -3,7 +3,7 @@ children:
 - name: p_promo_id
   label: Identity
 - name: p_promo_name
-  label: Promotion_Info
+  label: Promotion Name
   children:
   - name: p_channel_dmail
     label: Channel Dmail
@@ -26,12 +26,12 @@ children:
   - name: p_purpose
     label: Purpose
 - name: p_discount_active
-  label: Discount
+  label: Discount Active
   children:
   - name: p_discount_pct
     label: Discount Pct
 - name: p_cost
-  label: Promotion_Costs
+  label: Costs
   children:
   - name: p_response_target
     label: Response Target

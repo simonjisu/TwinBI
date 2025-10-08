@@ -3,7 +3,7 @@ children:
 - name: sm_ship_mode_id
   label: Identity
 - name: sm_contract
-  label: Shipping_Hierarchy
+  label: Contract
   children:
   - name: sm_code
     children:

@@ -8,10 +8,7 @@ from pathlib import Path
 import datetime as dt
 import yaml
 
-try:
-    from src.unique_index import UniqueIndex  # type: ignore
-except ModuleNotFoundError:  # pragma: no cover
-    from unique_index import UniqueIndex  # type: ignore
+from unique_index import UniqueIndex
 
 # -----------------------------
 # Helpers
@@ -232,7 +229,8 @@ def build_tree_with_stats(
 
 if __name__ == "__main__":
     from pathlib import Path
-    proj_path = Path().resolve().parent
+    proj_path = Path().resolve()
+    assert proj_path.stem == "Agent4OLAP", f"Unexpected project path: {proj_path}"
     data_path = proj_path / 'data'
     duckdb_conn = duckdb.connect(database=str(proj_path / 'tpcds/tpcds.db'))
     index_path = data_path / 'index'

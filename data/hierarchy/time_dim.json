@@ -21,7 +21,7 @@
     },
     {
       "name": "t_second",
-      "label": "Time_Hierarchy",
+      "label": "Second",
       "stats": {
         "count": 86400,
         "null_count": 0,

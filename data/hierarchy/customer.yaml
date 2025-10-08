@@ -3,7 +3,7 @@ children:
 - name: c_customer_id
   label: Identity
 - name: c_salutation
-  label: Name_and_Identity
+  label: Salutation
   children:
   - name: c_first_name
     children:

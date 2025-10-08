@@ -28,7 +28,7 @@
     },
     {
       "name": "s_rec_start_date",
-      "label": "Record_Lifecycle",
+      "label": "Record Start Date",
       "stats": {
         "count": 12,
         "null_count": 0,
@@ -53,7 +53,7 @@
       "children": [
         {
           "name": "s_rec_end_date",
-          "label": "Rec End Date",
+          "label": "Record End Date",
           "stats": {
             "count": 12,
             "null_count": 6,
@@ -80,7 +80,7 @@
     },
     {
       "name": "s_store_name",
-      "label": "Store_Info",
+      "label": "Store Info",
       "stats": {
         "count": 12,
         "null_count": 0,

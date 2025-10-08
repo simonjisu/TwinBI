@@ -1,0 +1,68 @@
+cubes:
+  - name: customer_address
+    sql_table: main.customer_address
+    data_source: default
+
+    joins: []
+
+    dimensions:
+      - name: ca_address_sk
+        sql: ca_address_sk
+        type: number
+        primary_key: true
+
+      - name: ca_address_id
+        sql: ca_address_id
+        type: string
+
+      - name: ca_city
+        sql: ca_city
+        type: string
+
+      - name: ca_country
+        sql: ca_country
+        type: string
+
+      - name: ca_county
+        sql: ca_county
+        type: string
+
+      - name: ca_location_type
+        sql: ca_location_type
+        type: string
+
+      - name: ca_state
+        sql: ca_state
+        type: string
+
+      - name: ca_street_name
+        sql: ca_street_name
+        type: string
+
+      - name: ca_street_number
+        sql: ca_street_number
+        type: string
+
+      - name: ca_street_type
+        sql: ca_street_type
+        type: string
+
+      - name: ca_suite_number
+        sql: ca_suite_number
+        type: string
+
+      - name: ca_zip
+        sql: ca_zip
+        type: string
+
+      - name: ca_gmt_offset
+        sql: ca_gmt_offset
+        type: number
+
+    measures:
+      - name: count
+        type: count
+
+    pre_aggregations:
+      # Pre-aggregation definitions go here.
+      # Learn more in the documentation: https://cube.dev/docs/caching/pre-aggregations/getting-started

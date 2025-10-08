@@ -1,0 +1,31 @@
+{
+    "store_sales": [
+        "date_dim", "store", "item", "promotion", "time_dim", "customer_demographics",
+        "household_demographics", "customer_address", "customer", "income_band"
+    ],
+    "store_returns": [
+        "date_dim", "store", "item", "reason", "time_dim", "customer_demographics",
+        "household_demographics", "customer_address", "customer", "income_band"
+    ],
+    "catalog_sales": [
+        "date_dim", "catalog_page", "call_center", "warehouse", "item", "warehouse",
+        "time_dim", "ship_mode", "customer_demographics", "household_demographics",
+        "customer_address", "customer", "income_band"
+    ],
+    "catalog_returns": [
+        "date_dim", "catalog_page", "call_center", "warehouse", "item", "reason",
+        "time_dim", "ship_mode", "customer_demographics", "household_demographics",
+        "customer_address", "customer", "income_band"
+    ],
+    "web_sales": [
+        "date_dim", "web_site", "item", "promotion", "warehouse", "time_dim", "ship_mode",
+        "web_page", "customer_demographics", "household_demographics", "customer_address",
+        "customer", "income_band"
+    ],
+    "web_returns": [
+        "date_dim", "reason", "warehouse", "item", "time_dim", "ship_mode",
+        "web_page", "customer_demographics", "household_demographics", "customer_address",
+        "customer", "income_band"
+    ],
+    "inventory": ["date_dim", "warehouse", "item"]
+}

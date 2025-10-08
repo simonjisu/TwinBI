@@ -2,8 +2,26 @@
   "table": "date_dim",
   "children": [
     {
+      "name": "d_date_id",
+      "label": "Identity",
+      "stats": {
+        "count": 73049,
+        "null_count": 0,
+        "distinct_count": 73049,
+        "min": null,
+        "max": null,
+        "range": null,
+        "dtype": "string",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_date_id"
+        }
+      },
+      "children": []
+    },
+    {
       "name": "d_date",
-      "label": "Calendar",
+      "label": "Calendar Date",
       "stats": {
         "count": 73049,
         "null_count": 0,
@@ -22,70 +40,65 @@
       },
       "children": [
         {
-          "name": "d_dom",
-          "label": "Dom",
+          "name": "d_dow",
+          "label": "Day of week",
           "stats": {
             "count": 73049,
             "null_count": 0,
-            "distinct_count": 31,
-            "min": 1,
-            "max": 31,
+            "distinct_count": 7,
+            "min": 0,
+            "max": 6,
             "range": [
-              1,
-              31
+              0,
+              6
             ],
             "dtype": "integer",
             "unique_values": {
-              "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_dom"
+              "type": "list",
+              "values": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ]
             }
           },
           "children": [
             {
-              "name": "d_moy",
-              "label": "Moy",
+              "name": "d_dom",
+              "label": "Day of month",
               "stats": {
                 "count": 73049,
                 "null_count": 0,
-                "distinct_count": 12,
+                "distinct_count": 31,
                 "min": 1,
-                "max": 12,
+                "max": 31,
                 "range": [
                   1,
-                  12
+                  31
                 ],
                 "dtype": "integer",
                 "unique_values": {
-                  "type": "list",
-                  "values": [
-                    1,
-                    2,
-                    3,
-                    4,
-                    5,
-                    6,
-                    7,
-                    8,
-                    9,
-                    10,
-                    11,
-                    12
-                  ]
+                  "type": "bplustree",
+                  "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_dom"
                 }
               },
               "children": [
                 {
-                  "name": "d_qoy",
-                  "label": "Qoy",
+                  "name": "d_moy",
+                  "label": "Month of year",
                   "stats": {
                     "count": 73049,
                     "null_count": 0,
-                    "distinct_count": 4,
+                    "distinct_count": 12,
                     "min": 1,
-                    "max": 4,
+                    "max": 12,
                     "range": [
                       1,
-                      4
+                      12
                     ],
                     "dtype": "integer",
                     "unique_values": {
@@ -94,31 +107,66 @@
                         1,
                         2,
                         3,
-                        4
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12
                       ]
                     }
                   },
                   "children": [
                     {
-                      "name": "d_year",
-                      "label": "Year",
+                      "name": "d_qoy",
+                      "label": "Quarter of year",
                       "stats": {
                         "count": 73049,
                         "null_count": 0,
-                        "distinct_count": 201,
-                        "min": 1900,
-                        "max": 2100,
+                        "distinct_count": 4,
+                        "min": 1,
+                        "max": 4,
                         "range": [
-                          1900,
-                          2100
+                          1,
+                          4
                         ],
                         "dtype": "integer",
                         "unique_values": {
-                          "type": "bplustree",
-                          "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_year"
+                          "type": "list",
+                          "values": [
+                            1,
+                            2,
+                            3,
+                            4
+                          ]
                         }
                       },
-                      "children": []
+                      "children": [
+                        {
+                          "name": "d_year",
+                          "label": "Year",
+                          "stats": {
+                            "count": 73049,
+                            "null_count": 0,
+                            "distinct_count": 201,
+                            "min": 1900,
+                            "max": 2100,
+                            "range": [
+                              1900,
+                              2100
+                            ],
+                            "dtype": "integer",
+                            "unique_values": {
+                              "type": "bplustree",
+                              "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_year"
+                            }
+                          },
+                          "children": []
+                        }
+                      ]
                     }
                   ]
                 }
@@ -126,518 +174,9 @@
             }
           ]
         },
-        {
-          "name": "d_moy",
-          "label": "Moy",
-          "stats": {
-            "count": 73049,
-            "null_count": 0,
-            "distinct_count": 12,
-            "min": 1,
-            "max": 12,
-            "range": [
-              1,
-              12
-            ],
-            "dtype": "integer",
-            "unique_values": {
-              "type": "list",
-              "values": [
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-                9,
-                10,
-                11,
-                12
-              ]
-            }
-          },
-          "children": [
-            {
-              "name": "d_qoy",
-              "label": "Qoy",
-              "stats": {
-                "count": 73049,
-                "null_count": 0,
-                "distinct_count": 4,
-                "min": 1,
-                "max": 4,
-                "range": [
-                  1,
-                  4
-                ],
-                "dtype": "integer",
-                "unique_values": {
-                  "type": "list",
-                  "values": [
-                    1,
-                    2,
-                    3,
-                    4
-                  ]
-                }
-              },
-              "children": [
-                {
-                  "name": "d_year",
-                  "label": "Year",
-                  "stats": {
-                    "count": 73049,
-                    "null_count": 0,
-                    "distinct_count": 201,
-                    "min": 1900,
-                    "max": 2100,
-                    "range": [
-                      1900,
-                      2100
-                    ],
-                    "dtype": "integer",
-                    "unique_values": {
-                      "type": "bplustree",
-                      "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_year"
-                    }
-                  },
-                  "children": []
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "name": "d_qoy",
-          "label": "Qoy",
-          "stats": {
-            "count": 73049,
-            "null_count": 0,
-            "distinct_count": 4,
-            "min": 1,
-            "max": 4,
-            "range": [
-              1,
-              4
-            ],
-            "dtype": "integer",
-            "unique_values": {
-              "type": "list",
-              "values": [
-                1,
-                2,
-                3,
-                4
-              ]
-            }
-          },
-          "children": [
-            {
-              "name": "d_year",
-              "label": "Year",
-              "stats": {
-                "count": 73049,
-                "null_count": 0,
-                "distinct_count": 201,
-                "min": 1900,
-                "max": 2100,
-                "range": [
-                  1900,
-                  2100
-                ],
-                "dtype": "integer",
-                "unique_values": {
-                  "type": "bplustree",
-                  "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_year"
-                }
-              },
-              "children": []
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "d_date",
-      "label": "Calendar_Seq",
-      "stats": {
-        "count": 73049,
-        "null_count": 0,
-        "distinct_count": 73049,
-        "min": "1900-01-02",
-        "max": "2100-01-01",
-        "range": [
-          "1900-01-02",
-          "2100-01-01"
-        ],
-        "dtype": "date",
-        "unique_values": {
-          "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_date"
-        }
-      },
-      "children": [
-        {
-          "name": "d_month_seq",
-          "label": "Month Seq",
-          "stats": {
-            "count": 73049,
-            "null_count": 0,
-            "distinct_count": 2401,
-            "min": 0,
-            "max": 2400,
-            "range": [
-              0,
-              2400
-            ],
-            "dtype": "integer",
-            "unique_values": {
-              "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_month_seq"
-            }
-          },
-          "children": [
-            {
-              "name": "d_quarter_seq",
-              "label": "Quarter Seq",
-              "stats": {
-                "count": 73049,
-                "null_count": 0,
-                "distinct_count": 801,
-                "min": 1,
-                "max": 801,
-                "range": [
-                  1,
-                  801
-                ],
-                "dtype": "integer",
-                "unique_values": {
-                  "type": "bplustree",
-                  "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_quarter_seq"
-                }
-              },
-              "children": [
-                {
-                  "name": "d_year",
-                  "label": "Year",
-                  "stats": {
-                    "count": 73049,
-                    "null_count": 0,
-                    "distinct_count": 201,
-                    "min": 1900,
-                    "max": 2100,
-                    "range": [
-                      1900,
-                      2100
-                    ],
-                    "dtype": "integer",
-                    "unique_values": {
-                      "type": "bplustree",
-                      "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_year"
-                    }
-                  },
-                  "children": []
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "d_date",
-      "label": "Week",
-      "stats": {
-        "count": 73049,
-        "null_count": 0,
-        "distinct_count": 73049,
-        "min": "1900-01-02",
-        "max": "2100-01-01",
-        "range": [
-          "1900-01-02",
-          "2100-01-01"
-        ],
-        "dtype": "date",
-        "unique_values": {
-          "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_date"
-        }
-      },
-      "children": [
-        {
-          "name": "d_date",
-          "label": "Date",
-          "stats": {
-            "count": 73049,
-            "null_count": 0,
-            "distinct_count": 73049,
-            "min": "1900-01-02",
-            "max": "2100-01-01",
-            "range": [
-              "1900-01-02",
-              "2100-01-01"
-            ],
-            "dtype": "date",
-            "unique_values": {
-              "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_date"
-            }
-          },
-          "children": [
-            {
-              "name": "d_dow",
-              "label": "Dow",
-              "stats": {
-                "count": 73049,
-                "null_count": 0,
-                "distinct_count": 7,
-                "min": 0,
-                "max": 6,
-                "range": [
-                  0,
-                  6
-                ],
-                "dtype": "integer",
-                "unique_values": {
-                  "type": "list",
-                  "values": [
-                    0,
-                    1,
-                    2,
-                    3,
-                    4,
-                    5,
-                    6
-                  ]
-                }
-              },
-              "children": [
-                {
-                  "name": "d_week_seq",
-                  "label": "Week Seq",
-                  "stats": {
-                    "count": 73049,
-                    "null_count": 0,
-                    "distinct_count": 10436,
-                    "min": 1,
-                    "max": 10436,
-                    "range": [
-                      1,
-                      10436
-                    ],
-                    "dtype": "integer",
-                    "unique_values": {
-                      "type": "bplustree",
-                      "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_week_seq"
-                    }
-                  },
-                  "children": [
-                    {
-                      "name": "d_year",
-                      "label": "Year",
-                      "stats": {
-                        "count": 73049,
-                        "null_count": 0,
-                        "distinct_count": 201,
-                        "min": 1900,
-                        "max": 2100,
-                        "range": [
-                          1900,
-                          2100
-                        ],
-                        "dtype": "integer",
-                        "unique_values": {
-                          "type": "bplustree",
-                          "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_year"
-                        }
-                      },
-                      "children": []
-                    }
-                  ]
-                }
-              ]
-            },
-            {
-              "name": "d_week_seq",
-              "label": "Week Seq",
-              "stats": {
-                "count": 73049,
-                "null_count": 0,
-                "distinct_count": 10436,
-                "min": 1,
-                "max": 10436,
-                "range": [
-                  1,
-                  10436
-                ],
-                "dtype": "integer",
-                "unique_values": {
-                  "type": "bplustree",
-                  "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_week_seq"
-                }
-              },
-              "children": [
-                {
-                  "name": "d_year",
-                  "label": "Year",
-                  "stats": {
-                    "count": 73049,
-                    "null_count": 0,
-                    "distinct_count": 201,
-                    "min": 1900,
-                    "max": 2100,
-                    "range": [
-                      1900,
-                      2100
-                    ],
-                    "dtype": "integer",
-                    "unique_values": {
-                      "type": "bplustree",
-                      "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_year"
-                    }
-                  },
-                  "children": []
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "d_date",
-      "label": "Fiscal",
-      "stats": {
-        "count": 73049,
-        "null_count": 0,
-        "distinct_count": 73049,
-        "min": "1900-01-02",
-        "max": "2100-01-01",
-        "range": [
-          "1900-01-02",
-          "2100-01-01"
-        ],
-        "dtype": "date",
-        "unique_values": {
-          "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_date"
-        }
-      },
-      "children": [
-        {
-          "name": "d_date",
-          "label": "Date",
-          "stats": {
-            "count": 73049,
-            "null_count": 0,
-            "distinct_count": 73049,
-            "min": "1900-01-02",
-            "max": "2100-01-01",
-            "range": [
-              "1900-01-02",
-              "2100-01-01"
-            ],
-            "dtype": "date",
-            "unique_values": {
-              "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_date"
-            }
-          },
-          "children": [
-            {
-              "name": "d_fy_week_seq",
-              "label": "FY Week Seq",
-              "stats": {
-                "count": 73049,
-                "null_count": 0,
-                "distinct_count": 10436,
-                "min": 1,
-                "max": 10436,
-                "range": [
-                  1,
-                  10436
-                ],
-                "dtype": "integer",
-                "unique_values": {
-                  "type": "bplustree",
-                  "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_fy_week_seq"
-                }
-              },
-              "children": [
-                {
-                  "name": "d_fy_quarter_seq",
-                  "label": "FY Quarter Seq",
-                  "stats": {
-                    "count": 73049,
-                    "null_count": 0,
-                    "distinct_count": 801,
-                    "min": 1,
-                    "max": 801,
-                    "range": [
-                      1,
-                      801
-                    ],
-                    "dtype": "integer",
-                    "unique_values": {
-                      "type": "bplustree",
-                      "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_fy_quarter_seq"
-                    }
-                  },
-                  "children": [
-                    {
-                      "name": "d_fy_year",
-                      "label": "FY Year",
-                      "stats": {
-                        "count": 73049,
-                        "null_count": 0,
-                        "distinct_count": 201,
-                        "min": 1900,
-                        "max": 2100,
-                        "range": [
-                          1900,
-                          2100
-                        ],
-                        "dtype": "integer",
-                        "unique_values": {
-                          "type": "bplustree",
-                          "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_fy_year"
-                        }
-                      },
-                      "children": []
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "d_date",
-      "label": "Names_and_Labels",
-      "stats": {
-        "count": 73049,
-        "null_count": 0,
-        "distinct_count": 73049,
-        "min": "1900-01-02",
-        "max": "2100-01-01",
-        "range": [
-          "1900-01-02",
-          "2100-01-01"
-        ],
-        "dtype": "date",
-        "unique_values": {
-          "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_date"
-        }
-      },
-      "children": [
         {
           "name": "d_day_name",
-          "label": "Day Name",
+          "label": "Day of week name",
           "stats": {
             "count": 73049,
             "null_count": 0,
@@ -657,27 +196,6 @@
                 "Tuesday",
                 "Wednesday"
               ]
-            }
-          },
-          "children": []
-        },
-        {
-          "name": "d_quarter_seq",
-          "label": "Quarter Seq",
-          "stats": {
-            "count": 73049,
-            "null_count": 0,
-            "distinct_count": 801,
-            "min": 1,
-            "max": 801,
-            "range": [
-              1,
-              801
-            ],
-            "dtype": "integer",
-            "unique_values": {
-              "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_quarter_seq"
             }
           },
           "children": [
@@ -700,29 +218,137 @@
               "children": []
             }
           ]
-        }
-      ]
-    },
-    {
-      "name": "d_date",
-      "label": "Holiday_and_Weekend",
-      "stats": {
-        "count": 73049,
-        "null_count": 0,
-        "distinct_count": 73049,
-        "min": "1900-01-02",
-        "max": "2100-01-01",
-        "range": [
-          "1900-01-02",
-          "2100-01-01"
-        ],
-        "dtype": "date",
-        "unique_values": {
-          "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_date"
-        }
-      },
-      "children": [
+        },
+        {
+          "name": "d_week_seq",
+          "label": "Week Sequence",
+          "stats": {
+            "count": 73049,
+            "null_count": 0,
+            "distinct_count": 10436,
+            "min": 1,
+            "max": 10436,
+            "range": [
+              1,
+              10436
+            ],
+            "dtype": "integer",
+            "unique_values": {
+              "type": "bplustree",
+              "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_week_seq"
+            }
+          },
+          "children": [
+            {
+              "name": "d_month_seq",
+              "label": "Month Sequence",
+              "stats": {
+                "count": 73049,
+                "null_count": 0,
+                "distinct_count": 2401,
+                "min": 0,
+                "max": 2400,
+                "range": [
+                  0,
+                  2400
+                ],
+                "dtype": "integer",
+                "unique_values": {
+                  "type": "bplustree",
+                  "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_month_seq"
+                }
+              },
+              "children": [
+                {
+                  "name": "d_quarter_seq",
+                  "label": "Quarter Sequence",
+                  "stats": {
+                    "count": 73049,
+                    "null_count": 0,
+                    "distinct_count": 801,
+                    "min": 1,
+                    "max": 801,
+                    "range": [
+                      1,
+                      801
+                    ],
+                    "dtype": "integer",
+                    "unique_values": {
+                      "type": "bplustree",
+                      "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_quarter_seq"
+                    }
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "d_fy_week_seq",
+          "label": "FY Week Sequence",
+          "stats": {
+            "count": 73049,
+            "null_count": 0,
+            "distinct_count": 10436,
+            "min": 1,
+            "max": 10436,
+            "range": [
+              1,
+              10436
+            ],
+            "dtype": "integer",
+            "unique_values": {
+              "type": "bplustree",
+              "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_fy_week_seq"
+            }
+          },
+          "children": [
+            {
+              "name": "d_fy_quarter_seq",
+              "label": "FY Quarter Sequence",
+              "stats": {
+                "count": 73049,
+                "null_count": 0,
+                "distinct_count": 801,
+                "min": 1,
+                "max": 801,
+                "range": [
+                  1,
+                  801
+                ],
+                "dtype": "integer",
+                "unique_values": {
+                  "type": "bplustree",
+                  "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_fy_quarter_seq"
+                }
+              },
+              "children": [
+                {
+                  "name": "d_fy_year",
+                  "label": "FY Year",
+                  "stats": {
+                    "count": 73049,
+                    "null_count": 0,
+                    "distinct_count": 201,
+                    "min": 1900,
+                    "max": 2100,
+                    "range": [
+                      1900,
+                      2100
+                    ],
+                    "dtype": "integer",
+                    "unique_values": {
+                      "type": "bplustree",
+                      "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_fy_year"
+                    }
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
         {
           "name": "d_following_holiday",
           "label": "Following Holiday",
@@ -789,71 +415,6 @@
           ]
         },
         {
-          "name": "d_holiday",
-          "label": "Holiday",
-          "stats": {
-            "count": 73049,
-            "null_count": 0,
-            "distinct_count": 2,
-            "min": null,
-            "max": null,
-            "range": null,
-            "dtype": "string",
-            "unique_values": {
-              "type": "list",
-              "values": [
-                "N",
-                "Y"
-              ]
-            }
-          },
-          "children": [
-            {
-              "name": "d_weekend",
-              "label": "Weekend",
-              "stats": {
-                "count": 73049,
-                "null_count": 0,
-                "distinct_count": 2,
-                "min": null,
-                "max": null,
-                "range": null,
-                "dtype": "string",
-                "unique_values": {
-                  "type": "list",
-                  "values": [
-                    "N",
-                    "Y"
-                  ]
-                }
-              },
-              "children": []
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "d_date",
-      "label": "Relative_Anchors",
-      "stats": {
-        "count": 73049,
-        "null_count": 0,
-        "distinct_count": 73049,
-        "min": "1900-01-02",
-        "max": "2100-01-01",
-        "range": [
-          "1900-01-02",
-          "2100-01-01"
-        ],
-        "dtype": "date",
-        "unique_values": {
-          "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_date"
-        }
-      },
-      "children": [
-        {
           "name": "d_first_dom",
           "label": "First Dom",
           "stats": {
@@ -874,138 +435,25 @@
           },
           "children": [
             {
-              "name": "d_moy",
-              "label": "Moy",
+              "name": "d_last_dom",
+              "label": "Last Dom",
               "stats": {
                 "count": 73049,
                 "null_count": 0,
-                "distinct_count": 12,
-                "min": 1,
-                "max": 12,
+                "distinct_count": 2401,
+                "min": 2415020,
+                "max": 2488372,
                 "range": [
-                  1,
-                  12
+                  2415020,
+                  2488372
                 ],
                 "dtype": "integer",
                 "unique_values": {
-                  "type": "list",
-                  "values": [
-                    1,
-                    2,
-                    3,
-                    4,
-                    5,
-                    6,
-                    7,
-                    8,
-                    9,
-                    10,
-                    11,
-                    12
-                  ]
+                  "type": "bplustree",
+                  "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_last_dom"
                 }
               },
-              "children": [
-                {
-                  "name": "d_year",
-                  "label": "Year",
-                  "stats": {
-                    "count": 73049,
-                    "null_count": 0,
-                    "distinct_count": 201,
-                    "min": 1900,
-                    "max": 2100,
-                    "range": [
-                      1900,
-                      2100
-                    ],
-                    "dtype": "integer",
-                    "unique_values": {
-                      "type": "bplustree",
-                      "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_year"
-                    }
-                  },
-                  "children": []
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "name": "d_last_dom",
-          "label": "Last Dom",
-          "stats": {
-            "count": 73049,
-            "null_count": 0,
-            "distinct_count": 2401,
-            "min": 2415020,
-            "max": 2488372,
-            "range": [
-              2415020,
-              2488372
-            ],
-            "dtype": "integer",
-            "unique_values": {
-              "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_last_dom"
-            }
-          },
-          "children": [
-            {
-              "name": "d_moy",
-              "label": "Moy",
-              "stats": {
-                "count": 73049,
-                "null_count": 0,
-                "distinct_count": 12,
-                "min": 1,
-                "max": 12,
-                "range": [
-                  1,
-                  12
-                ],
-                "dtype": "integer",
-                "unique_values": {
-                  "type": "list",
-                  "values": [
-                    1,
-                    2,
-                    3,
-                    4,
-                    5,
-                    6,
-                    7,
-                    8,
-                    9,
-                    10,
-                    11,
-                    12
-                  ]
-                }
-              },
-              "children": [
-                {
-                  "name": "d_year",
-                  "label": "Year",
-                  "stats": {
-                    "count": 73049,
-                    "null_count": 0,
-                    "distinct_count": 201,
-                    "min": 1900,
-                    "max": 2100,
-                    "range": [
-                      1900,
-                      2100
-                    ],
-                    "dtype": "integer",
-                    "unique_values": {
-                      "type": "bplustree",
-                      "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_year"
-                    }
-                  },
-                  "children": []
-                }
-              ]
+              "children": []
             }
           ]
         },
@@ -1030,120 +478,28 @@
           },
           "children": [
             {
-              "name": "d_qoy",
-              "label": "Qoy",
+              "name": "d_same_day_ly",
+              "label": "Same Day Ly",
               "stats": {
                 "count": 73049,
                 "null_count": 0,
-                "distinct_count": 4,
-                "min": 1,
-                "max": 4,
+                "distinct_count": 73000,
+                "min": 2414657,
+                "max": 2487705,
                 "range": [
-                  1,
-                  4
-                ],
-                "dtype": "integer",
-                "unique_values": {
-                  "type": "list",
-                  "values": [
-                    1,
-                    2,
-                    3,
-                    4
-                  ]
-                }
-              },
-              "children": [
-                {
-                  "name": "d_year",
-                  "label": "Year",
-                  "stats": {
-                    "count": 73049,
-                    "null_count": 0,
-                    "distinct_count": 201,
-                    "min": 1900,
-                    "max": 2100,
-                    "range": [
-                      1900,
-                      2100
-                    ],
-                    "dtype": "integer",
-                    "unique_values": {
-                      "type": "bplustree",
-                      "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_year"
-                    }
-                  },
-                  "children": []
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "name": "d_same_day_ly",
-          "label": "Same Day Ly",
-          "stats": {
-            "count": 73049,
-            "null_count": 0,
-            "distinct_count": 73000,
-            "min": 2414657,
-            "max": 2487705,
-            "range": [
-              2414657,
-              2487705
-            ],
-            "dtype": "integer",
-            "unique_values": {
-              "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_same_day_ly"
-            }
-          },
-          "children": [
-            {
-              "name": "d_year",
-              "label": "Year",
-              "stats": {
-                "count": 73049,
-                "null_count": 0,
-                "distinct_count": 201,
-                "min": 1900,
-                "max": 2100,
-                "range": [
-                  1900,
-                  2100
+                  2414657,
+                  2487705
                 ],
                 "dtype": "integer",
                 "unique_values": {
                   "type": "bplustree",
-                  "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_year"
+                  "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_same_day_ly"
                 }
               },
               "children": []
             }
           ]
-        }
-      ]
-    },
-    {
-      "name": "d_date",
-      "label": "Current_Period_Flags",
-      "stats": {
-        "count": 73049,
-        "null_count": 0,
-        "distinct_count": 73049,
-        "min": "1900-01-02",
-        "max": "2100-01-01",
-        "range": [
-          "1900-01-02",
-          "2100-01-01"
-        ],
-        "dtype": "date",
-        "unique_values": {
-          "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_date"
-        }
-      },
-      "children": [
+        },
         {
           "name": "d_current_day",
           "label": "Current Day",
@@ -1252,27 +608,6 @@
           ]
         }
       ]
-    },
-    {
-      "name": "d_date",
-      "label": "Identity",
-      "stats": {
-        "count": 73049,
-        "null_count": 0,
-        "distinct_count": 73049,
-        "min": "1900-01-02",
-        "max": "2100-01-01",
-        "range": [
-          "1900-01-02",
-          "2100-01-01"
-        ],
-        "dtype": "date",
-        "unique_values": {
-          "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/date_dim__d_date"
-        }
-      },
-      "children": []
     }
   ]
 }

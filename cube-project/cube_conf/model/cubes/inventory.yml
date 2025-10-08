@@ -1,0 +1,39 @@
+cubes:
+  - name: inventory
+    sql_table: main.inventory
+    data_source: default
+
+    joins:
+      - name: date_dim
+        relationship: many_to_one
+        sql: "{CUBE}.inv_date_sk = {date_dim}.d_date_sk"
+
+      - name: item
+        relationship: many_to_one
+        sql: "{CUBE}.inv_item_sk = {item}.i_item_sk"
+
+      - name: warehouse
+        relationship: many_to_one
+        sql: "{CUBE}.inv_warehouse_sk = {warehouse}.w_warehouse_sk"
+
+    dimensions:
+      - name: inv_id
+        sql: concat(${CUBE}.inv_date_sk, '-', ${CUBE}.inv_item_sk, '-', ${CUBE}.inv_warehouse_sk)
+        type: string
+        primary_key: true
+
+      - name: inv_quantity_on_hand
+        sql: inv_quantity_on_hand
+        type: number
+    
+    measures:
+      - name: count
+        type: count
+
+      - name: quantity_on_hand
+        sql: inv_quantity_on_hand
+        type: sum
+
+    pre_aggregations:
+      # Pre-aggregation definitions go here.
+      # Learn more in the documentation: https://cube.dev/docs/caching/pre-aggregations/getting-started

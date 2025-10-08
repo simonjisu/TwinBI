@@ -2,6 +2,11 @@
 
 Agent for OLAP
 
+```
+uv run src/schema_processor.py --create_graphs
+uv run src/hierarchy_duckdb.py
+```
+
 
 ```
 uv add dbt-core dbt-duckdb
@@ -22,12 +27,6 @@ docker network ls # check the host
 docker compose up -d
 ```
 
+# TODO: 
 
-## TODO
-
-
-```python
-con = duckdb.connect(database='./tpcds/tpcds.db')
-con.execute('INSTALL tpcds;')
-con.execute('LOAD tpcds;')
-```
+* `SchemaExplorer` in `src/schema_processor.py`: need from/target searching
