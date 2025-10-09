@@ -4,14 +4,17 @@ cubes:
     data_source: default
 
     joins:
+      # inventory -> date_dim
       - name: date_dim
         relationship: many_to_one
         sql: "{CUBE}.inv_date_sk = {date_dim}.d_date_sk"
 
+      # inventory -> item
       - name: item
         relationship: many_to_one
         sql: "{CUBE}.inv_item_sk = {item}.i_item_sk"
 
+      # inventory -> warehouse
       - name: warehouse
         relationship: many_to_one
         sql: "{CUBE}.inv_warehouse_sk = {warehouse}.w_warehouse_sk"

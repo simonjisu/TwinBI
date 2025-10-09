@@ -3,7 +3,18 @@ cubes:
     sql_table: main.promotion
     data_source: default
 
-    joins: []
+    joins:
+      - name: date_dim__start_date
+        relationship: many_to_one
+        sql: "{CUBE}.p_start_date_sk = {date_dim__start_date}.d_date_sk"
+
+      - name: date_dim__end_date
+        relationship: many_to_one
+        sql: "{CUBE}.p_end_date_sk = {date_dim__end_date}.d_date_sk"
+
+      - name: item
+        relationship: many_to_one
+        sql: "{CUBE}.p_item_sk = {item}.i_item_sk"
 
     dimensions:
       - name: p_promo_sk

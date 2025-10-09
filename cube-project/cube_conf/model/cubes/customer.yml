@@ -3,7 +3,30 @@ cubes:
     sql_table: main.customer
     data_source: default
 
-    joins: []
+    joins:
+      - name: customer_address
+        relationship: many_to_one
+        sql: "{CUBE}.c_current_addr_sk = {customer_address}.ca_address_sk"
+
+      - name: customer_demographics
+        relationship: many_to_one
+        sql: "{CUBE}.c_current_cdemo_sk = {customer_demographics}.cd_demo_sk"
+
+      - name: household_demographics
+        relationship: many_to_one
+        sql: "{CUBE}.c_current_hdemo_sk = {household_demographics}.hd_demo_sk"
+
+      - name: date_dim
+        relationship: many_to_one
+        sql: "{CUBE}.c_first_shipto_date_sk = {date_dim}.d_date_sk"
+
+      - name: date_dim
+        relationship: many_to_one
+        sql: "{CUBE}.c_first_sales_date_sk = {date_dim}.d_date_sk"
+
+      - name: date_dim
+        relationship: many_to_one
+        sql: "{CUBE}.c_last_review_date_sk = {date_dim}.d_date_sk"
 
     dimensions:
       - name: c_customer_sk

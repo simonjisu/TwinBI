@@ -3,7 +3,14 @@ cubes:
     sql_table: main.web_site
     data_source: default
 
-    joins: []
+    joins:
+      - name: date_dim__closed_date
+        relationship: many_to_one
+        sql: "{CUBE}.web_open_date_sk = {date_dim__closed_date}.d_date_sk"
+
+      - name: date_dim__open_date
+        relationship: many_to_one
+        sql: "{CUBE}.web_close_date_sk = {date_dim__open_date}.d_date_sk"
 
     dimensions:
       - name: web_site_sk

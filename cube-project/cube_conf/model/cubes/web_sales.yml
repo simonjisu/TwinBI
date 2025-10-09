@@ -4,78 +4,91 @@ cubes:
     data_source: default
 
     joins:
-      - name: date_dim
+      # [sold] web_sales -> date_dim
+      - name: date_dim__sold
         relationship: many_to_one
-        sql: "{CUBE}.ws_sold_date_sk = {date_dim}.d_date_sk"
+        sql: "{CUBE}.ws_sold_date_sk = {date_dim__sold}.d_date_sk"
 
+      # web_sales -> time_dim
       - name: time_dim
         relationship: many_to_one
         sql: "{CUBE}.ws_sold_time_sk = {time_dim}.t_time_sk"
 
-      - name: date_dim_shipped
+      # [bill] web_sales -> customer -> customer_demographics, household_demographics, customer_address, date_dim
+      - name: customer__bill
         relationship: many_to_one
-        sql: "{CUBE}.ws_ship_date_sk = {date_dim_shipped}.d_date_sk"
+        sql: "{CUBE}.ws_bill_customer_sk = {customer__bill}.c_customer_sk"
 
-      - name: item
+      # [bill] web_sales -> customer_demographics
+      - name: customer_demographics__bill
+        relationship: one_to_one
+        sql: "{CUBE}.ws_bill_cdemo_sk = {customer_demographics__bill}.cd_demo_sk"
+
+      # [bill] web_sales -> household_demographics
+      - name: household_demographics__bill
         relationship: many_to_one
-        sql: "{CUBE}.ws_item_sk = {item}.i_item_sk"
+        sql: "{CUBE}.ws_bill_hdemo_sk = {household_demographics__bill}.hd_demo_sk"
 
-      - name: customer_billing
+      # [bill] web_sales -> customer_address
+      - name: customer_address__bill
         relationship: many_to_one
-        sql: "{CUBE}.ws_bill_customer_sk = {customer_billing}.c_customer_sk"
+        sql: "{CUBE}.ws_bill_addr_sk = {customer_address__bill}.ca_address_sk"
 
-      - name: customer_address_current
+      # [ship] web_sales -> date_dim
+      - name: date_dim__ship
         relationship: many_to_one
-        sql: "{customer_billing}.c_current_addr_sk = {customer_address_current}.ca_address_sk"
+        sql: "{CUBE}.ws_ship_date_sk = {date_dim__ship}.d_date_sk"
 
-      - name: customer_demographics_billing
+      # [ship] web_sales -> customer -> customer_demographics, household_demographics, customer_address, date_dim
+      - name: customer__ship
         relationship: many_to_one
-        sql: "{CUBE}.ws_bill_cdemo_sk = {customer_demographics_billing}.cd_demo_sk"
-
-      - name: household_demographics_billing
+        sql: "{CUBE}.ws_ship_customer_sk = {customer__ship}.c_customer_sk"
+      
+      # [ship] web_sales -> customer_demographics
+      - name: customer_demographics__ship
         relationship: many_to_one
-        sql: "{CUBE}.ws_bill_hdemo_sk = {household_demographics_billing}.hd_demo_sk"
+        sql: "{CUBE}.ws_ship_cdemo_sk = {customer_demographics__ship}.cd_demo_sk"
 
-      - name: customer_address_billing
+      # [ship] web_sales -> household_demographics
+      - name: household_demographics__ship
         relationship: many_to_one
-        sql: "{CUBE}.ws_bill_addr_sk = {customer_address_billing}.ca_address_sk"
+        sql: "{CUBE}.ws_ship_hdemo_sk = {household_demographics__ship}.hd_demo_sk"
 
-      - name: customer_shipping
-        relationship: many_to_one
-        sql: "{CUBE}.ws_ship_customer_sk = {customer_shipping}.c_customer_sk"
+      # [ship] web_sales -> customer_address
+      - name: customer_address__ship
+        relationship: one_to_one
+        sql: "{CUBE}.ws_ship_addr_sk = {customer_address__ship}.ca_address_sk"
 
-      - name: customer_demographics_shipping
-        relationship: many_to_one
-        sql: "{CUBE}.ws_ship_cdemo_sk = {customer_demographics_shipping}.cd_demo_sk"
-
-      - name: household_demographics_shipping
-        relationship: many_to_one
-        sql: "{CUBE}.ws_ship_hdemo_sk = {household_demographics_shipping}.hd_demo_sk"
-
-      - name: customer_address_shipping
-        relationship: many_to_one
-        sql: "{CUBE}.ws_ship_addr_sk = {customer_address_shipping}.ca_address_sk"
-
-      - name: web_page
-        relationship: many_to_one
-        sql: "{CUBE}.ws_web_page_sk = {web_page}.wp_web_page_sk"
-
-      - name: web_site
-        relationship: many_to_one
-        sql: "{CUBE}.ws_web_site_sk = {web_site}.web_site_sk"
-
+      # web_sales -> ship_mode
       - name: ship_mode
         relationship: many_to_one
         sql: "{CUBE}.ws_ship_mode_sk = {ship_mode}.sm_ship_mode_sk"
 
+      # web_sales -> warehouse
       - name: warehouse
         relationship: many_to_one
         sql: "{CUBE}.ws_warehouse_sk = {warehouse}.w_warehouse_sk"
 
+      # web_sales -> promotion -> item, date_dim
       - name: promotion
         relationship: many_to_one
         sql: "{CUBE}.ws_promo_sk = {promotion}.p_promo_sk"
 
+      # web_sales -> item
+      - name: item
+        relationship: many_to_one
+        sql: "{CUBE}.ws_item_sk = {item}.i_item_sk"
+
+      # web_sales -> web_site -> date_dim
+      - name: web_site
+        relationship: many_to_one
+        sql: "{CUBE}.ws_web_site_sk = {web_site}.web_site_sk"
+
+      # web_sales -> web_page -> date_dim, customer
+      - name: web_page
+        relationship: many_to_one
+        sql: "{CUBE}.ws_web_page_sk = {web_page}.wp_web_page_sk"
+        
     dimensions:
       - name: ws_item_sk
         sql: ws_item_sk

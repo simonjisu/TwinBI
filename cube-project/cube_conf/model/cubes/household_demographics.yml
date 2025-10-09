@@ -3,7 +3,10 @@ cubes:
     sql_table: main.household_demographics
     data_source: default
 
-    joins: []
+    joins:
+      - name: income_band
+        relationship: many_to_one
+        sql: "{CUBE}.hd_income_band_sk = {income_band}.ib_income_band_sk"
 
     dimensions:
       - name: hd_demo_sk

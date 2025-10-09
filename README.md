@@ -30,3 +30,4 @@ docker compose up -d
 # TODO: 
 
 * `SchemaExplorer` in `src/schema_processor.py`: need from/target searching
+* Due to snowflake schema, need to create multiple view tables that joined with each others...

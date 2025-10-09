@@ -4,61 +4,85 @@ cubes:
     data_source: default
 
     joins:
+      # web_returns -> date_dim
       - name: date_dim
         relationship: many_to_one
         sql: "{CUBE}.wr_returned_date_sk = {date_dim}.d_date_sk"
 
+      # web_returns -> time_dim
       - name: time_dim
         relationship: many_to_one
         sql: "{CUBE}.wr_returned_time_sk = {time_dim}.t_time_sk"
 
+      # web_returns -> item
       - name: item
         relationship: many_to_one
         sql: "{CUBE}.wr_item_sk = {item}.i_item_sk"
 
-      - name: customer_refunded
+      # [refunded] web_returns -> customer -> customer_demographics, household_demographics, customer_address, date_dim
+      - name: customer__refunded
         relationship: many_to_one
-        sql: "{CUBE}.wr_refunded_customer_sk = {customer_refunded}.c_customer_sk"
+        sql: "{CUBE}.wr_refunded_customer_sk = {customer__refunded}.c_customer_sk"
 
-      - name: customer_demographics_refunded
+      # [refunded] web_returns -> customer_demographics
+      - name: customer_demographics__refunded
+        relationship: one_to_one
+        sql: "{CUBE}.wr_refunded_cdemo_sk = {customer_demographics__refunded}.cd_demo_sk"
+
+      # [refunded] web_returns -> household_demographics
+      - name: household_demographics__refunded
         relationship: many_to_one
-        sql: "{CUBE}.wr_refunded_cdemo_sk = {customer_demographics_refunded}.cd_demo_sk"
+        sql: "{CUBE}.wr_refunded_hdemo_sk = {household_demographics__refunded}.hd_demo_sk"
 
-      - name: household_demographics_refunded
+      # [refunded] web_returns -> customer_address
+      - name: customer_address__refunded
         relationship: many_to_one
-        sql: "{CUBE}.wr_refunded_hdemo_sk = {household_demographics_refunded}.hd_demo_sk"
+        sql: "{CUBE}.wr_refunded_addr_sk = {customer_address__refunded}.ca_address_sk"
 
-      - name: customer_address_refunded
+      # [returning] web_returns -> customer -> customer_demographics, household_demographics, customer_address, date_dim
+      - name: customer__returning
         relationship: many_to_one
-        sql: "{CUBE}.wr_refunded_addr_sk = {customer_address_refunded}.ca_address_sk"
+        sql: "{CUBE}.wr_returning_customer_sk = {customer__returning}.c_customer_sk"
 
-      - name: customer_returning
+      # [returning] web_returns -> customer_demographics
+      - name: customer_demographics__returning
         relationship: many_to_one
-        sql: "{CUBE}.wr_returning_customer_sk = {customer_returning}.c_customer_sk"
+        sql: "{CUBE}.wr_returning_cdemo_sk = {customer_demographics__returning}.cd_demo_sk"
 
-      - name: customer_demographics_returning
+      # [returning] web_returns -> household_demographics
+      - name: household_demographics__returning
         relationship: many_to_one
-        sql: "{CUBE}.wr_returning_cdemo_sk = {customer_demographics_returning}.cd_demo_sk"
+        sql: "{CUBE}.wr_returning_hdemo_sk = {household_demographics__returning}.hd_demo_sk"
 
-      - name: household_demographics_returning
+      # [returning] web_returns -> customer_address
+      - name: customer_address__returning
+        relationship: one_to_one
+        sql: "{CUBE}.wr_returning_addr_sk = {customer_address__returning}.ca_address_sk"
+
+      # web_returns -> ship_mode
+      - name: ship_mode
         relationship: many_to_one
-        sql: "{CUBE}.wr_returning_hdemo_sk = {household_demographics_returning}.hd_demo_sk"
+        sql: "{CUBE}.wr_ship_mode_sk = {ship_mode}.sm_ship_mode_sk"
 
-      - name: customer_address_returning
+      # web_returns -> warehouse
+      - name: warehouse
         relationship: many_to_one
-        sql: "{CUBE}.wr_returning_addr_sk = {customer_address_returning}.ca_address_sk"
+        sql: "{CUBE}.wr_warehouse_sk = {warehouse}.w_warehouse_sk"
 
-      - name: web_page
-        relationship: many_to_one
-        sql: "{CUBE}.wr_web_page_sk = {web_page}.wp_web_page_sk"
-
+      # web_returns -> reason
       - name: reason
         relationship: many_to_one
         sql: "{CUBE}.wr_reason_sk = {reason}.r_reason_sk"
 
+      # web_returns -> web_page -> date_dim, customer
+      - name: web_page
+        relationship: many_to_one
+        sql: "{CUBE}.wr_web_page_sk = {web_page}.wp_web_page_sk"
+
+      # web_returns -> web_sales
       - name: web_sales
         relationship: many_to_one
-        sql: "{CUBE}.wr_order_number = {web_sales}.ws_order_number AND {CUBE}.wr_item_sk = {web_sales}.ws_item_sk"
+        sql: "{CUBE}.wr_order_number = {web_sales}.ws_order_number"
 
     dimensions:
       - name: wr_item_sk

@@ -3,7 +3,10 @@ cubes:
     sql_table: main.store
     data_source: default
 
-    joins: []
+    joins:
+      - name: date_dim
+        relationship: many_to_one
+        sql: "{CUBE}.s_closed_date_sk = {date_dim}.d_date_sk"
 
     dimensions:
       - name: s_store_sk

@@ -4,49 +4,55 @@ cubes:
     data_source: default
 
     joins:
+      # store_returns -> date_dim
       - name: date_dim
         relationship: many_to_one
         sql: "{CUBE}.sr_returned_date_sk = {date_dim}.d_date_sk"
 
+      # store_returns -> time_dim
       - name: time_dim
         relationship: many_to_one
         sql: "{CUBE}.sr_return_time_sk = {time_dim}.t_time_sk"
 
+      # store_returns -> item
       - name: item
         relationship: many_to_one
         sql: "{CUBE}.sr_item_sk = {item}.i_item_sk"
 
+      # store_returns -> customer -> customer_demographics, household_demographics, customer_address, date_dim
       - name: customer
         relationship: many_to_one
         sql: "{CUBE}.sr_customer_sk = {customer}.c_customer_sk"
 
-      - name: customer_address_current
-        relationship: many_to_one
-        sql: "{customer}.c_current_addr_sk = {customer_address_current}.ca_address_sk"
-
+      # store_returns -> customer_demographics
       - name: customer_demographics
         relationship: many_to_one
         sql: "{CUBE}.sr_cdemo_sk = {customer_demographics}.cd_demo_sk"
 
+      # store_returns -> household_demographics
       - name: household_demographics
         relationship: many_to_one
         sql: "{CUBE}.sr_hdemo_sk = {household_demographics}.hd_demo_sk"
 
+      # store_returns -> customer_address
       - name: customer_address
         relationship: many_to_one
         sql: "{CUBE}.sr_addr_sk = {customer_address}.ca_address_sk"
 
+      # store_returns -> store -> date_dim
       - name: store
         relationship: many_to_one
         sql: "{CUBE}.sr_store_sk = {store}.s_store_sk"
 
+      # store_returns -> reason
       - name: reason
         relationship: many_to_one
         sql: "{CUBE}.sr_reason_sk = {reason}.r_reason_sk"
 
+      # store_returns -> store_sales
       - name: store_sales
         relationship: many_to_one
-        sql: "{CUBE}.sr_ticket_number = {store_sales}.ss_ticket_number AND {CUBE}.sr_item_sk = {store_sales}.ss_item_sk"
+        sql: "{CUBE}.sr_ticket_number = {store_sales}.ss_ticket_number"
 
     dimensions:
       - name: sr_item_sk
