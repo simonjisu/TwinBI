@@ -1,90 +1,90 @@
 # roles_aliases.yml
 cubes:
 
-  - name: date_dim__sold
+  - name: date_dim_sold
     extends: date_dim
 
-  - name: date_dim__ship
+  - name: date_dim_ship
     extends: date_dim
 
-  - name: date_dim__start_date
+  - name: date_dim_start_date
     extends: date_dim
 
-  - name: date_dim__end_date
+  - name: date_dim_end_date
     extends: date_dim
 
-  - name: date_dim__closed_date
+  - name: date_dim_closed_date
     extends: date_dim
 
-  - name: date_dim__open_date
+  - name: date_dim_open_date
     extends: date_dim
 
-  - name: date_dim__creation_date
+  - name: date_dim_creation_date
     extends: date_dim
 
-  - name: date_dim__access_date
+  - name: date_dim_access_date
     extends: date_dim
 
   # catalog_sales.cs_bill_customer_sk
-  - name: customer__bill
+  - name: customer_bill
     extends: customer
 
   # catalog_sales.cs_bill_addr_sk
-  - name: customer_address__bill
+  - name: customer_address_bill
     extends: customer_address
 
   # catalog_sales.cs_bill_cdemo_sk
-  - name: customer_demographics__bill
+  - name: customer_demographics_bill
     extends: customer_demographics
   
   # catalog_sales.cs_bill_hdemo_sk
-  - name: household_demographics__bill
+  - name: household_demographics_bill
     extends: household_demographics
   
   # catalog_sales.cs_ship_customer_sk
-  - name: customer__ship
+  - name: customer_ship
     extends: customer
 
   # catalog_sales.cs_ship_addr_sk
-  - name: customer_address__ship
+  - name: customer_address_ship
     extends: customer_address
 
   # catalog_sales.cs_ship_cdemo_sk
-  - name: customer_demographics__ship
+  - name: customer_demographics_ship
     extends: customer_demographics
   
   # catalog_sales.cs_ship_hdemo_sk
-  - name: household_demographics__ship
+  - name: household_demographics_ship
     extends: household_demographics
 
   # catalog_returns.cr_refunded_customer_sk
-  - name: customer__refunded
+  - name: customer_refunded
     extends: customer
 
   # catalog_returns.cr_refunded_addr_sk
-  - name: customer_address__refunded
+  - name: customer_address_refunded
     extends: customer_address
 
   # catalog_returns.cr_refunded_cdemo_sk
-  - name: customer_demographics__refunded
+  - name: customer_demographics_refunded
     extends: customer_demographics
   
   # catalog_returns.cr_refunded_hdemo_sk
-  - name: household_demographics__refunded
+  - name: household_demographics_refunded
     extends: household_demographics
   
   # catalog_returns.cr_returning_customer_sk
-  - name: customer__returning
+  - name: customer_returning
     extends: customer
 
   # catalog_returns.cr_returning_addr_sk
-  - name: customer_address__returning
+  - name: customer_address_returning
     extends: customer_address
 
   # catalog_returns.cr_returning_cdemo_sk
-  - name: customer_demographics__returning
+  - name: customer_demographics_returning
     extends: customer_demographics
   
   # catalog_returns.cr_returning_hdemo_sk
-  - name: household_demographics__returning
+  - name: household_demographics_returning
     extends: household_demographics

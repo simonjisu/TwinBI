@@ -207,6 +207,7 @@ marimo/_lsp/
 __marimo__/
 
 *.db
+*.wal
 cube/*
 node_modules
 data/index/*

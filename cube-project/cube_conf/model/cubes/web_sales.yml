@@ -5,9 +5,9 @@ cubes:
 
     joins:
       # [sold] web_sales -> date_dim
-      - name: date_dim__sold
+      - name: date_dim_sold
         relationship: many_to_one
-        sql: "{CUBE}.ws_sold_date_sk = {date_dim__sold}.d_date_sk"
+        sql: "{CUBE}.ws_sold_date_sk = {date_dim_sold}.d_date_sk"
 
       # web_sales -> time_dim
       - name: time_dim
@@ -15,49 +15,49 @@ cubes:
         sql: "{CUBE}.ws_sold_time_sk = {time_dim}.t_time_sk"
 
       # [bill] web_sales -> customer -> customer_demographics, household_demographics, customer_address, date_dim
-      - name: customer__bill
+      - name: customer_bill
         relationship: many_to_one
-        sql: "{CUBE}.ws_bill_customer_sk = {customer__bill}.c_customer_sk"
+        sql: "{CUBE}.ws_bill_customer_sk = {customer_bill}.c_customer_sk"
 
       # [bill] web_sales -> customer_demographics
-      - name: customer_demographics__bill
+      - name: customer_demographics_bill
         relationship: one_to_one
-        sql: "{CUBE}.ws_bill_cdemo_sk = {customer_demographics__bill}.cd_demo_sk"
+        sql: "{CUBE}.ws_bill_cdemo_sk = {customer_demographics_bill}.cd_demo_sk"
 
       # [bill] web_sales -> household_demographics
-      - name: household_demographics__bill
+      - name: household_demographics_bill
         relationship: many_to_one
-        sql: "{CUBE}.ws_bill_hdemo_sk = {household_demographics__bill}.hd_demo_sk"
+        sql: "{CUBE}.ws_bill_hdemo_sk = {household_demographics_bill}.hd_demo_sk"
 
       # [bill] web_sales -> customer_address
-      - name: customer_address__bill
+      - name: customer_address_bill
         relationship: many_to_one
-        sql: "{CUBE}.ws_bill_addr_sk = {customer_address__bill}.ca_address_sk"
+        sql: "{CUBE}.ws_bill_addr_sk = {customer_address_bill}.ca_address_sk"
 
       # [ship] web_sales -> date_dim
-      - name: date_dim__ship
+      - name: date_dim_ship
         relationship: many_to_one
-        sql: "{CUBE}.ws_ship_date_sk = {date_dim__ship}.d_date_sk"
+        sql: "{CUBE}.ws_ship_date_sk = {date_dim_ship}.d_date_sk"
 
       # [ship] web_sales -> customer -> customer_demographics, household_demographics, customer_address, date_dim
-      - name: customer__ship
+      - name: customer_ship
         relationship: many_to_one
-        sql: "{CUBE}.ws_ship_customer_sk = {customer__ship}.c_customer_sk"
+        sql: "{CUBE}.ws_ship_customer_sk = {customer_ship}.c_customer_sk"
       
       # [ship] web_sales -> customer_demographics
-      - name: customer_demographics__ship
+      - name: customer_demographics_ship
         relationship: many_to_one
-        sql: "{CUBE}.ws_ship_cdemo_sk = {customer_demographics__ship}.cd_demo_sk"
+        sql: "{CUBE}.ws_ship_cdemo_sk = {customer_demographics_ship}.cd_demo_sk"
 
       # [ship] web_sales -> household_demographics
-      - name: household_demographics__ship
+      - name: household_demographics_ship
         relationship: many_to_one
-        sql: "{CUBE}.ws_ship_hdemo_sk = {household_demographics__ship}.hd_demo_sk"
+        sql: "{CUBE}.ws_ship_hdemo_sk = {household_demographics_ship}.hd_demo_sk"
 
       # [ship] web_sales -> customer_address
-      - name: customer_address__ship
+      - name: customer_address_ship
         relationship: one_to_one
-        sql: "{CUBE}.ws_ship_addr_sk = {customer_address__ship}.ca_address_sk"
+        sql: "{CUBE}.ws_ship_addr_sk = {customer_address_ship}.ca_address_sk"
 
       # web_sales -> ship_mode
       - name: ship_mode
@@ -94,6 +94,70 @@ cubes:
         sql: ws_item_sk
         type: number
         primary_key: true
+      
+      - name: ws_sold_date_sk
+        sql: ws_sold_date_sk
+        type: number
+
+      - name: ws_sold_time_sk
+        sql: ws_sold_time_sk
+        type: number
+
+      - name: ws_ship_date_sk
+        sql: ws_ship_date_sk
+        type: number
+
+      - name: ws_bill_customer_sk
+        sql: ws_bill_customer_sk
+        type: number
+
+      - name: ws_bill_cdemo_sk
+        sql: ws_bill_cdemo_sk
+        type: number
+
+      - name: ws_bill_hdemo_sk
+        sql: ws_bill_hdemo_sk
+        type: number
+
+      - name: ws_bill_addr_sk
+        sql: ws_bill_addr_sk
+        type: number
+
+      - name: ws_ship_customer_sk
+        sql: ws_ship_customer_sk
+        type: number
+
+      - name: ws_ship_cdemo_sk
+        sql: ws_ship_cdemo_sk
+        type: number
+
+      - name: ws_ship_hdemo_sk
+        sql: ws_ship_hdemo_sk
+        type: number
+
+      - name: ws_ship_addr_sk
+        sql: ws_ship_addr_sk
+        type: number
+
+      - name: ws_web_page_sk
+        sql: ws_web_page_sk
+        type: number
+
+      - name: ws_web_site_sk
+        sql: ws_web_site_sk
+        type: number
+
+      - name: ws_ship_mode_sk
+        sql: ws_ship_mode_sk
+        type: number
+
+      - name: ws_warehouse_sk
+        sql: ws_warehouse_sk
+        type: number
+
+      - name: ws_promo_sk
+        sql: ws_promo_sk
+        type: number
 
       - name: ws_order_number
         sql: ws_order_number

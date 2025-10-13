@@ -24,6 +24,18 @@ cubes:
         sql: concat(${CUBE}.inv_date_sk, '-', ${CUBE}.inv_item_sk, '-', ${CUBE}.inv_warehouse_sk)
         type: string
         primary_key: true
+      
+      - name: inv_date_sk
+        sql: inv_date_sk
+        type: number
+
+      - name: inv_item_sk
+        sql: inv_item_sk
+        type: number
+
+      - name: inv_warehouse_sk
+        sql: inv_warehouse_sk
+        type: number
 
       - name: inv_quantity_on_hand
         sql: inv_quantity_on_hand

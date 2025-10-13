@@ -1,0 +1,63 @@
+{
+  "measures": [
+    "catalog_sales.sales_price"
+  ],
+  "dimensions": [
+    "customer_address.ca_zip"
+  ],
+  "filters": [
+    {
+      "or": [
+        {
+          "values": [
+            "500"
+          ],
+          "member": "catalog_sales.cs_sales_price",
+          "operator": "gt"
+        },
+        {
+          "values": [
+            "85669",
+            "86197",
+            "88274",
+            "83405",
+            "86475",
+            "85392",
+            "85460",
+            "80348",
+            "81792"
+          ],
+          "member": "customer_address.ca_zip",
+          "operator": "startsWith"
+        },
+        {
+          "member": "customer_address.ca_state",
+          "operator": "equals",
+          "values": [
+            "CA",
+            "WA",
+            "GA"
+          ]
+        }
+      ]
+    },
+    {
+      "member": "date_dim_sold.d_qoy",
+      "operator": "equals",
+      "values": [
+        "1"
+      ]
+    },
+    {
+      "member": "date_dim_sold.d_year",
+      "operator": "equals",
+      "values": [
+        "1998"
+      ]
+    }
+  ],
+  "limit": 100,
+  "order": {
+    "customer_address.ca_zip": "asc"
+  }
+}

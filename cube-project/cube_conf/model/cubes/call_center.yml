@@ -4,11 +4,11 @@ cubes:
     data_source: default
 
     joins:
-      - name: date_dim__closed_date
+      - name: date_dim_closed_date
         relationship: many_to_one
         sql: "{CUBE}.cc_open_date_sk = {date_dim}.d_date_sk"
 
-      - name: date_dim__open_date
+      - name: date_dim_open_date
         relationship: many_to_one
         sql: "{CUBE}.cc_closed_date_sk = {date_dim}.d_date_sk"
 

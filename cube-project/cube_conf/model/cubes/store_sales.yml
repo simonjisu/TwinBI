@@ -54,6 +54,38 @@ cubes:
         sql: ss_item_sk
         type: number
         primary_key: true
+      
+      - name: ss_sold_date_sk
+        sql: ss_sold_date_sk
+        type: number
+
+      - name: ss_sold_time_sk
+        sql: ss_sold_time_sk
+        type: number
+
+      - name: ss_customer_sk
+        sql: ss_customer_sk
+        type: number
+
+      - name: ss_cdemo_sk
+        sql: ss_cdemo_sk
+        type: number
+
+      - name: ss_hdemo_sk
+        sql: ss_hdemo_sk
+        type: number
+
+      - name: ss_addr_sk
+        sql: ss_addr_sk
+        type: number
+
+      - name: ss_store_sk
+        sql: ss_store_sk
+        type: number
+
+      - name: ss_promo_sk
+        sql: ss_promo_sk
+        type: number
 
       - name: ss_ticket_number
         sql: ss_ticket_number

@@ -4,13 +4,13 @@ cubes:
     data_source: default
 
     joins:
-      - name: date_dim__creation_date
+      - name: date_dim_creation_date
         relationship: many_to_one
-        sql: "{CUBE}.wp_creation_date_sk = {date_dim__creation_date}.d_date_sk"
+        sql: "{CUBE}.wp_creation_date_sk = {date_dim_creation_date}.d_date_sk"
 
-      - name: date_dim__access_date
+      - name: date_dim_access_date
         relationship: many_to_one
-        sql: "{CUBE}.wp_access_date_sk = {date_dim__access_date}.d_date_sk"
+        sql: "{CUBE}.wp_access_date_sk = {date_dim_access_date}.d_date_sk"
 
       - name: customer
         relationship: many_to_one

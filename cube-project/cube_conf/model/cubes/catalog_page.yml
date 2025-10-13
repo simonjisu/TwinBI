@@ -4,13 +4,13 @@ cubes:
     data_source: default
 
     joins:
-      - name: date_dim__start_date
+      - name: date_dim_start_date
         relationship: many_to_one
-        sql: "{CUBE}.cp_start_date_sk = {date_dim__start_date}.d_date_sk"
+        sql: "{CUBE}.cp_start_date_sk = {date_dim_start_date}.d_date_sk"
 
-      - name: date_dim__end_date
+      - name: date_dim_end_date
         relationship: many_to_one
-        sql: "{CUBE}.cp_end_date_sk = {date_dim__end_date}.d_date_sk"
+        sql: "{CUBE}.cp_end_date_sk = {date_dim_end_date}.d_date_sk"
 
     dimensions:
       - name: cp_catalog_page_sk

@@ -58,7 +58,39 @@ cubes:
       - name: sr_item_sk
         sql: sr_item_sk
         type: number
-        primary_key: true
+        primaryKey: true
+      
+      - name: sr_returned_date_sk
+        sql: sr_returned_date_sk
+        type: number
+
+      - name: sr_return_time_sk
+        sql: sr_return_time_sk
+        type: number
+
+      - name: sr_customer_sk
+        sql: sr_customer_sk
+        type: number
+
+      - name: sr_cdemo_sk
+        sql: sr_cdemo_sk
+        type: number
+
+      - name: sr_hdemo_sk
+        sql: sr_hdemo_sk
+        type: number
+
+      - name: sr_addr_sk
+        sql: sr_addr_sk
+        type: number
+
+      - name: sr_store_sk
+        sql: sr_store_sk
+        type: number
+
+      - name: sr_reason_sk
+        sql: sr_reason_sk
+        type: number
 
       - name: sr_ticket_number
         sql: sr_ticket_number
@@ -108,43 +140,64 @@ cubes:
       - name: count
         type: count
 
-      - name: return_amount
+      - name: total_return_amount
         sql: sr_return_amt
         type: sum
 
-      - name: return_quantity
+      # Q1
+      - name: total_return_by_customer_store
+        multi_stage: true
+        sql: "{total_return_amount}"
+        type: sum
+        group_by:
+          - store_returns.sr_customer_sk
+          - store_returns.sr_store_sk
+      # Q1
+      - name: store_avg_return
+        multi_stage: true
+        sql: "{total_return_by_customer_store}"
+        type: avg
+        group_by:
+          - store_returns.sr_store_sk
+      # Q1
+      - name: return_vs_store_avg
+        multi_stage: true
+        sql: "{total_return_by_customer_store} / NULLIF({store_avg_return}, 0)"
+        type: number
+        
+      - name: total_return_quantity
         sql: sr_return_quantity
         type: sum
 
-      - name: return_ship_cost
+      - name: total_return_ship_cost
         sql: sr_return_ship_cost
         type: sum
 
-      - name: return_tax
+      - name: total_return_tax
         sql: sr_return_tax
         type: sum
 
-      - name: fee
+      - name: total_fee
         sql: sr_fee
         type: sum
 
-      - name: refunded_cash
+      - name: total_refunded_cash
         sql: sr_refunded_cash
         type: sum
 
-      - name: reversed_charge
+      - name: total_reversed_charge
         sql: sr_reversed_charge
         type: sum
 
-      - name: store_credit
+      - name: total_store_credit
         sql: sr_store_credit
         type: sum
 
-      - name: ticket_number
+      - name: total_ticket_number
         sql: sr_ticket_number
         type: sum
 
-      - name: net_loss
+      - name: total_net_loss
         sql: sr_net_loss
         type: sum
 

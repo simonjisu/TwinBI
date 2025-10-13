@@ -10,6 +10,7 @@ services:
       - CUBEJS_DB_DUCKDB_DATABASE_PATH=/cube/data/tpcds.db
       - CUBEJS_DEV_MODE=true
       - CUBEJS_API_SECRET=secret
+      - CUBEJS_TESSERACT_SQL_PLANNER=true
     volumes:
       - ./data:/cube/data
       - ./cube_conf:/cube/conf
