@@ -147,7 +147,7 @@ cubes:
       # Q1
       - name: total_return_by_customer_store
         multi_stage: true
-        sql: "{total_return_amount}"
+        sql: sr_return_amt
         type: sum
         group_by:
           - store_returns.sr_customer_sk
