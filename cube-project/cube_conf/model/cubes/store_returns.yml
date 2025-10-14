@@ -50,9 +50,9 @@ cubes:
         sql: "{CUBE}.sr_reason_sk = {reason}.r_reason_sk"
 
       # store_returns -> store_sales
-      - name: store_sales
-        relationship: many_to_one
-        sql: "{CUBE}.sr_ticket_number = {store_sales}.ss_ticket_number"
+      # - name: store_sales
+      #   relationship: many_to_one
+      #   sql: "{CUBE}.sr_ticket_number = {store_sales}.ss_ticket_number"
 
     dimensions:
       - name: sr_item_sk
