@@ -1,0 +1,110 @@
+cubes:
+  - name: fact_sales
+    sql_table: main.fact_sales
+    data_source: default
+
+    joins:
+      - name: dim_date
+        relationship: many_to_one
+        sql: "{CUBE}.date_key = {dim_date}.date_key"
+
+      - name: dim_store
+        relationship: many_to_one
+        sql: "{CUBE}.store_key = {dim_store}.store_key"
+
+      - name: dim_product
+        relationship: many_to_one
+        sql: "{CUBE}.product_key = {dim_product}.product_key"
+
+    measures:
+      - name: sales_amount
+        sql: "sales_amount"
+        type: sum
+      - name: quantity_sold
+        sql: "quantity_sold"
+        type: sum
+      - name: net_profit
+        sql: "net_profit"
+        type: sum
+
+    dimensions:
+      - name: transaction_id
+        sql: "transaction_id"
+        type: number
+        primary_key: true
+
+
+  - name: dim_date
+    sql_table: main.dim_date
+    dimensions:
+      - name: date_key
+        sql: "date_key"
+        type: number
+        primary_key: true
+      - name: date
+        sql: "date"
+        type: time
+      - name: day
+        sql: "day"
+        type: number
+      - name: month
+        sql: "month"
+        type: number
+      - name: quarter
+        sql: "quarter"
+        type: number
+      - name: year
+        sql: "year"
+        type: number
+      - name: week
+        sql: "week"
+        type: number
+
+  - name: dim_store
+    sql_table: main.dim_store
+    dimensions:
+      - name: store_key
+        sql: "store_key"
+        type: number
+        primary_key: true
+      - name: company
+        sql: "company"
+        type: string
+      - name: region
+        sql: "region"
+        type: string
+      - name: state
+        sql: "state"
+        type: string
+      - name: city
+        sql: "city"
+        type: string
+      - name: store_name
+        sql: "store_name"
+        type: string
+
+  - name: dim_product
+    sql_table: main.dim_product
+    dimensions:
+      - name: product_key
+        sql: "product_key"
+        type: number
+        primary_key: true
+      - name: category
+        sql: "category"
+        type: string
+      - name: department
+        sql: "department"
+        type: string
+      - name: type
+        sql: "type"
+        type: string
+      - name: marketing_group
+        sql: "marketing_group"
+        type: string
+      - name: brand
+        sql: "brand"
+        type: string
+      - name: product_name
+        sql: "product_name"
+        type: string

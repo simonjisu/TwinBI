@@ -1,0 +1,18 @@
+# Dim_Date: Date → (Week, Month → Quarter → Year)
+table: Dim_Date
+children:
+  - name: date_key
+    label: Identity
+  - name: date
+    label: Date
+    children:
+      - name: week
+        label: Week
+      - name: month
+        label: Month
+        children:
+          - name: quarter
+            label: Quarter
+            children:
+              - name: year
+                label: Year

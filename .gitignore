@@ -210,5 +210,6 @@ __marimo__/
 *.wal
 cube/*
 node_modules
-data/index/*
+data/tpcds/index/*
+data/tutorial/index/*
 .cubestore

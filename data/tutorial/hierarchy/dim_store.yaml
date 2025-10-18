@@ -1,0 +1,16 @@
+table: Dim_Store
+children:
+  - name: store_key
+    label: Identity
+  - name: store_name
+    label: Store
+    children:
+      - name: city
+        label: City
+        children:
+          - name: state
+            label: State
+      - name: sales_manager
+        label: Sales Manager
+      - name: sales_district
+        label: Sales District

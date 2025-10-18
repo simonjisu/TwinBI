@@ -1,0 +1,8 @@
+column,datatype,NULLs,Primary Key,Foreign Key
+product_key,INTEGER,N,Y,
+product_name,VARCHAR,,,
+brand,VARCHAR,,,
+type,VARCHAR,,,
+category,VARCHAR,,,
+department,VARCHAR,,,
+marketing_group,VARCHAR,,,

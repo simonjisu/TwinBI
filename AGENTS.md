@@ -1,7 +1,7 @@
 # Agent4OLAP — Agent Architecture & Project Structure
 
 ## Overview
-Agent4OLAP is an intelligent agent system for OLAP (Online Analytical Processing). This document defines the project layout, agent architecture, and development workflows, with special attention to the `tpcds` dbt project integration.
+Agent4OLAP is an intelligent agent system for OLAP (Online Analytical Processing). This document outlines the current project layout, agent architecture, and development workflows with a focus on the `cube-project`, `data`, and `src` directories that power the end-to-end analytics experience.
 
 ## Project Structure
 
@@ -11,107 +11,100 @@ Note: Omitted any .gitignore-related files for clarity.
 Agent4OLAP/
 ├── README.md                 # Project overview and setup
 ├── AGENTS.md                 # This file — architecture & structure
+├── main.py                   # App entry point (CLI or service)
 ├── pyproject.toml            # Python project config (tooling/deps)
 ├── uv.lock                   # Locked dependency graph
-├── main.py                   # App entry point (CLI or service)
-├── src/                      # Python source
-│   ├── agents/               # Agent implementations
-│   ├── olap/                 # OLAP-specific logic (cubes, query ops)
-│   ├── utils/                # Shared helpers/utilities
-│   └── schema_processor.py   # Schema processing helpers
-├── tpcds/                    # dbt project directory
-│   ├── dbt_project.yml       # dbt project config
-│   ├── models/               # Transformations and marts
-│   ├── seeds/                # CSV seeds (optional TPC-DS inputs)
-│   ├── macros/               # Reusable SQL/Jinja macros
-│   └── tests/                # dbt tests (generic + singular)
-├── tpcds.db                  # Example DuckDB database (local)
-├── data/                     # Data files (outside dbt seeds)
-│   ├── raw/                  # Raw ingested data
-│   ├── processed/            # Post-ingest/cleaned data
-│   └── examples/             # Example datasets
-└── logs/                     # Runtime/application logs
+├── cube-project/             # Cube.js backend (semantic layer + API)
+│   ├── create_tpcds_data.py  # Utility to materialize a TPC-DS DuckDB database
+│   ├── create_tutorial_data.py # Synthetic tutorial dataset generator
+│   ├── cube_conf/            # Cube configuration presets (env specific)
+│   ├── data/                 # DuckDB files served by Cube.js
+│   ├── docker-compose-*.yml  # Local orchestration helpers
+│   ├── package.json          # Cube.js server dependencies (`npm run dev`)
+│   └── README.md             # Cube project usage notes
+├── data/                     # Canonical data exports shared with agents
+│   ├── tutorial/             # Tutorial dataset slices, indexes, hierarchies
+│   └── tpcds/                # TPC-DS dataset slices, indexes, hierarchies
+├── src/                      # Python tooling and agent-support utilities
+│   ├── hierarchy_duckdb.py   # Builds OLAP hierarchies & stats from DuckDB
+│   ├── schema_processor.py   # Generates schema metadata for agents/Cube
+│   ├── unique_index.py       # B+ tree helper for large cardinality columns
+│   ├── graph_vis.py          # Visual utilities for hierarchy exploration
+│   └── README.md             # Usage examples for the Python helpers
+├── lib/                      # Front-end & visualization assets (optional)
+├── logs/                     # Runtime/application logs
+└── ...                       # Additional notebooks and legacy directories
 ```
+
+Legacy dbt artifacts under `tpcds/` remain in the repository for reference but are no longer part of the primary development workflow.
 
 ## Agent Architecture
 
 ### Core Components
 
-- Agent Framework: Base interfaces, lifecycle hooks (init/start/stop), error handling, lightweight messaging.
-- OLAP Engine: Cube operations (slice/dice, roll-up, drill-down), query planning/optimization, aggregations.
-- Data Management: Ingestion, validation, schema/catalog management, storage connectors.
-- dbt Integration (tpcds): Orchestrates `dbt seed/run/test`, exposes curated models to agents.
+- Agent Framework: Base interfaces, lifecycle hooks (init/start/stop), error handling, and lightweight messaging.
+- OLAP Engine: Implements cube operations (slice/dice, roll-up, drill-down), query planning, and aggregation logic that can execute against DuckDB-backed cubes.
+- Data Management: Ingestion, validation, schema/catalog management, and storage connectors centered on the top-level `data/` directory.
+- Cube Integration (`cube-project`): Hosts the Cube.js server and semantic layer definition exposed to agents over HTTP/REST.
 
 ### Agent Types
 
-- Query Agent: Translates user intent into OLAP queries; optimizes and formats results.
-- Data Agent: Loads raw data, validates, triggers dbt builds, manages lifecycles.
-- Analytics Agent: Runs advanced analytics on curated marts/cubes.
-- Coordination Agent: Schedules tasks, manages inter-agent messaging, monitors health.
+- Query Agent: Translates user intent into Cube-compatible OLAP queries; optimizes and formats results.
+- Data Agent: Loads or generates raw data (via `cube-project` scripts), validates outputs, and materializes assets in `data/`.
+- Analytics Agent: Runs advanced analytics over curated cube datasets and derives additional insights.
+- Coordination Agent: Schedules tasks, manages inter-agent messaging, and monitors health of the Cube service.
 
-## Agent ↔ dbt Workflow
+## Agent ↔ Cube Workflow
 
-- Ingest: Place inputs in `data/raw/` or `tpcds/seeds/`.
-- Build: Run dbt in `tpcds/` (`dbt seed`, `dbt run`, `dbt test`).
-- Serve: Query curated relations in the target database (e.g., `tpcds.db`).
-- Analyze: Feed OLAP/analytics over built models.
+- Ingest: Generate or refresh DuckDB sources using the scripts in `cube-project/` or the utilities in `src/`.
+- Publish: Update Cube configuration under `cube-project/cube_conf/` and ensure schema metadata from `src/schema_processor.py` is synced.
+- Serve: Install dependencies (`npm install`) and run `npm run dev` inside `cube-project/` to start the Cube.js service backed by the DuckDB files under `cube-project/data/`.
+- Analyze: Agents issue Cube queries, leverage hierarchies generated in `data/<dataset>/hierarchy/`, and post-process results for downstream consumers.
 
 ## Development Guidelines
 
 ### Getting Started
 
-- Python: Create/activate a virtualenv and install deps per `pyproject.toml`.
-- dbt: Install dbt with the appropriate adapter (e.g., `dbt-duckdb`).
-- Review `tpcds/dbt_project.yml` and `models/` to understand the semantic layer.
+- Python: Create/activate a virtual environment and install dependencies with `uv sync` or `pip install -e .` as defined in `pyproject.toml`.
+- Node/Cube.js: In `cube-project/`, run `npm install` (first time) and `npm run dev` to launch the Cube server.
+- Review the helper scripts in `src/` and the dataset generators in `cube-project/` to understand the data preparation pipeline.
 
-### dbt Setup (DuckDB example)
+### Cube.js Setup (DuckDB driver)
 
-- profiles.yml (typically `~/.dbt/profiles.yml`):
-
-```yaml
-tpcds:
-  target: dev
-  outputs:
-    dev:
-      type: duckdb
-      path: /absolute/path/to/Agent4OLAP/tpcds.db
-      threads: 4
-```
-
-- Commands (from `tpcds/`):
-- `dbt debug`
-- `dbt deps`
-- `dbt seed`  # if using seeds
-- `dbt run`
-- `dbt test`
+- Add the required environment variables (e.g., `UID`/`GID`) as documented in `cube-project/README.md`.
+- Generate or copy DuckDB databases into `cube-project/data/`:
+  - `uv run create_tutorial_data.py --output "./data/tutorial/sales.db"`
+  - `uv run create_tpcds_data.py` (installs DuckDB TPC-DS extension and materializes `tpcds.db`)
+- Launch the Cube server:
+  - `npm run dev` (default), or use the provided Docker Compose definitions for containerized runs.
 
 ### Adding New Agents
 
 - Implement a class inheriting the base agent interface and lifecycle.
-- Document configuration, inputs/outputs, and failure modes.
-- Add unit tests covering the agent’s responsibilities.
+- Document configuration, inputs/outputs, and failure modes, especially how the agent interacts with Cube or the `data/` assets.
+- Add unit tests covering the agent’s responsibilities and ensure schema metadata stays in sync.
 
 ### Data Management
 
-- Use `data/raw/` for non-dbt raw inputs; `tpcds/seeds/` for dbt seeds.
-- Write non-dbt processed artifacts to `data/processed/`.
-- Keep small curated examples in `data/examples/`.
+- Store canonical DuckDB files, indexes, and hierarchy metadata under `data/<dataset>/`.
+- Use `src/schema_processor.py` and `src/hierarchy_duckdb.py` to update schema JSON files and hierarchy graphs when source data changes.
+- Keep generated indexes (`data/<dataset>/index/`) and graphs current to avoid stale query plans.
 
 ### Code Organization
 
-- `src/agents/`: agents and orchestrators.
-- `src/olap/`: cubes, aggregations, query helpers.
-- `src/utils/`: shared utilities (I/O, logging, config).
+- `src/hierarchy_duckdb.py`: DuckDB introspection and hierarchy builder.
+- `src/schema_processor.py`: Schema/metadata serializer consumed by agents and Cube.js.
+- `src/unique_index.py`: B+ tree index materialization helper.
+- `src/graph_vis.py`: Visualization utilities for schema graphs.
 
 ## Future Enhancements
 
-- Multi-agent collaboration protocols and shared state.
-- Real-time ingestion/streaming.
-- Visualization hooks for OLAP results.
-- Learned query optimization and caching.
-- Distributed execution for large-scale builds.
+- Multi-agent collaboration protocols and shared state across Cube queries.
+- Real-time ingestion/streaming into DuckDB with automatic Cube refresh.
+- Visualization hooks for OLAP results leveraging assets in `lib/`.
+- Learned query optimization, caching, and pre-aggregation strategies.
+- Distributed execution for large-scale Cube builds and data refreshes.
 
 ## Contributing
 
 See `README.md` for setup and contribution guidelines. Keep changes focused and well-tested.
-

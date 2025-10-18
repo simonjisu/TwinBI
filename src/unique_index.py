@@ -7,21 +7,14 @@ from typing import Iterable, Iterator, Optional, Tuple, Union
 ValLike = Union[str, int, float]
 
 class UniqueIndex:
-    """
-    디스크 기반 고유 문자열 '셋' 구현 (LMDB).
-    - key만 저장합니다. value는 b""로 최소화(공간/쓰기 비용↓).
-    - 존재 검사, 배치 추가(add_many), 범위/프리픽스 검색 지원.
-    - LMDB의 바이트 사전식 정렬을 이용하므로 range/prefix가 빠릅니다.
-    """
-
     def __init__(
         self,
         path: str,
         *,
-        map_size: int = 1 << 32,   # 4GB: 필요에 따라 조정
+        map_size: int = 1 << 32,
         subdir: bool = True,
-        fast: bool = True,         # True면 동기화 완화(속도↑, 정전시 유실 가능)
-        readahead: bool = False,   # SSD/랜덤 접근이면 False가 종종 유리
+        fast: bool = True,
+        readahead: bool = False,
     ):
         if subdir:
             os.makedirs(path, exist_ok=True)
@@ -33,7 +26,6 @@ class UniqueIndex:
             readahead=readahead,
         )
         if fast:
-            # 성능 극대화(내구성 낮아짐): 대량 적재 구간에 권장
             env_kwargs.update(dict(
                 writemap=True,
                 map_async=True,
@@ -42,9 +34,8 @@ class UniqueIndex:
             ))
 
         self.env = lmdb.open(path, **env_kwargs)
-        self.db  = self.env.open_db(b"set")  # key만 저장하는 단일 DB
+        self.db  = self.env.open_db(b"set")
 
-    # ---- 내부 유틸 ----
     @staticmethod
     def _to_str(v: ValLike) -> str:
         return v if isinstance(v, str) else str(v)
@@ -115,7 +106,6 @@ class UniqueIndex:
         with self.env.begin(db=self.db) as txn:
             return txn.stat()["entries"]
 
-    # ---- 순회/검색 ----
     def __iter__(self) -> Iterator[str]:
         with self.env.begin(db=self.db) as txn:
             cur = txn.cursor()
@@ -141,10 +131,8 @@ class UniqueIndex:
                 ok = cur.next()
 
     def prefix_search(self, prefix: str) -> Iterator[str]:
-        # U+FFFF 상한을 써서 같은 prefix 구간을 커버
         return self.range_search(prefix, prefix + "\uffff")
 
-    # ---- 리소스 ----
     def sync(self):
         self.env.sync()
 

@@ -1,0 +1,8 @@
+column,datatype,NULLs,Primary Key,Foreign Key
+sale_id,INTEGER,N,Y,
+product_key,INTEGER,,,Dim_Product.product_key
+store_key,INTEGER,,,Dim_Store.store_key
+date_key,INTEGER,,,Dim_Date.date_key
+units_sold,INTEGER,,,
+unit_price,DECIMAL(10,2),,
+total_receipts,DECIMAL(12,2),,

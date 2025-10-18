@@ -1,0 +1,163 @@
+{
+  "table": "Dim_Product",
+  "children": [
+    {
+      "name": "product_key",
+      "label": "Identity",
+      "stats": {
+        "count": 50,
+        "null_count": 0,
+        "distinct_count": 50,
+        "min": 1,
+        "max": 50,
+        "range": [
+          1,
+          50
+        ],
+        "dtype": "integer",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/tutorial/index/Dim_Product__product_key"
+        }
+      },
+      "children": []
+    },
+    {
+      "name": "product_name",
+      "label": "Product",
+      "stats": {
+        "count": 50,
+        "null_count": 0,
+        "distinct_count": 47,
+        "min": null,
+        "max": null,
+        "range": null,
+        "dtype": "string",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/tutorial/index/Dim_Product__product_name"
+        }
+      },
+      "children": [
+        {
+          "name": "brand",
+          "label": "Brand",
+          "stats": {
+            "count": 50,
+            "null_count": 0,
+            "distinct_count": 6,
+            "min": null,
+            "max": null,
+            "range": null,
+            "dtype": "string",
+            "unique_values": {
+              "type": "list",
+              "values": [
+                "Adidas",
+                "Apple",
+                "LG",
+                "Nike",
+                "Samsung",
+                "Sony"
+              ]
+            }
+          },
+          "children": []
+        },
+        {
+          "name": "type",
+          "label": "Type",
+          "stats": {
+            "count": 50,
+            "null_count": 0,
+            "distinct_count": 4,
+            "min": null,
+            "max": null,
+            "range": null,
+            "dtype": "string",
+            "unique_values": {
+              "type": "list",
+              "values": [
+                "Accessory",
+                "Appliance",
+                "Clothing",
+                "Electronics"
+              ]
+            }
+          },
+          "children": [
+            {
+              "name": "marketing_group",
+              "label": "Marketing Group",
+              "stats": {
+                "count": 50,
+                "null_count": 0,
+                "distinct_count": 3,
+                "min": null,
+                "max": null,
+                "range": null,
+                "dtype": "string",
+                "unique_values": {
+                  "type": "list",
+                  "values": [
+                    "A",
+                    "B",
+                    "C"
+                  ]
+                }
+              },
+              "children": []
+            },
+            {
+              "name": "category",
+              "label": "Category",
+              "stats": {
+                "count": 50,
+                "null_count": 0,
+                "distinct_count": 5,
+                "min": null,
+                "max": null,
+                "range": null,
+                "dtype": "string",
+                "unique_values": {
+                  "type": "list",
+                  "values": [
+                    "Audio",
+                    "Laptop",
+                    "Mobile",
+                    "Shoes",
+                    "TV"
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "name": "department",
+                  "label": "Department",
+                  "stats": {
+                    "count": 50,
+                    "null_count": 0,
+                    "distinct_count": 3,
+                    "min": null,
+                    "max": null,
+                    "range": null,
+                    "dtype": "string",
+                    "unique_values": {
+                      "type": "list",
+                      "values": [
+                        "Marketing",
+                        "Sales",
+                        "Tech"
+                      ]
+                    }
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

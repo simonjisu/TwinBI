@@ -1,0 +1,7 @@
+column,datatype,NULLs,Primary Key,Foreign Key
+date_key,INTEGER,N,Y,
+date,DATE,,,
+week,INTEGER,,,
+month,INTEGER,,,
+quarter,INTEGER,,,
+year,INTEGER,,,

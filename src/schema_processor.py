@@ -1,19 +1,17 @@
 import json
 from collections import deque, defaultdict
 from pathlib import Path
-from typing import Iterable, Iterator, List, Optional
+from typing import Callable, Iterator, List, Optional
 
 import pandas as pd
 from IPython.display import display
 from ipycytoscape import CytoscapeWidget
 import ipywidgets as W
+from loguru import logger
+from .hierarchy_duckdb import HierarchyTree, Node
+from .unique_index import UniqueIndex
 
-from hierarchy_duckdb import HierarchyTree, Node
-from unique_index import UniqueIndex
-
-
-
-FACT_TABLES = {
+TPCDS_FACT_TABLES = {
     "store_sales",
     "store_returns",
     "catalog_sales",
@@ -22,102 +20,63 @@ FACT_TABLES = {
     "web_returns",
     "inventory",
 }
-
-
-def _dedupe_paths(paths: Iterable[Path]) -> Iterator[Path]:
-    seen = set()
-    for raw in paths:
-        candidate = Path(raw)
-        resolved = candidate.resolve()
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        yield candidate
-
-
-def resolve_graph_dir(data_path: Path) -> Path:
-    """Locate the directory that contains the precomputed schema graph JSONs."""
-    path = Path(data_path)
-    candidates: List[Path] = []
-    if path.is_dir():
-        candidates.append(path)
-        if path.name == "tpcds":
-            candidates.append(path.parent)
-    else:
-        candidates.append(path.parent)
-    default_candidate = Path.cwd() / "data"
-    candidates.append(default_candidate)
-
-    deduped = list(_dedupe_paths(candidates))
-    for candidate in deduped:
-        snowflake_path = candidate / "tpcds-snowflake-graph.json"
-        star_path = candidate / "tpcds-star-graph.json"
-        if snowflake_path.exists() and star_path.exists():
-            return candidate
-
-    raise FileNotFoundError(
-        f"Could not locate schema graph JSONs relative to {data_path}. Checked: {', '.join(str(c) for c in deduped)}"
-    )
-
-
-def resolve_hierarchy_dir(graph_dir: Path, user_path: Optional[Path] = None) -> Path:
-    """Locate the directory holding hierarchy JSON files."""
-    candidates: List[Path] = []
-    if user_path is not None:
-        candidates.append(Path(user_path) / "hierarchy")
-    candidates.append(graph_dir / "hierarchy")
-    candidates.append(graph_dir.parent / "hierarchy")
-    candidates.append(Path.cwd() / "data" / "hierarchy")
-
-    deduped = list(_dedupe_paths(candidates))
-    for candidate in deduped:
-        if candidate.exists():
-            return candidate
-
-    raise FileNotFoundError(
-        f"Could not locate hierarchy JSON files. Checked: {', '.join(str(c) for c in deduped)}"
-    )
+TUTORIAL_FACT_TABLES = {
+    "fact_sales",
+}
 
 
 def _node_from_json_dict(data: dict) -> Node:
     return Node(
-        name=data["name"],
+        name=data["name"].lower(),
         label=data.get("label"),
         stats=data.get("stats"),
         children=[_node_from_json_dict(child) for child in data.get("children", [])],
     )
 
-
 def hierarchy_from_json(path: Path) -> HierarchyTree:
     payload = json.loads(Path(path).read_text())
     children = [_node_from_json_dict(child) for child in payload.get("children", [])]
-    return HierarchyTree(table=payload["table"], children=children)
+    return HierarchyTree(table=payload["table"].lower(), children=children)
+
+
+def load_data(data_path: Path):
+    db_type = "tpcds" if "tpcds" in data_path.parts else "tutorial"
+    try:
+        with open(data_path / f"{db_type}-snowflake-graph.json") as f:
+            snowflake = json.load(f)
+    except FileNotFoundError:
+        snowflake = {}
+    try:
+        with open(data_path / f"{db_type}-star-graph.json") as f:
+            star = json.load(f)
+    except FileNotFoundError:
+        star = {}
+    return snowflake, star
+
 
 class SchemaExplorer:
-    tpcds_facts = FACT_TABLES
+    tpcds_facts = TPCDS_FACT_TABLES
+    tutorial_facts = TUTORIAL_FACT_TABLES
 
     def __init__(self, data_path: Path | str):
-        self.input_path = Path(data_path)
-        self.graph_dir: Optional[Path] = None
-        self.hierarchy_dir: Optional[Path] = None
-        self.project_root: Path = Path.cwd()
-        self.snowflake: dict = {}
-        self.star: dict = {}
-        self.hierarchies: dict[str, HierarchyTree] = {}
+        """data_path: Path to the database directory, e.g., ./data/tpcds or ./data/tutorial"""
+        self.data_path = Path(data_path)
+        self.db_type = "tpcds" if "tpcds" in self.data_path.parts else "tutorial"
+        self.facts = self.tpcds_facts if self.db_type == "tpcds" else self.tutorial_facts
+        self.snowflake, self.star = load_data(self.data_path)
+        self.hierarchies = self._load_hierarchies(hierarchy_dir=self.data_path / "hierarchy")
 
-        try:
-            self.graph_dir = resolve_graph_dir(self.input_path)
-            self.project_root = self.graph_dir.parent
-            self.hierarchy_dir = resolve_hierarchy_dir(self.graph_dir, self.input_path)
-            self.snowflake, self.star = load_data(self.graph_dir)
-            self.hierarchies = self._load_hierarchies(self.hierarchy_dir)
-        except Exception as e:
-            print(
-                f"Error initializing SchemaExplorer: {e}\n Make sure to run create_schema_graphs() first: ```python src/schema_processor.py --create_graphs``` "
-            )
+    @classmethod
+    def is_fact(cls, table_name: str, db_type: str) -> bool:
+        if db_type == "tpcds":
+            return table_name in cls.tpcds_facts
+        elif db_type == "tutorial":
+            return table_name in cls.tutorial_facts
+        else:
+            raise ValueError(f"Unknown db_type: {db_type}")
 
     def get_facts(self):
-        return self.tpcds_facts
+        return self.facts
 
     def get_schema(self, schema_type: str, fact_table: str) -> list[dict]:
         """Get the schema of fact and its related dimensions.
@@ -303,11 +262,12 @@ class SchemaExplorer:
         return value_matches
     
 
-def extract_edges(data_path: Path) -> tuple[dict[str, list], dict[str, dict[str, str]], dict[str, list[str]]]:
+def tpcds_extract_edges(tables_path: Path) -> tuple[dict[str, list], dict[str, dict[str, str]], dict[str, list[str]]]:
+    db_type = 'tpcds'
     prefix2info: dict[str, dict[str, str]] = {}
     table_attributes: dict[str, list[str]] = {}
 
-    for p in data_path.glob('*.csv'):
+    for p in tables_path.glob('*.csv'):
         df = pd.read_csv(p)
         if df.empty or 'column' not in df:
             continue
@@ -315,9 +275,9 @@ def extract_edges(data_path: Path) -> tuple[dict[str, list], dict[str, dict[str,
         table_name = p.stem.split('_', 2)[-1].split('_Column_Definitions')[0]
         table_key = table_name.lower()
         first_col = str(df.loc[0, 'column']).split('_')[0]
-        prefix2info[first_col] = {'table_name': table_key, 'path': str(p), 'is_fact': is_fact(table_key)}
+        prefix2info[first_col] = {'table_name': table_key, 'path': str(p), 'is_fact': SchemaExplorer.is_fact(table_key, db_type)}
 
-        if not is_fact(table_key):
+        if not SchemaExplorer.is_fact(table_key, db_type):
             attributes = []
             for raw_col in df['column'].dropna():
                 col_name = str(raw_col).strip()
@@ -327,7 +287,7 @@ def extract_edges(data_path: Path) -> tuple[dict[str, list], dict[str, dict[str,
             table_attributes[table_key] = attributes
 
     edges = []
-    for p in data_path.glob('*.csv'):
+    for p in tables_path.glob('*.csv'):
         df = pd.read_csv(p)
 
         if df.empty or df['Foreign Key'].isnull().all():
@@ -354,10 +314,55 @@ def extract_edges(data_path: Path) -> tuple[dict[str, list], dict[str, dict[str,
 
     return out_edges, prefix2info, table_attributes
 
-def is_fact(tbl: str) -> bool:
-    return tbl in FACT_TABLES
+def tutorial_extract_edges(tables_path: Path) -> tuple[dict[str, list], None, dict[str, list[str]]]:
+    db_type = 'tutorial'
+    prefix2info = None
+    table_attributes: dict[str, list[str]] = {}
+    edges = []
+
+    for p in tables_path.glob("*.csv"):
+        df = pd.read_csv(p)
+        src_table = p.stem.split("_", 2)[-1].split("_Column_Definitions")[0].lower()
+        if not SchemaExplorer.is_fact(src_table, db_type):
+            attributes = []
+            for raw_col in df["column"].dropna():
+                col_name = str(raw_col).strip()
+                if not col_name or col_name.lower().endswith("_sk"):
+                    continue
+                attributes.append(col_name)
+            table_attributes[src_table.lower()] = attributes
+        
+        if df.empty or "Foreign Key" not in df.columns or df["Foreign Key"].isnull().all():
+            continue
+
+        for _, row in df.iterrows():
+            src_col = row["column"]
+            fk_val = str(row["Foreign Key"]).strip() if not pd.isna(row["Foreign Key"]) else ""
+            if not fk_val:
+                continue
+
+            # "Dim_Product.product_key" → ("Dim_Product", "product_key")
+            if "." in fk_val:
+                target_table, target_col = fk_val.split(".", 1)
+            else:
+                target_table, target_col = None, fk_val
+
+            edges.append({
+                "source_table": src_table,
+                "source_col": src_col,
+                "target_table": target_table.lower() if target_table else "",
+                "target_pk": target_col
+            })
+
+    out_edges: dict[str, list] = defaultdict(list)
+    for e in edges:
+        out_edges[e["source_table"]].append(e)
+
+    return out_edges, prefix2info, table_attributes
+
 
 def build_subgraph(
+        db_type: str,
         out_edges: dict[list], 
         fact_table: str, 
         table_attributes: dict[str, list[str]] | None = None, 
@@ -366,22 +371,22 @@ def build_subgraph(
     nodes = {}  # id -> {'id': name, 'type': 'fact'|'dimension'}
     es = []     # edges for the subgraph
 
-    def ensure_node(name: str, schema_filter: Optional[list[str]] = None):
+    def ensure_node(db_type: str, name: str, schema_filter: Optional[list[str]] = None):
         if schema_filter and name not in schema_filter:
             return
         if name not in nodes:
-            node_type = 'fact' if is_fact(name) else 'dimension'
+            node_type = 'fact' if SchemaExplorer.is_fact(name, db_type) else 'dimension'
             node = {'id': name, 'type': node_type}
             if node_type == 'dimension' and table_attributes is not None:
                 node['attributes'] = table_attributes.get(name, [])
             nodes[name] = node
 
-    ensure_node(fact_table)
+    ensure_node(db_type, fact_table)
 
     if schema_type == 'star':
         # 1-hop: fact → dimension
         for e in out_edges.get(fact_table, []):
-            ensure_node(e['target_table'])
+            ensure_node(db_type, e['target_table'])
             es.append({
                 'source': e['source_table'],
                 'target': e['target_table'],
@@ -424,317 +429,30 @@ def build_subgraph(
 
 def create_schema_graphs(data_path: Path):
     # keep only for these schema
-    with open(data_path / 'tpcds-schema.json') as f:
+    db_type = 'tpcds' if 'tpcds' in data_path.parts else 'tutorial'
+    logger.info(f"Creating schema graphs for {db_type} in {data_path}")
+    with open(data_path / f'{db_type}-schema.json') as f:
         schema: dict[str, list[str]] = json.load(f)
 
-    for schema_type in ['star', 'snowflake']:
-        out_edges, prefix2info, table_attributes = extract_edges(data_path / 'tables')
+    schema_types = ['star', 'snowflake'] if db_type == 'tpcds' else ['star']
+    extract_edges_func: Callable = tpcds_extract_edges if db_type == 'tpcds' else tutorial_extract_edges
+    fact_tables = TPCDS_FACT_TABLES if db_type == 'tpcds' else TUTORIAL_FACT_TABLES
+    
+    for schema_type in schema_types:
+        out_edges, prefix2info, table_attributes = extract_edges_func(data_path / 'tables')
         graph = {}
-        for fact in sorted(FACT_TABLES):
+        for fact in sorted(fact_tables):
             graph[fact] = build_subgraph(
-                out_edges, fact, table_attributes, 
+                db_type, out_edges, fact, table_attributes,
                 schema_filter=schema.get(fact, []),
                 schema_type=schema_type)
-            
-        with open(data_path / f'tpcds-{schema_type}-graph.json', 'w') as f:
+
+        with open(data_path / f'{db_type}-{schema_type}-graph.json', 'w') as f:
             json.dump(graph, f, indent=2)
 
-        with open(data_path / f'tpcds-prefix_info.json', 'w') as f:
-            json.dump(prefix2info, f, indent=2)
-
-def extract_fact_view(
-    graph_dict: dict,
-    fact_key: str,
-    hierarchies: dict[str, HierarchyTree] | None = None,
-):
-    if fact_key not in graph_dict:
-        raise KeyError(f"{fact_key} not in graph_dict keys: {list(graph_dict.keys())}")
-    g = graph_dict[fact_key]
-
-    node_idx = {n["id"]: n for n in g["nodes"]}
-    def is_fact(nid): return node_idx[nid]["type"] == "fact"
-    def is_dim(nid):  return not is_fact(nid)
-
-    out_edges = defaultdict(list)
-    in_edges  = defaultdict(list)
-    dim_adj   = defaultdict(set)
-
-    for e in g["edges"]:
-        s, t = e["source"], e["target"]
-        out_edges[s].append(e)
-        in_edges[t].append(e)
-        if is_dim(s) and is_dim(t):
-            dim_adj[s].add(t)
-            dim_adj[t].add(s)
-
-    keep_nodes = {fact_key}
-    frontier = set()
-
-    for e in out_edges.get(fact_key, []):
-        if is_dim(e["target"]):
-            keep_nodes.add(e["target"])
-            frontier.add(e["target"])
-    for e in in_edges.get(fact_key, []):
-        if is_dim(e["source"]):
-            keep_nodes.add(e["source"])
-            frontier.add(e["source"])
-
-    q = deque(sorted(frontier))
-    visited = set(frontier)
-    while q:
-        u = q.popleft()
-        for v in dim_adj[u]:
-            if v not in visited:
-                visited.add(v)
-                keep_nodes.add(v)
-                q.append(v)
-
-    keep_edges = []
-    for e in g["edges"]:
-        s, t = e["source"], e["target"]
-        if s in keep_nodes and t in keep_nodes:
-            if is_fact(s) and s != fact_key:
-                continue
-            if is_fact(t) and t != fact_key:
-                continue
-            keep_edges.append(e)
-
-    cy_nodes = [{
-        "data": {
-            "id": nid,
-            "name": nid,
-            "label": nid,
-            "type": node_idx[nid]["type"],
-            "weight": 3 if is_fact(nid) else 2
-        }
-    } for nid in keep_nodes]
-
-    cy_edges = [{
-        "data": {
-            "id": f"schema:{e['source']}->{e['target']}",
-            "source": e["source"],
-            "target": e["target"],
-            "label": e.get("fk_field", ""),
-            "kind": "schema",
-        }
-    } for e in keep_edges]
-
-    if not hierarchies:
-        return cy_nodes, cy_edges
-
-    node_ids = {n["data"]["id"] for n in cy_nodes}
-    edge_ids = {e["data"]["id"] for e in cy_edges}
-
-    def append_node(node_dict: dict):
-        node_id = node_dict["data"]["id"]
-        if node_id in node_ids:
-            return
-        cy_nodes.append(node_dict)
-        node_ids.add(node_id)
-
-    def append_edge(edge_dict: dict):
-        edge_id = edge_dict["data"]["id"]
-        if edge_id in edge_ids:
-            return
-        cy_edges.append(edge_dict)
-        edge_ids.add(edge_id)
-
-    def build_attr_nodes(dimension: str, parent_id: str, nodes: list[Node], prefix: tuple[str, ...] = ()):
-        for node in nodes:
-            path = prefix + (node.name,)
-            path_fragment = "::".join(path)
-            attr_id = f"{dimension}:{path_fragment}"
-            label = node.label if node.label else node.name
-            role = "hierarchy" if node.children else "attribute"
-            append_node({
-                "data": {
-                    "id": attr_id,
-                    "name": node.name,
-                    "label": label,
-                    "type": "attribute",
-                    "dimension": dimension,
-                    "role": role,
-                    "weight": 1,
-                }
-            })
-            append_edge({
-                "data": {
-                    "id": f"hierarchy:{parent_id}->{attr_id}",
-                    "source": parent_id,
-                    "target": attr_id,
-                    "label": "",
-                    "kind": "hierarchy",
-                }
-            })
-            if node.children:
-                build_attr_nodes(dimension, attr_id, node.children, path)
-
-    for dimension in sorted(keep_nodes):
-        if not is_dim(dimension):
-            continue
-        tree = hierarchies.get(dimension)
-        if not tree:
-            continue
-        build_attr_nodes(dimension, dimension, tree.children)
-
-    return cy_nodes, cy_edges
-
-def make_cyto_widget(nodes, edges, *, layout="breadthfirst", root_id=None):
-    for n in nodes:
-        n["data"]["label"] = str(n["data"]["label"]).replace("_", "\n")
-
-    cyto = CytoscapeWidget()
-    cyto.set_style([
-        {
-            "selector": "node",
-            "style": {
-                "shape": "round-rectangle",
-                "label": "data(label)",
-                "font-size": "11px",
-                "text-wrap": "wrap",
-                "text-max-width": "90px",
-                "text-valign": "center",
-                "text-halign": "center",
-                "width": "label",
-                "height": "label",
-                "padding": "8px",
-                "background-color": "#9ecae1",
-                "border-width": "2px",
-                "border-color": "#6baed6",
-            },
-        },
-        {
-            "selector": "node[type = 'fact']",
-            "style": {
-                "background-color": "#fb6a4a",
-                "border-color": "#ef3b2c",
-                "shape": "round-rectangle",
-                "font-weight": "bold",
-            },
-        },
-        {
-            "selector": "node[type = 'attribute']",
-            "style": {
-                "shape": "ellipse",
-                "background-color": "#c7e9c0",
-                "border-color": "#74c476",
-                "padding": "6px",
-                "font-size": "10px",
-            },
-        },
-        {
-            "selector": "node[type = 'attribute'][role = 'hierarchy']",
-            "style": {
-                "background-color": "#fdd49e",
-                "border-color": "#fdbb84",
-            },
-        },
-        {
-            "selector": "edge",
-            "style": {
-                "curve-style": "bezier",
-                "target-arrow-shape": "triangle",
-                "line-color": "#aaa",
-                "target-arrow-color": "#aaa",
-                "width": 1.5,
-                "label": "data(label)",
-                "font-size": "8px",
-                "text-rotation": "autorotate",
-                "text-wrap": "wrap",    
-                "text-max-width": "120px",
-                "text-background-color": "#fff",
-                "text-background-opacity": 0.7,
-                "text-background-padding": "2px",
-            },
-        },
-        {
-            "selector": "edge[kind = 'hierarchy']",
-            "style": {
-                "line-color": "#bdbdbd",
-                "target-arrow-color": "#bdbdbd",
-                "line-style": "dashed",
-                "width": 1.2,
-            },
-        },
-    ])
-    cyto.graph.add_graph_from_json({"nodes": nodes, "edges": edges})
-    if layout == "breadthfirst":
-        cyto.set_layout(name="breadthfirst", circle=True, spacingFactor=1.15, directed=True, roots=root_id)
-    else:
-        cyto.set_layout(name="cose", nodeRepulsion=8000, idealEdgeLength=100)
-    cyto.min_zoom = 0.2
-    cyto.max_zoom = 3
-    cyto.layout.height = "800px"
-    cyto.layout.width = "100%"
-    return cyto
-
-def display_graph(data_path: Path):
-    data_path = Path(data_path)
-    explorer = SchemaExplorer(data_path)
-    graph_dir = explorer.graph_dir or resolve_graph_dir(data_path)
-    snowflake = explorer.snowflake or {}
-    star = explorer.star or {}
-    if not snowflake or not star:
-        snowflake, star = load_data(graph_dir)
-
-    hierarchies = explorer.hierarchies
-    if not hierarchies:
-        try:
-            hierarchy_dir = resolve_hierarchy_dir(graph_dir, data_path)
-            hierarchies = explorer._load_hierarchies(hierarchy_dir)
-        except Exception:
-            hierarchies = {}
-    schema_dd = W.ToggleButtons(options=["star", "snowflake"], 
-                                value="star", description="Schema")
-    fact_dd   = W.Dropdown(description="Fact")
-    label_mode_dd = W.ToggleButtons(options=[("Name", "name"), ("Label", "label")],
-                                    value="name", description="Node Text")
-    out = W.Output()
-
-    def update_fact_options(*_):
-        gdict = snowflake if schema_dd.value == "snowflake" else star
-        keys = sorted(gdict.keys())
-        fact_dd.options = keys
-        if fact_dd.value not in keys:
-            fact_dd.value = keys[0] if keys else None
-
-    def refresh(*_):
-        out.clear_output()
-        with out:
-            gdict = snowflake if schema_dd.value == "snowflake" else star
-            if not fact_dd.value: return
-            nodes, edges = extract_fact_view(gdict, fact_dd.value, hierarchies)
-
-            label_mode = label_mode_dd.value
-            prepared_nodes = []
-            for node in nodes:
-                data = node["data"].copy()
-                if label_mode == "name":
-                    data["label"] = data.get("name", data.get("label"))
-                else:
-                    data["label"] = data.get("label")
-                prepared_nodes.append({"data": data})
-
-            display(make_cyto_widget(prepared_nodes, edges, layout="cose", root_id=fact_dd.value))
-
-    schema_dd.observe(update_fact_options, "value")
-    schema_dd.observe(refresh, "value")
-    fact_dd.observe(refresh, "value")
-    label_mode_dd.observe(refresh, "value")
-
-    update_fact_options()
-    display(W.HBox([schema_dd, fact_dd, label_mode_dd]))
-    refresh()
-    display(out)
-
-
-def load_data(data_path: Path):
-    with open(data_path / "tpcds-snowflake-graph.json") as f:
-        snowflake = json.load(f)
-    with open(data_path / "tpcds-star-graph.json") as f:
-        star = json.load(f)
-    return snowflake, star
-
+        if prefix2info:
+            with open(data_path / f'{db_type}-prefix_info.json', 'w') as f:
+                json.dump(prefix2info, f, indent=2)
 
 def run_schema_explorer_tests(data_path: Path):
     """Basic smoke tests for SchemaExplorer search utilities."""
@@ -785,16 +503,20 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', type=str, default='./data/', help='Path to the data directory.')
+    parser.add_argument('--db_type', type=str, help='Database type (tpcds or tutorial).')
     parser.add_argument('--create_graphs', action='store_true', help='Flag to create schema graphs.')
     parser.add_argument('--test', action='store_true', help='Run SchemaExplorer search tests.')
     args = parser.parse_args()
 
-    data_path = Path(args.data_path).resolve()
-    assert data_path.parent.stem == 'Agent4OLAP', "data_path.parent should be inside 'Agent4OLAP' directory."
+
+    # execution
+    execution_path = Path().resolve()
+    assert execution_path.stem == 'src', "Please run the script from the 'src' directory."
+    data_path = execution_path.parent / 'data' / args.db_type
 
     if args.create_graphs:
-        # uv run 
+        # uv run schema_processor.py --db_type tutorial --create_graphs
+        # uv run schema_processor.py --db_type tpcds --create_graphs
         if not data_path.exists():
             data_path.mkdir(parents=True)
         create_schema_graphs(data_path)

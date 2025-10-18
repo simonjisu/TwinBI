@@ -7,8 +7,9 @@ import numpy as np
 from pathlib import Path
 import datetime as dt
 import yaml
+from loguru import logger
 
-from unique_index import UniqueIndex
+from .unique_index import UniqueIndex
 
 # -----------------------------
 # Helpers
@@ -229,12 +230,35 @@ def build_tree_with_stats(
 
 if __name__ == "__main__":
     from pathlib import Path
-    proj_path = Path().resolve()
-    assert proj_path.stem == "Agent4OLAP", f"Unexpected project path: {proj_path}"
-    data_path = proj_path / 'data'
-    duckdb_conn = duckdb.connect(database=str(proj_path / 'tpcds/tpcds.db'))
+    import argparse
+
+    # extract a json hierarchy from yaml file.
+    # ./data/tpcds/database/tpcds.db"
+    # ./data/tutorial/database/sales.db"
+    parser = argparse.ArgumentParser(description="Generate hierarchy JSON files with stats from DuckDB.")
+    parser.add_argument("--db_type", type=str, default="tpcds", help="Type of database to use")
+    args = parser.parse_args()
+
+    db_name = {
+        "tpcds": "tpcds.db",
+        "tutorial": "sales.db"
+    }.get(args.db_type)
+    if db_name is None:
+        raise ValueError(f"Unsupported db_type: {args.db_type}. supported: tpcds, tutorial")
+
+    execution_path = Path().resolve()
+    assert execution_path.stem == "src", f"Unexpected project path: {execution_path}"
+
+    data_path = execution_path.parent / 'data' / args.db_type
+    database_path = data_path / 'database' / db_name
+    duckdb_conn = duckdb.connect(database=str(database_path))
+    logger.info(f"Connected to DuckDB database at {database_path}")
+
+
     index_path = data_path / 'index'
+    logger.info(f"Using index path at {index_path}")
     for yaml_path in (data_path / 'hierarchy').glob('*.yaml'):
         tree = build_tree_with_stats(yaml_path, index_path, duckdb_conn)
         with (data_path / 'hierarchy' / f"{yaml_path.stem}.json").open('w') as f:
             f.write(tree.to_json())
+        logger.info(f"Generated hierarchy JSON with stats at {(data_path / 'hierarchy' / f'{yaml_path.stem}.json')}")

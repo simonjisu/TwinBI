@@ -1,0 +1,21 @@
+table: Dim_Product
+children:
+  - name: product_key
+    label: Identity
+  - name: product_name
+    label: Product
+    children:
+      - name: brand
+        label: Brand
+      - name: type
+        label: Type
+        children:
+          - name: marketing_group
+            label: Marketing Group
+          - name: category
+            label: Category
+            children:
+              - name: department
+                label: Department
+                                
+                  

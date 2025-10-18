@@ -1,0 +1,197 @@
+{
+  "table": "Dim_Store",
+  "children": [
+    {
+      "name": "store_key",
+      "label": "Identity",
+      "stats": {
+        "count": 20,
+        "null_count": 0,
+        "distinct_count": 20,
+        "min": 1,
+        "max": 20,
+        "range": [
+          1,
+          20
+        ],
+        "dtype": "integer",
+        "unique_values": {
+          "type": "list",
+          "values": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20
+          ]
+        }
+      },
+      "children": []
+    },
+    {
+      "name": "store_name",
+      "label": "Store",
+      "stats": {
+        "count": 20,
+        "null_count": 0,
+        "distinct_count": 20,
+        "min": null,
+        "max": null,
+        "range": null,
+        "dtype": "string",
+        "unique_values": {
+          "type": "list",
+          "values": [
+            "Store_1",
+            "Store_10",
+            "Store_11",
+            "Store_12",
+            "Store_13",
+            "Store_14",
+            "Store_15",
+            "Store_16",
+            "Store_17",
+            "Store_18",
+            "Store_19",
+            "Store_2",
+            "Store_20",
+            "Store_3",
+            "Store_4",
+            "Store_5",
+            "Store_6",
+            "Store_7",
+            "Store_8",
+            "Store_9"
+          ]
+        }
+      },
+      "children": [
+        {
+          "name": "city",
+          "label": "City",
+          "stats": {
+            "count": 20,
+            "null_count": 0,
+            "distinct_count": 5,
+            "min": null,
+            "max": null,
+            "range": null,
+            "dtype": "string",
+            "unique_values": {
+              "type": "list",
+              "values": [
+                "Dallas",
+                "Houston",
+                "Los Angeles",
+                "Miami",
+                "New York City"
+              ]
+            }
+          },
+          "children": [
+            {
+              "name": "state",
+              "label": "State",
+              "stats": {
+                "count": 20,
+                "null_count": 0,
+                "distinct_count": 4,
+                "min": null,
+                "max": null,
+                "range": null,
+                "dtype": "string",
+                "unique_values": {
+                  "type": "list",
+                  "values": [
+                    "California",
+                    "Florida",
+                    "New York",
+                    "Texas"
+                  ]
+                }
+              },
+              "children": []
+            }
+          ]
+        },
+        {
+          "name": "sales_manager",
+          "label": "Sales Manager",
+          "stats": {
+            "count": 20,
+            "null_count": 0,
+            "distinct_count": 20,
+            "min": null,
+            "max": null,
+            "range": null,
+            "dtype": "string",
+            "unique_values": {
+              "type": "list",
+              "values": [
+                "Andrea Reid",
+                "Austin Gentry",
+                "Brenda Snyder PhD",
+                "Calvin Nielsen",
+                "Danielle Ford",
+                "Dennis Williams",
+                "Dr. Marvin Thomas Jr.",
+                "Dr. Sharon James",
+                "Edward Fuller",
+                "Frederick Tate",
+                "Heidi Lee",
+                "James Howard",
+                "Kevin Cox",
+                "Kimberly Burgess",
+                "Matthew Mejia",
+                "Michael Miles",
+                "Michelle Lewis",
+                "Rodney Trujillo",
+                "Roy Martin",
+                "Timothy Watts"
+              ]
+            }
+          },
+          "children": []
+        },
+        {
+          "name": "sales_district",
+          "label": "Sales District",
+          "stats": {
+            "count": 20,
+            "null_count": 0,
+            "distinct_count": 4,
+            "min": null,
+            "max": null,
+            "range": null,
+            "dtype": "string",
+            "unique_values": {
+              "type": "list",
+              "values": [
+                "East",
+                "North",
+                "South",
+                "West"
+              ]
+            }
+          },
+          "children": []
+        }
+      ]
+    }
+  ]
+}

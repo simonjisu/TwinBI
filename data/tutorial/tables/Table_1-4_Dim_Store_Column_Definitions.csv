@@ -1,0 +1,7 @@
+column,datatype,NULLs,Primary Key,Foreign Key
+store_key,INTEGER,N,Y,
+store_name,VARCHAR,,,
+sales_manager,VARCHAR,,,
+sales_district,VARCHAR,,,
+city,VARCHAR,,,
+state,VARCHAR,,,

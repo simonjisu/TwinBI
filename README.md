@@ -21,7 +21,10 @@ $ source .venv/bin/activate
 (Agent4OLAP) $ cd cube-project
 (Agent4OLAP) $ echo -e "UID=$UID\nGID=$GID\nCUBEJS_TESSERACT_SQL_PLANNER=true" > .env
 (Agent4OLAP) $ uv run ./create_tpcds_data.py
-(Agent4OLAP) $ docker-compose up -d
+# create & start container
+(Agent4OLAP) $ docker compose -f docker-compose-tpcds.yml up -d  
+# stop & remove container
+(Agent4OLAP) $ docker compose -f docker-compose-tpcds.yml down
 ```
 
 

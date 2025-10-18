@@ -1,0 +1,154 @@
+{
+  "table": "Dim_Date",
+  "children": [
+    {
+      "name": "date_key",
+      "label": "Identity",
+      "stats": {
+        "count": 365,
+        "null_count": 0,
+        "distinct_count": 365,
+        "min": 20240101,
+        "max": 20241230,
+        "range": [
+          20240101,
+          20241230
+        ],
+        "dtype": "integer",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/tutorial/index/Dim_Date__date_key"
+        }
+      },
+      "children": []
+    },
+    {
+      "name": "date",
+      "label": "Date",
+      "stats": {
+        "count": 365,
+        "null_count": 0,
+        "distinct_count": 365,
+        "min": "2024-01-01",
+        "max": "2024-12-30",
+        "range": [
+          "2024-01-01",
+          "2024-12-30"
+        ],
+        "dtype": "date",
+        "unique_values": {
+          "type": "bplustree",
+          "values": "/home/jsjang/code/Agent4OLAP/data/tutorial/index/Dim_Date__date"
+        }
+      },
+      "children": [
+        {
+          "name": "week",
+          "label": "Week",
+          "stats": {
+            "count": 365,
+            "null_count": 0,
+            "distinct_count": 52,
+            "min": 1,
+            "max": 52,
+            "range": [
+              1,
+              52
+            ],
+            "dtype": "integer",
+            "unique_values": {
+              "type": "bplustree",
+              "values": "/home/jsjang/code/Agent4OLAP/data/tutorial/index/Dim_Date__week"
+            }
+          },
+          "children": []
+        },
+        {
+          "name": "month",
+          "label": "Month",
+          "stats": {
+            "count": 365,
+            "null_count": 0,
+            "distinct_count": 12,
+            "min": 1,
+            "max": 12,
+            "range": [
+              1,
+              12
+            ],
+            "dtype": "integer",
+            "unique_values": {
+              "type": "list",
+              "values": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12
+              ]
+            }
+          },
+          "children": [
+            {
+              "name": "quarter",
+              "label": "Quarter",
+              "stats": {
+                "count": 365,
+                "null_count": 0,
+                "distinct_count": 4,
+                "min": 1,
+                "max": 4,
+                "range": [
+                  1,
+                  4
+                ],
+                "dtype": "integer",
+                "unique_values": {
+                  "type": "list",
+                  "values": [
+                    1,
+                    2,
+                    3,
+                    4
+                  ]
+                }
+              },
+              "children": [
+                {
+                  "name": "year",
+                  "label": "Year",
+                  "stats": {
+                    "count": 365,
+                    "null_count": 0,
+                    "distinct_count": 1,
+                    "min": 2024,
+                    "max": 2024,
+                    "range": [
+                      2024,
+                      2024
+                    ],
+                    "dtype": "integer",
+                    "unique_values": {
+                      "type": "list",
+                      "values": [
+                        2024
+                      ]
+                    }
+                  },
+                  "children": []
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

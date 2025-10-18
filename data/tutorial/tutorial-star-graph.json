@@ -1,0 +1,69 @@
+{
+  "fact_sales": {
+    "schema_type": "star",
+    "fact": "fact_sales",
+    "nodes": [
+      {
+        "id": "fact_sales",
+        "type": "fact"
+      },
+      {
+        "id": "dim_date",
+        "type": "dimension",
+        "attributes": [
+          "date_key",
+          "date",
+          "week",
+          "month",
+          "quarter",
+          "year"
+        ]
+      },
+      {
+        "id": "dim_product",
+        "type": "dimension",
+        "attributes": [
+          "product_key",
+          "product_name",
+          "brand",
+          "type",
+          "category",
+          "department",
+          "marketing_group"
+        ]
+      },
+      {
+        "id": "dim_store",
+        "type": "dimension",
+        "attributes": [
+          "store_key",
+          "store_name",
+          "sales_manager",
+          "sales_district",
+          "city",
+          "state"
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "source": "fact_sales",
+        "target": "dim_date",
+        "fk_field": "date_key",
+        "pk_field": "date_key"
+      },
+      {
+        "source": "fact_sales",
+        "target": "dim_product",
+        "fk_field": "product_key",
+        "pk_field": "product_key"
+      },
+      {
+        "source": "fact_sales",
+        "target": "dim_store",
+        "fk_field": "store_key",
+        "pk_field": "store_key"
+      }
+    ]
+  }
+}
