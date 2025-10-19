@@ -1,5 +1,5 @@
-# Dim_Date: Date → (Week, Month → Quarter → Year)
 table: Dim_Date
+table_type: dim
 children:
   - name: date_key
     label: Identity

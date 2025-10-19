@@ -1,8 +1,10 @@
 {
   "table": "store",
+  "table_type": "dim",
   "children": [
     {
       "name": "s_store_id",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 12,
@@ -28,6 +30,7 @@
     },
     {
       "name": "s_rec_start_date",
+      "node_type": "attribute",
       "label": "Record Start Date",
       "stats": {
         "count": 12,
@@ -53,6 +56,7 @@
       "children": [
         {
           "name": "s_rec_end_date",
+          "node_type": "attribute",
           "label": "Record End Date",
           "stats": {
             "count": 12,
@@ -80,6 +84,7 @@
     },
     {
       "name": "s_store_name",
+      "node_type": "attribute",
       "label": "Store Info",
       "stats": {
         "count": 12,
@@ -106,6 +111,7 @@
       "children": [
         {
           "name": "s_manager",
+          "node_type": "attribute",
           "label": "Manager",
           "stats": {
             "count": 12,
@@ -132,6 +138,7 @@
         },
         {
           "name": "s_number_employees",
+          "node_type": "attribute",
           "label": "Number Employees",
           "stats": {
             "count": 12,
@@ -163,6 +170,7 @@
         },
         {
           "name": "s_floor_space",
+          "node_type": "attribute",
           "label": "Floor Space",
           "stats": {
             "count": 12,
@@ -195,6 +203,7 @@
         },
         {
           "name": "s_hours",
+          "node_type": "attribute",
           "label": "Hours",
           "stats": {
             "count": 12,
@@ -216,6 +225,7 @@
         },
         {
           "name": "s_tax_percentage",
+          "node_type": "attribute",
           "label": "Tax Percentage",
           "stats": {
             "count": 12,
@@ -245,6 +255,7 @@
     },
     {
       "name": "s_market_id",
+      "node_type": "attribute",
       "label": "Organization",
       "stats": {
         "count": 12,
@@ -273,6 +284,7 @@
       "children": [
         {
           "name": "s_geography_class",
+          "node_type": "attribute",
           "label": "Geography Class",
           "stats": {
             "count": 12,
@@ -293,6 +305,7 @@
         },
         {
           "name": "s_market_desc",
+          "node_type": "attribute",
           "label": "Market Desc",
           "stats": {
             "count": 12,
@@ -322,6 +335,7 @@
         },
         {
           "name": "s_market_manager",
+          "node_type": "attribute",
           "label": "Market Manager",
           "stats": {
             "count": 12,
@@ -348,6 +362,7 @@
         },
         {
           "name": "s_division_id",
+          "node_type": "attribute",
           "label": "Division ID",
           "stats": {
             "count": 12,
@@ -370,6 +385,7 @@
           "children": [
             {
               "name": "s_division_name",
+              "node_type": "attribute",
               "label": "Division Name",
               "stats": {
                 "count": 12,
@@ -390,6 +406,7 @@
             },
             {
               "name": "s_company_id",
+              "node_type": "attribute",
               "label": "Company ID",
               "stats": {
                 "count": 12,
@@ -412,6 +429,7 @@
               "children": [
                 {
                   "name": "s_company_name",
+                  "node_type": "attribute",
                   "label": "Company Name",
                   "stats": {
                     "count": 12,
@@ -438,6 +456,7 @@
     },
     {
       "name": "s_street_number",
+      "node_type": "attribute",
       "label": "Location",
       "stats": {
         "count": 12,
@@ -465,6 +484,7 @@
       "children": [
         {
           "name": "s_street_name",
+          "node_type": "attribute",
           "label": "Street Name",
           "stats": {
             "count": 12,
@@ -495,6 +515,7 @@
           "children": [
             {
               "name": "s_street_type",
+              "node_type": "attribute",
               "label": "Street Type",
               "stats": {
                 "count": 12,
@@ -521,6 +542,7 @@
               "children": [
                 {
                   "name": "s_suite_number",
+                  "node_type": "attribute",
                   "label": "Suite Number",
                   "stats": {
                     "count": 12,
@@ -550,6 +572,7 @@
                   "children": [
                     {
                       "name": "s_city",
+                      "node_type": "attribute",
                       "label": "City",
                       "stats": {
                         "count": 12,
@@ -570,6 +593,7 @@
                       "children": [
                         {
                           "name": "s_county",
+                          "node_type": "attribute",
                           "label": "County",
                           "stats": {
                             "count": 12,
@@ -589,6 +613,7 @@
                           "children": [
                             {
                               "name": "s_state",
+                              "node_type": "attribute",
                               "label": "State",
                               "stats": {
                                 "count": 12,
@@ -608,6 +633,7 @@
                               "children": [
                                 {
                                   "name": "s_zip",
+                                  "node_type": "attribute",
                                   "label": "ZIP",
                                   "stats": {
                                     "count": 12,
@@ -628,6 +654,7 @@
                                   "children": [
                                     {
                                       "name": "s_country",
+                                      "node_type": "attribute",
                                       "label": "Country",
                                       "stats": {
                                         "count": 12,
@@ -647,6 +674,7 @@
                                       "children": [
                                         {
                                           "name": "s_gmt_offset",
+                                          "node_type": "attribute",
                                           "label": "GMT Offset",
                                           "stats": {
                                             "count": 12,

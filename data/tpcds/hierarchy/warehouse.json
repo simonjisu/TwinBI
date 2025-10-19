@@ -1,8 +1,10 @@
 {
   "table": "warehouse",
+  "table_type": "dim",
   "children": [
     {
       "name": "w_warehouse_id",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 5,
@@ -27,6 +29,7 @@
     },
     {
       "name": "w_warehouse_name",
+      "node_type": "attribute",
       "label": "Warehouse Name",
       "stats": {
         "count": 5,
@@ -49,6 +52,7 @@
       "children": [
         {
           "name": "w_warehouse_sq_ft",
+          "node_type": "attribute",
           "label": "Warehouse Sq Ft",
           "stats": {
             "count": 5,
@@ -77,6 +81,7 @@
     },
     {
       "name": "w_street_number",
+      "node_type": "attribute",
       "label": "Stree Number",
       "stats": {
         "count": 5,
@@ -99,6 +104,7 @@
       "children": [
         {
           "name": "w_street_name",
+          "node_type": "attribute",
           "label": "Street Name",
           "stats": {
             "count": 5,
@@ -121,6 +127,7 @@
           "children": [
             {
               "name": "w_street_type",
+              "node_type": "attribute",
               "label": "Street Type",
               "stats": {
                 "count": 5,
@@ -143,6 +150,7 @@
               "children": [
                 {
                   "name": "w_suite_number",
+                  "node_type": "attribute",
                   "label": "Suite Number",
                   "stats": {
                     "count": 5,
@@ -165,6 +173,7 @@
                   "children": [
                     {
                       "name": "w_city",
+                      "node_type": "attribute",
                       "label": "City",
                       "stats": {
                         "count": 5,
@@ -184,6 +193,7 @@
                       "children": [
                         {
                           "name": "w_county",
+                          "node_type": "attribute",
                           "label": "County",
                           "stats": {
                             "count": 5,
@@ -203,6 +213,7 @@
                           "children": [
                             {
                               "name": "w_state",
+                              "node_type": "attribute",
                               "label": "State",
                               "stats": {
                                 "count": 5,
@@ -222,6 +233,7 @@
                               "children": [
                                 {
                                   "name": "w_zip",
+                                  "node_type": "attribute",
                                   "label": "ZIP",
                                   "stats": {
                                     "count": 5,
@@ -241,6 +253,7 @@
                                   "children": [
                                     {
                                       "name": "w_country",
+                                      "node_type": "attribute",
                                       "label": "Country",
                                       "stats": {
                                         "count": 5,
@@ -260,6 +273,7 @@
                                       "children": [
                                         {
                                           "name": "w_gmt_offset",
+                                          "node_type": "attribute",
                                           "label": "GMT Offset",
                                           "stats": {
                                             "count": 5,

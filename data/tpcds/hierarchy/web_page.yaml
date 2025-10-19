@@ -1,4 +1,5 @@
 table: web_page
+table_type: dim
 children:
 - name: wp_web_page_id
   label: Identity

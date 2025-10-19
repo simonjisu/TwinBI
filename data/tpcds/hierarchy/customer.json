@@ -1,8 +1,10 @@
 {
   "table": "customer",
+  "table_type": "dim",
   "children": [
     {
       "name": "c_customer_id",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 100000,
@@ -14,13 +16,14 @@
         "dtype": "string",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/customer__c_customer_id"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer__c_customer_id"
         }
       },
       "children": []
     },
     {
       "name": "c_salutation",
+      "node_type": "attribute",
       "label": "Salutation",
       "stats": {
         "count": 100000,
@@ -45,6 +48,7 @@
       "children": [
         {
           "name": "c_first_name",
+          "node_type": "attribute",
           "label": "First Name",
           "stats": {
             "count": 100000,
@@ -56,12 +60,13 @@
             "dtype": "string",
             "unique_values": {
               "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/customer__c_first_name"
+              "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer__c_first_name"
             }
           },
           "children": [
             {
               "name": "c_last_name",
+              "node_type": "attribute",
               "label": "Last Name",
               "stats": {
                 "count": 100000,
@@ -73,13 +78,14 @@
                 "dtype": "string",
                 "unique_values": {
                   "type": "bplustree",
-                  "values": "/home/jsjang/code/Agent4OLAP/data/index/customer__c_last_name"
+                  "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer__c_last_name"
                 }
               },
               "children": []
             },
             {
               "name": "c_login",
+              "node_type": "attribute",
               "label": "Login",
               "stats": {
                 "count": 100000,
@@ -100,6 +106,7 @@
             },
             {
               "name": "c_email_address",
+              "node_type": "attribute",
               "label": "Email Address",
               "stats": {
                 "count": 100000,
@@ -111,7 +118,7 @@
                 "dtype": "string",
                 "unique_values": {
                   "type": "bplustree",
-                  "values": "/home/jsjang/code/Agent4OLAP/data/index/customer__c_email_address"
+                  "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer__c_email_address"
                 }
               },
               "children": []
@@ -122,6 +129,7 @@
     },
     {
       "name": "c_birth_day",
+      "node_type": "attribute",
       "label": "Birth",
       "stats": {
         "count": 100000,
@@ -136,12 +144,13 @@
         "dtype": "integer",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/customer__c_birth_day"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer__c_birth_day"
         }
       },
       "children": [
         {
           "name": "c_birth_month",
+          "node_type": "attribute",
           "label": "Birth Month",
           "stats": {
             "count": 100000,
@@ -175,6 +184,7 @@
           "children": [
             {
               "name": "c_birth_year",
+              "node_type": "attribute",
               "label": "Birth Year",
               "stats": {
                 "count": 100000,
@@ -189,7 +199,7 @@
                 "dtype": "integer",
                 "unique_values": {
                   "type": "bplustree",
-                  "values": "/home/jsjang/code/Agent4OLAP/data/index/customer__c_birth_year"
+                  "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer__c_birth_year"
                 }
               },
               "children": []

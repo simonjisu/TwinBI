@@ -1,8 +1,10 @@
 {
   "table": "time_dim",
+  "table_type": "dim",
   "children": [
     {
       "name": "t_time_id",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 86400,
@@ -14,13 +16,14 @@
         "dtype": "string",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/time_dim__t_time_id"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/time_dim__t_time_id"
         }
       },
       "children": []
     },
     {
       "name": "t_second",
+      "node_type": "attribute",
       "label": "Second",
       "stats": {
         "count": 86400,
@@ -35,12 +38,13 @@
         "dtype": "integer",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/time_dim__t_second"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/time_dim__t_second"
         }
       },
       "children": [
         {
           "name": "t_minute",
+          "node_type": "attribute",
           "label": "Minute",
           "stats": {
             "count": 86400,
@@ -55,12 +59,13 @@
             "dtype": "integer",
             "unique_values": {
               "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/time_dim__t_minute"
+              "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/time_dim__t_minute"
             }
           },
           "children": [
             {
               "name": "t_hour",
+              "node_type": "attribute",
               "label": "Hour",
               "stats": {
                 "count": 86400,
@@ -106,6 +111,7 @@
               "children": [
                 {
                   "name": "t_am_pm",
+                  "node_type": "attribute",
                   "label": "Am Pm",
                   "stats": {
                     "count": 86400,
@@ -126,6 +132,7 @@
                   "children": [
                     {
                       "name": "t_shift",
+                      "node_type": "attribute",
                       "label": "Shift",
                       "stats": {
                         "count": 86400,
@@ -147,6 +154,7 @@
                       "children": [
                         {
                           "name": "t_sub_shift",
+                          "node_type": "attribute",
                           "label": "Sub Shift",
                           "stats": {
                             "count": 86400,
@@ -169,6 +177,7 @@
                           "children": [
                             {
                               "name": "t_meal_time",
+                              "node_type": "attribute",
                               "label": "Meal Time",
                               "stats": {
                                 "count": 86400,
@@ -204,6 +213,7 @@
     },
     {
       "name": "t_time",
+      "node_type": "attribute",
       "label": "Time_Value",
       "stats": {
         "count": 86400,
@@ -218,7 +228,7 @@
         "dtype": "integer",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/time_dim__t_time"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/time_dim__t_time"
         }
       },
       "children": []

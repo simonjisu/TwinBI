@@ -1,0 +1,12 @@
+table: Fact_Sales
+table_type: fact
+children:
+  - name: sales_amount
+    label: Total Sales Amount
+    agg: sum
+  - name: quantity_sold
+    label: Total Quantity Sold
+    agg: sum
+  - name: net_profit
+    label: Total Net Profit
+    agg: sum

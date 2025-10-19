@@ -1,4 +1,5 @@
 table: item
+table_type: dim
 children:
 - name: i_item_id
   label: Identity

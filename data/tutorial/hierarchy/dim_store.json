@@ -1,8 +1,10 @@
 {
   "table": "Dim_Store",
+  "table_type": "dim",
   "children": [
     {
       "name": "store_key",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 20,
@@ -45,6 +47,7 @@
     },
     {
       "name": "store_name",
+      "node_type": "attribute",
       "label": "Store",
       "stats": {
         "count": 20,
@@ -83,6 +86,7 @@
       "children": [
         {
           "name": "city",
+          "node_type": "attribute",
           "label": "City",
           "stats": {
             "count": 20,
@@ -106,6 +110,7 @@
           "children": [
             {
               "name": "state",
+              "node_type": "attribute",
               "label": "State",
               "stats": {
                 "count": 20,
@@ -131,6 +136,7 @@
         },
         {
           "name": "sales_manager",
+          "node_type": "attribute",
           "label": "Sales Manager",
           "stats": {
             "count": 20,
@@ -170,6 +176,7 @@
         },
         {
           "name": "sales_district",
+          "node_type": "attribute",
           "label": "Sales District",
           "stats": {
             "count": 20,

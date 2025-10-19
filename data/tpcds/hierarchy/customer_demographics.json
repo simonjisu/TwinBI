@@ -1,8 +1,10 @@
 {
   "table": "customer_demographics",
+  "table_type": "dim",
   "children": [
     {
       "name": "cd_gender",
+      "node_type": "attribute",
       "label": "Gender",
       "stats": {
         "count": 1920800,
@@ -24,6 +26,7 @@
     },
     {
       "name": "cd_marital_status",
+      "node_type": "attribute",
       "label": "Marital Status",
       "stats": {
         "count": 1920800,
@@ -48,6 +51,7 @@
     },
     {
       "name": "cd_education_status",
+      "node_type": "attribute",
       "label": "Education Status",
       "stats": {
         "count": 1920800,
@@ -74,6 +78,7 @@
     },
     {
       "name": "cd_credit_rating",
+      "node_type": "attribute",
       "label": "Credit Rating",
       "stats": {
         "count": 1920800,
@@ -97,6 +102,7 @@
     },
     {
       "name": "cd_purchase_estimate",
+      "node_type": "attribute",
       "label": "Purchase Estimate",
       "stats": {
         "count": 1920800,
@@ -139,6 +145,7 @@
     },
     {
       "name": "cd_dep_count",
+      "node_type": "attribute",
       "label": "Dependents",
       "stats": {
         "count": 1920800,
@@ -167,6 +174,7 @@
       "children": [
         {
           "name": "cd_dep_employed_count",
+          "node_type": "attribute",
           "label": "Dep Employed Count",
           "stats": {
             "count": 1920800,
@@ -195,6 +203,7 @@
           "children": [
             {
               "name": "cd_dep_college_count",
+              "node_type": "attribute",
               "label": "Dep College Count",
               "stats": {
                 "count": 1920800,

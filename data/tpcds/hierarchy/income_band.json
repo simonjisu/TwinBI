@@ -1,8 +1,10 @@
 {
   "table": "income_band",
+  "table_type": "dim",
   "children": [
     {
       "name": "ib_lower_bound",
+      "node_type": "attribute",
       "label": "Income Range",
       "stats": {
         "count": 20,
@@ -44,6 +46,7 @@
       "children": [
         {
           "name": "ib_upper_bound",
+          "node_type": "attribute",
           "label": "Upper Bound",
           "stats": {
             "count": 20,

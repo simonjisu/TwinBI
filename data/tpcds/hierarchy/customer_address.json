@@ -1,8 +1,10 @@
 {
   "table": "customer_address",
+  "table_type": "dim",
   "children": [
     {
       "name": "ca_address_id",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 50000,
@@ -14,13 +16,14 @@
         "dtype": "string",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/customer_address__ca_address_id"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer_address__ca_address_id"
         }
       },
       "children": []
     },
     {
       "name": "ca_street_number",
+      "node_type": "attribute",
       "label": "Street Number",
       "stats": {
         "count": 50000,
@@ -32,12 +35,13 @@
         "dtype": "string",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/customer_address__ca_street_number"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer_address__ca_street_number"
         }
       },
       "children": [
         {
           "name": "ca_street_name",
+          "node_type": "attribute",
           "label": "Street Name",
           "stats": {
             "count": 50000,
@@ -49,12 +53,13 @@
             "dtype": "string",
             "unique_values": {
               "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/customer_address__ca_street_name"
+              "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer_address__ca_street_name"
             }
           },
           "children": [
             {
               "name": "ca_street_type",
+              "node_type": "attribute",
               "label": "Street Type",
               "stats": {
                 "count": 50000,
@@ -93,6 +98,7 @@
               "children": [
                 {
                   "name": "ca_suite_number",
+                  "node_type": "attribute",
                   "label": "Suite Number",
                   "stats": {
                     "count": 50000,
@@ -104,12 +110,13 @@
                     "dtype": "string",
                     "unique_values": {
                       "type": "bplustree",
-                      "values": "/home/jsjang/code/Agent4OLAP/data/index/customer_address__ca_suite_number"
+                      "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer_address__ca_suite_number"
                     }
                   },
                   "children": [
                     {
                       "name": "ca_city",
+                      "node_type": "attribute",
                       "label": "City",
                       "stats": {
                         "count": 50000,
@@ -121,12 +128,13 @@
                         "dtype": "string",
                         "unique_values": {
                           "type": "bplustree",
-                          "values": "/home/jsjang/code/Agent4OLAP/data/index/customer_address__ca_city"
+                          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer_address__ca_city"
                         }
                       },
                       "children": [
                         {
                           "name": "ca_county",
+                          "node_type": "attribute",
                           "label": "County",
                           "stats": {
                             "count": 50000,
@@ -138,12 +146,13 @@
                             "dtype": "string",
                             "unique_values": {
                               "type": "bplustree",
-                              "values": "/home/jsjang/code/Agent4OLAP/data/index/customer_address__ca_county"
+                              "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer_address__ca_county"
                             }
                           },
                           "children": [
                             {
                               "name": "ca_state",
+                              "node_type": "attribute",
                               "label": "State",
                               "stats": {
                                 "count": 50000,
@@ -155,7 +164,7 @@
                                 "dtype": "string",
                                 "unique_values": {
                                   "type": "bplustree",
-                                  "values": "/home/jsjang/code/Agent4OLAP/data/index/customer_address__ca_state"
+                                  "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/customer_address__ca_state"
                                 }
                               },
                               "children": []

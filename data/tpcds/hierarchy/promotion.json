@@ -1,8 +1,10 @@
 {
   "table": "promotion",
+  "table_type": "dim",
   "children": [
     {
       "name": "p_promo_id",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 300,
@@ -14,13 +16,14 @@
         "dtype": "string",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/promotion__p_promo_id"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/promotion__p_promo_id"
         }
       },
       "children": []
     },
     {
       "name": "p_promo_name",
+      "node_type": "attribute",
       "label": "Promotion Name",
       "stats": {
         "count": 300,
@@ -49,6 +52,7 @@
       "children": [
         {
           "name": "p_channel_dmail",
+          "node_type": "attribute",
           "label": "Channel Dmail",
           "stats": {
             "count": 300,
@@ -70,6 +74,7 @@
         },
         {
           "name": "p_channel_email",
+          "node_type": "attribute",
           "label": "Channel Email",
           "stats": {
             "count": 300,
@@ -90,6 +95,7 @@
         },
         {
           "name": "p_channel_catalog",
+          "node_type": "attribute",
           "label": "Channel Catalog",
           "stats": {
             "count": 300,
@@ -110,6 +116,7 @@
         },
         {
           "name": "p_channel_tv",
+          "node_type": "attribute",
           "label": "Channel Tv",
           "stats": {
             "count": 300,
@@ -130,6 +137,7 @@
         },
         {
           "name": "p_channel_radio",
+          "node_type": "attribute",
           "label": "Channel Radio",
           "stats": {
             "count": 300,
@@ -150,6 +158,7 @@
         },
         {
           "name": "p_channel_press",
+          "node_type": "attribute",
           "label": "Channel Press",
           "stats": {
             "count": 300,
@@ -170,6 +179,7 @@
         },
         {
           "name": "p_channel_event",
+          "node_type": "attribute",
           "label": "Channel Event",
           "stats": {
             "count": 300,
@@ -190,6 +200,7 @@
         },
         {
           "name": "p_channel_demo",
+          "node_type": "attribute",
           "label": "Channel Demo",
           "stats": {
             "count": 300,
@@ -210,6 +221,7 @@
         },
         {
           "name": "p_channel_details",
+          "node_type": "attribute",
           "label": "Channel Details",
           "stats": {
             "count": 300,
@@ -221,13 +233,14 @@
             "dtype": "string",
             "unique_values": {
               "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/promotion__p_channel_details"
+              "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/promotion__p_channel_details"
             }
           },
           "children": []
         },
         {
           "name": "p_purpose",
+          "node_type": "attribute",
           "label": "Purpose",
           "stats": {
             "count": 300,
@@ -250,6 +263,7 @@
     },
     {
       "name": "p_discount_active",
+      "node_type": "attribute",
       "label": "Discount Active",
       "stats": {
         "count": 300,
@@ -269,6 +283,7 @@
       "children": [
         {
           "name": "p_discount_pct",
+          "node_type": "attribute",
           "label": "Discount Pct",
           "stats": null,
           "children": []
@@ -277,6 +292,7 @@
     },
     {
       "name": "p_cost",
+      "node_type": "attribute",
       "label": "Costs",
       "stats": {
         "count": 300,
@@ -299,6 +315,7 @@
       "children": [
         {
           "name": "p_response_target",
+          "node_type": "attribute",
           "label": "Response Target",
           "stats": {
             "count": 300,

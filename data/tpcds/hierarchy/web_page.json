@@ -1,8 +1,10 @@
 {
   "table": "web_page",
+  "table_type": "dim",
   "children": [
     {
       "name": "wp_web_page_id",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 60,
@@ -52,6 +54,7 @@
     },
     {
       "name": "wp_rec_start_date",
+      "node_type": "attribute",
       "label": "Record Start Date",
       "stats": {
         "count": 60,
@@ -77,6 +80,7 @@
       "children": [
         {
           "name": "wp_rec_end_date",
+          "node_type": "attribute",
           "label": "Record End Date",
           "stats": {
             "count": 60,
@@ -104,6 +108,7 @@
     },
     {
       "name": "wp_url",
+      "node_type": "attribute",
       "label": "Page URL",
       "stats": {
         "count": 60,
@@ -123,6 +128,7 @@
       "children": [
         {
           "name": "wp_type",
+          "node_type": "attribute",
           "label": "Type",
           "stats": {
             "count": 60,
@@ -149,6 +155,7 @@
         },
         {
           "name": "wp_autogen_flag",
+          "node_type": "attribute",
           "label": "Autogen Flag",
           "stats": {
             "count": 60,
@@ -172,6 +179,7 @@
     },
     {
       "name": "wp_char_count",
+      "node_type": "attribute",
       "label": "Page Char Count",
       "stats": {
         "count": 60,
@@ -186,13 +194,14 @@
         "dtype": "integer",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/web_page__wp_char_count"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/web_page__wp_char_count"
         }
       },
       "children": []
     },
     {
       "name": "wp_link_count",
+      "node_type": "attribute",
       "label": "Link Count",
       "stats": {
         "count": 60,
@@ -236,6 +245,7 @@
     },
     {
       "name": "wp_image_count",
+      "node_type": "attribute",
       "label": "Image Count",
       "stats": {
         "count": 60,
@@ -265,6 +275,7 @@
     },
     {
       "name": "wp_max_ad_count",
+      "node_type": "attribute",
       "label": "Max Ad Count",
       "stats": {
         "count": 60,

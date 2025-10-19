@@ -1,0 +1,118 @@
+{
+  "table": "store_returns",
+  "table_type": "fact",
+  "children": [
+    {
+      "name": "count",
+      "node_type": "measure",
+      "label": "Count",
+      "stats": null,
+      "children": [],
+      "agg": "count"
+    },
+    {
+      "name": "total_return_amount",
+      "node_type": "measure",
+      "label": "Total Return Amount",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    },
+    {
+      "name": "total_return_by_customer_store",
+      "node_type": "measure",
+      "label": "Total Return By Customer Store",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    },
+    {
+      "name": "store_avg_return",
+      "node_type": "measure",
+      "label": "Store Avg Return",
+      "stats": null,
+      "children": [],
+      "agg": "avg"
+    },
+    {
+      "name": "return_vs_store_avg",
+      "node_type": "measure",
+      "label": "Return Vs Store Avg",
+      "stats": null,
+      "children": [],
+      "agg": "number"
+    },
+    {
+      "name": "total_return_quantity",
+      "node_type": "measure",
+      "label": "Total Return Quantity",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    },
+    {
+      "name": "total_return_ship_cost",
+      "node_type": "measure",
+      "label": "Total Return Ship Cost",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    },
+    {
+      "name": "total_return_tax",
+      "node_type": "measure",
+      "label": "Total Return Tax",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    },
+    {
+      "name": "total_fee",
+      "node_type": "measure",
+      "label": "Total Fee",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    },
+    {
+      "name": "total_refunded_cash",
+      "node_type": "measure",
+      "label": "Total Refunded Cash",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    },
+    {
+      "name": "total_reversed_charge",
+      "node_type": "measure",
+      "label": "Total Reversed Charge",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    },
+    {
+      "name": "total_store_credit",
+      "node_type": "measure",
+      "label": "Total Store Credit",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    },
+    {
+      "name": "total_ticket_number",
+      "node_type": "measure",
+      "label": "Total Ticket Number",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    },
+    {
+      "name": "total_net_loss",
+      "node_type": "measure",
+      "label": "Total Net Loss",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    }
+  ]
+}

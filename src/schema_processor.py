@@ -8,8 +8,8 @@ from IPython.display import display
 from ipycytoscape import CytoscapeWidget
 import ipywidgets as W
 from loguru import logger
-from .hierarchy_duckdb import HierarchyTree, Node
-from .unique_index import UniqueIndex
+from hierarchy_duckdb import HierarchyTree, Node
+from unique_index import UniqueIndex
 
 TPCDS_FACT_TABLES = {
     "store_sales",
@@ -25,18 +25,24 @@ TUTORIAL_FACT_TABLES = {
 }
 
 
-def _node_from_json_dict(data: dict) -> Node:
+def _node_from_json_dict(data: dict, is_fact: bool) -> Node:
     return Node(
         name=data["name"].lower(),
+        node_type="fact" if is_fact else "dimension",
         label=data.get("label"),
         stats=data.get("stats"),
-        children=[_node_from_json_dict(child) for child in data.get("children", [])],
+        children=[_node_from_json_dict(child, is_fact=False) for child in data.get("children", [])],
     )
 
 def hierarchy_from_json(path: Path) -> HierarchyTree:
     payload = json.loads(Path(path).read_text())
-    children = [_node_from_json_dict(child) for child in payload.get("children", [])]
-    return HierarchyTree(table=payload["table"].lower(), children=children)
+    children = [_node_from_json_dict(
+        child, is_fact=True if payload["table_type"] == "fact" else False
+        ) for child in payload.get("children", [])]
+    return HierarchyTree(
+        table=payload["table"].lower(), 
+        table_type=payload["table_type"],
+        children=children)
 
 
 def load_data(data_path: Path):
@@ -131,10 +137,11 @@ class SchemaExplorer:
             return hierarchies
 
         for path in sorted(hierarchy_dir.glob('*.json')):
+            logger.info(f"Loading hierarchy from {path}")
             try:
                 tree = hierarchy_from_json(path)
             except Exception as exc:
-                print(f"Failed to load hierarchy from {path}: {exc}")
+                logger.error(f"Failed to load hierarchy from {path}: {exc}")
                 continue
             hierarchies[tree.table] = tree
         return hierarchies
@@ -177,6 +184,39 @@ class SchemaExplorer:
                 'label': node.label if node.label else node.name,
             }
             steps.append(step)
+        return steps
+
+    def _find_measure_paths(self, tree: HierarchyTree, measure_name: str) -> List[List[Node]]:
+        matches: List[List[Node]] = []
+        target = measure_name.lower()
+
+        def dfs(node: Node, path: List[Node]):
+            next_path = path + [node]
+            node_label = (node.label or "").lower()
+            if node.name == target or node_label == target:
+                matches.append(next_path)
+            for child in node.children:
+                dfs(child, next_path)
+
+        for child in tree.children:
+            dfs(child, [])
+
+        return matches
+
+    def _build_measure_steps(self, tree: HierarchyTree, node_path: List[Node]) -> List[dict]:
+        steps: List[dict] = [{
+            'type': 'fact',
+            'name': tree.table,
+            'label': tree.table,
+        }]
+        total = len(node_path)
+        for idx, node in enumerate(node_path):
+            step_type = 'measure' if idx == total - 1 else 'group'
+            steps.append({
+                'type': step_type,
+                'name': node.name,
+                'label': node.label if node.label else node.name,
+            })
         return steps
 
     def _resolve_index_path(self, raw_path: str | Path) -> Path:
@@ -260,6 +300,32 @@ class SchemaExplorer:
             )
 
         return value_matches
+
+    def search_measure(self, fact_table: str, measure_name: str) -> List[dict]:
+        """Return all hierarchy paths leading to the requested measure."""
+        fact_key = fact_table.lower()
+        tree = self.hierarchies.get(fact_key)
+        if not tree or tree.table_type != 'fact':
+            raise KeyError(f"Measure hierarchy not found for fact table '{fact_table}'.")
+
+        results: List[dict] = []
+        for node_path in self._find_measure_paths(tree, measure_name):
+            if not node_path:
+                continue
+            measure_node = node_path[-1]
+            steps = self._build_measure_steps(tree, node_path)
+            results.append({
+                'fact': fact_key,
+                'measure': measure_node.name,
+                'label': measure_node.label if measure_node.label else measure_node.name,
+                'agg': measure_node.agg,
+                'path': steps,
+            })
+
+        if not results:
+            raise KeyError(f"Measure '{measure_name}' not found for fact '{fact_table}'.")
+
+        return results
     
 
 def tpcds_extract_edges(tables_path: Path) -> tuple[dict[str, list], dict[str, dict[str, str]], dict[str, list[str]]]:
@@ -275,7 +341,9 @@ def tpcds_extract_edges(tables_path: Path) -> tuple[dict[str, list], dict[str, d
         table_name = p.stem.split('_', 2)[-1].split('_Column_Definitions')[0]
         table_key = table_name.lower()
         first_col = str(df.loc[0, 'column']).split('_')[0]
-        prefix2info[first_col] = {'table_name': table_key, 'path': str(p), 'is_fact': SchemaExplorer.is_fact(table_key, db_type)}
+        prefix2info[first_col] = {'table_name': table_key, 
+                                  'path': str(p), 
+                                  'is_fact': SchemaExplorer.is_fact(table_key, db_type)}
 
         if not SchemaExplorer.is_fact(table_key, db_type):
             attributes = []
@@ -399,7 +467,7 @@ def build_subgraph(
         while q:
             cur = q.popleft()
             for e in out_edges.get(cur, []):
-                ensure_node(e['target_table'])
+                ensure_node(db_type, e['target_table'])
                 es.append({
                     'source': e['source_table'],
                     'target': e['target_table'],

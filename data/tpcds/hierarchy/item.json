@@ -1,8 +1,10 @@
 {
   "table": "item",
+  "table_type": "dim",
   "children": [
     {
       "name": "i_item_id",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 18000,
@@ -14,13 +16,14 @@
         "dtype": "string",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_item_id"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_item_id"
         }
       },
       "children": []
     },
     {
       "name": "i_rec_start_date",
+      "node_type": "attribute",
       "label": "Record Start Date",
       "stats": {
         "count": 18000,
@@ -46,6 +49,7 @@
       "children": [
         {
           "name": "i_rec_end_date",
+          "node_type": "attribute",
           "label": "Record End Date",
           "stats": {
             "count": 18000,
@@ -73,6 +77,7 @@
     },
     {
       "name": "i_product_name",
+      "node_type": "attribute",
       "label": "Product Name",
       "stats": {
         "count": 18000,
@@ -84,12 +89,13 @@
         "dtype": "string",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_product_name"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_product_name"
         }
       },
       "children": [
         {
           "name": "i_brand_id",
+          "node_type": "attribute",
           "label": "Brand ID",
           "stats": {
             "count": 18000,
@@ -104,12 +110,13 @@
             "dtype": "integer",
             "unique_values": {
               "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_brand_id"
+              "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_brand_id"
             }
           },
           "children": [
             {
               "name": "i_brand",
+              "node_type": "attribute",
               "label": "Brand Name",
               "stats": {
                 "count": 18000,
@@ -121,13 +128,14 @@
                 "dtype": "string",
                 "unique_values": {
                   "type": "bplustree",
-                  "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_brand"
+                  "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_brand"
                 }
               },
               "children": []
             },
             {
               "name": "i_class_id",
+              "node_type": "attribute",
               "label": "Class ID",
               "stats": {
                 "count": 18000,
@@ -165,6 +173,7 @@
               "children": [
                 {
                   "name": "i_class",
+                  "node_type": "attribute",
                   "label": "Class Name",
                   "stats": {
                     "count": 18000,
@@ -176,13 +185,14 @@
                     "dtype": "string",
                     "unique_values": {
                       "type": "bplustree",
-                      "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_class"
+                      "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_class"
                     }
                   },
                   "children": []
                 },
                 {
                   "name": "i_category_id",
+                  "node_type": "attribute",
                   "label": "Category ID",
                   "stats": {
                     "count": 18000,
@@ -214,6 +224,7 @@
                   "children": [
                     {
                       "name": "i_category",
+                      "node_type": "attribute",
                       "label": "Category Name",
                       "stats": {
                         "count": 18000,
@@ -243,6 +254,7 @@
                     },
                     {
                       "name": "i_manufact_id",
+                      "node_type": "attribute",
                       "label": "Manufact ID",
                       "stats": {
                         "count": 18000,
@@ -257,12 +269,13 @@
                         "dtype": "integer",
                         "unique_values": {
                           "type": "bplustree",
-                          "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_manufact_id"
+                          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_manufact_id"
                         }
                       },
                       "children": [
                         {
                           "name": "i_manufact",
+                          "node_type": "attribute",
                           "label": "Manufact Name",
                           "stats": {
                             "count": 18000,
@@ -274,7 +287,7 @@
                             "dtype": "string",
                             "unique_values": {
                               "type": "bplustree",
-                              "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_manufact"
+                              "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_manufact"
                             }
                           },
                           "children": []
@@ -291,6 +304,7 @@
     },
     {
       "name": "i_item_desc",
+      "node_type": "attribute",
       "label": "Product Attributes",
       "stats": {
         "count": 18000,
@@ -302,12 +316,13 @@
         "dtype": "string",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_item_desc"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_item_desc"
         }
       },
       "children": [
         {
           "name": "i_size",
+          "node_type": "attribute",
           "label": "Size",
           "stats": {
             "count": 18000,
@@ -334,6 +349,7 @@
         },
         {
           "name": "i_formulation",
+          "node_type": "attribute",
           "label": "Formulation",
           "stats": {
             "count": 18000,
@@ -345,13 +361,14 @@
             "dtype": "string",
             "unique_values": {
               "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_formulation"
+              "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_formulation"
             }
           },
           "children": []
         },
         {
           "name": "i_color",
+          "node_type": "attribute",
           "label": "Color",
           "stats": {
             "count": 18000,
@@ -363,13 +380,14 @@
             "dtype": "string",
             "unique_values": {
               "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_color"
+              "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_color"
             }
           },
           "children": []
         },
         {
           "name": "i_units",
+          "node_type": "attribute",
           "label": "Units",
           "stats": {
             "count": 18000,
@@ -410,6 +428,7 @@
         },
         {
           "name": "i_container",
+          "node_type": "attribute",
           "label": "Container",
           "stats": {
             "count": 18000,
@@ -430,6 +449,7 @@
         },
         {
           "name": "i_manager_id",
+          "node_type": "attribute",
           "label": "Manager ID",
           "stats": {
             "count": 18000,
@@ -444,7 +464,7 @@
             "dtype": "integer",
             "unique_values": {
               "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_manager_id"
+              "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_manager_id"
             }
           },
           "children": []
@@ -453,6 +473,7 @@
     },
     {
       "name": "i_current_price",
+      "node_type": "attribute",
       "label": "Pricing",
       "stats": {
         "count": 18000,
@@ -467,12 +488,13 @@
         "dtype": "numeric",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_current_price"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_current_price"
         }
       },
       "children": [
         {
           "name": "i_wholesale_cost",
+          "node_type": "attribute",
           "label": "Wholesale Cost",
           "stats": {
             "count": 18000,
@@ -487,7 +509,7 @@
             "dtype": "numeric",
             "unique_values": {
               "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/item__i_wholesale_cost"
+              "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/item__i_wholesale_cost"
             }
           },
           "children": []

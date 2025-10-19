@@ -1,8 +1,10 @@
 {
   "table": "Dim_Product",
+  "table_type": "dim",
   "children": [
     {
       "name": "product_key",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 50,
@@ -24,6 +26,7 @@
     },
     {
       "name": "product_name",
+      "node_type": "attribute",
       "label": "Product",
       "stats": {
         "count": 50,
@@ -41,6 +44,7 @@
       "children": [
         {
           "name": "brand",
+          "node_type": "attribute",
           "label": "Brand",
           "stats": {
             "count": 50,
@@ -66,6 +70,7 @@
         },
         {
           "name": "type",
+          "node_type": "attribute",
           "label": "Type",
           "stats": {
             "count": 50,
@@ -88,6 +93,7 @@
           "children": [
             {
               "name": "marketing_group",
+              "node_type": "attribute",
               "label": "Marketing Group",
               "stats": {
                 "count": 50,
@@ -110,6 +116,7 @@
             },
             {
               "name": "category",
+              "node_type": "attribute",
               "label": "Category",
               "stats": {
                 "count": 50,
@@ -133,6 +140,7 @@
               "children": [
                 {
                   "name": "department",
+                  "node_type": "attribute",
                   "label": "Department",
                   "stats": {
                     "count": 50,

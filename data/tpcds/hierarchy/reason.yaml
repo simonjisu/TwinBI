@@ -1,4 +1,5 @@
 table: reason
+table_type: dim
 children:
 - name: r_reason_id
   label: Identity

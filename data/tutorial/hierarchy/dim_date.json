@@ -1,8 +1,10 @@
 {
   "table": "Dim_Date",
+  "table_type": "dim",
   "children": [
     {
       "name": "date_key",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 365,
@@ -24,6 +26,7 @@
     },
     {
       "name": "date",
+      "node_type": "attribute",
       "label": "Date",
       "stats": {
         "count": 365,
@@ -44,6 +47,7 @@
       "children": [
         {
           "name": "week",
+          "node_type": "attribute",
           "label": "Week",
           "stats": {
             "count": 365,
@@ -65,6 +69,7 @@
         },
         {
           "name": "month",
+          "node_type": "attribute",
           "label": "Month",
           "stats": {
             "count": 365,
@@ -98,6 +103,7 @@
           "children": [
             {
               "name": "quarter",
+              "node_type": "attribute",
               "label": "Quarter",
               "stats": {
                 "count": 365,
@@ -123,6 +129,7 @@
               "children": [
                 {
                   "name": "year",
+                  "node_type": "attribute",
                   "label": "Year",
                   "stats": {
                     "count": 365,

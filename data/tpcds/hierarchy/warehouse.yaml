@@ -1,4 +1,5 @@
 table: warehouse
+table_type: dim
 children:
 - name: w_warehouse_id
   label: Identity

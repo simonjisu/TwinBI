@@ -17,13 +17,13 @@ cubes:
         sql: "{CUBE}.product_key = {dim_product}.product_key"
 
     measures:
-      - name: sales_amount
+      - name: total_sales_amount
         sql: "sales_amount"
         type: sum
-      - name: quantity_sold
+      - name: total_quantity_sold
         sql: "quantity_sold"
         type: sum
-      - name: net_profit
+      - name: total_net_profit
         sql: "net_profit"
         type: sum
 
@@ -32,7 +32,6 @@ cubes:
         sql: "transaction_id"
         type: number
         primary_key: true
-
 
   - name: dim_date
     sql_table: main.dim_date

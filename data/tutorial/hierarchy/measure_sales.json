@@ -1,0 +1,30 @@
+{
+  "table": "Fact_Sales",
+  "table_type": "fact",
+  "children": [
+    {
+      "name": "sales_amount",
+      "node_type": "measure",
+      "label": "Total Sales Amount",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    },
+    {
+      "name": "quantity_sold",
+      "node_type": "measure",
+      "label": "Total Quantity Sold",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    },
+    {
+      "name": "net_profit",
+      "node_type": "measure",
+      "label": "Total Net Profit",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    }
+  ]
+}

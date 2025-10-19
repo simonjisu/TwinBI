@@ -1,4 +1,5 @@
 table: ship_mode
+table_type: dim
 children:
 - name: sm_ship_mode_id
   label: Identity

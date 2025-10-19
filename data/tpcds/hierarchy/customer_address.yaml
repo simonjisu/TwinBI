@@ -1,4 +1,5 @@
 table: customer_address
+table_type: dim
 children:
 - name: ca_address_id
   label: Identity

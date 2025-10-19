@@ -1,8 +1,10 @@
 {
   "table": "household_demographics",
+  "table_type": "dim",
   "children": [
     {
       "name": "hd_dep_count",
+      "node_type": "attribute",
       "label": "Household Structure",
       "stats": {
         "count": 7200,
@@ -34,6 +36,7 @@
       "children": [
         {
           "name": "hd_vehicle_count",
+          "node_type": "attribute",
           "label": "Vehicle Count",
           "stats": {
             "count": 7200,

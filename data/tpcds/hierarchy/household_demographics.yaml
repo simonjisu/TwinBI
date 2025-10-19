@@ -1,4 +1,5 @@
 table: household_demographics
+table_type: dim
 children:
 - name: hd_dep_count
   label: Household Structure

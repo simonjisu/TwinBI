@@ -1,8 +1,10 @@
 {
   "table": "ship_mode",
+  "table_type": "dim",
   "children": [
     {
       "name": "sm_ship_mode_id",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 20,
@@ -42,6 +44,7 @@
     },
     {
       "name": "sm_contract",
+      "node_type": "attribute",
       "label": "Contract",
       "stats": {
         "count": 20,
@@ -80,6 +83,7 @@
       "children": [
         {
           "name": "sm_code",
+          "node_type": "attribute",
           "label": "Code",
           "stats": {
             "count": 20,
@@ -102,6 +106,7 @@
           "children": [
             {
               "name": "sm_type",
+              "node_type": "attribute",
               "label": "Type",
               "stats": {
                 "count": 20,
@@ -126,6 +131,7 @@
               "children": [
                 {
                   "name": "sm_carrier",
+                  "node_type": "attribute",
                   "label": "Carrier",
                   "stats": {
                     "count": 20,

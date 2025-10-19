@@ -1,4 +1,5 @@
 table: date_dim
+table_type: dim
 children:
 - name: d_date_id
   label: Identity

@@ -1,8 +1,10 @@
 {
   "table": "web_site",
+  "table_type": "dim",
   "children": [
     {
       "name": "web_site_id",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 30,
@@ -37,6 +39,7 @@
     },
     {
       "name": "web_rec_start_date",
+      "node_type": "attribute",
       "label": "Record Start Date",
       "stats": {
         "count": 30,
@@ -62,6 +65,7 @@
       "children": [
         {
           "name": "web_rec_end_date",
+          "node_type": "attribute",
           "label": "Record End Date",
           "stats": {
             "count": 30,
@@ -89,6 +93,7 @@
     },
     {
       "name": "web_name",
+      "node_type": "attribute",
       "label": "Site_Info",
       "stats": {
         "count": 30,
@@ -112,6 +117,7 @@
       "children": [
         {
           "name": "web_class",
+          "node_type": "attribute",
           "label": "Web Class",
           "stats": {
             "count": 30,
@@ -132,6 +138,7 @@
         },
         {
           "name": "web_manager",
+          "node_type": "attribute",
           "label": "Web Manager",
           "stats": {
             "count": 30,
@@ -172,6 +179,7 @@
         },
         {
           "name": "web_tax_percentage",
+          "node_type": "attribute",
           "label": "Web Tax Percentage",
           "stats": {
             "count": 30,
@@ -207,6 +215,7 @@
     },
     {
       "name": "web_mkt_id",
+      "node_type": "attribute",
       "label": "Market ID",
       "stats": {
         "count": 30,
@@ -234,6 +243,7 @@
       "children": [
         {
           "name": "web_mkt_class",
+          "node_type": "attribute",
           "label": "Web Market Class",
           "stats": {
             "count": 30,
@@ -276,6 +286,7 @@
         },
         {
           "name": "web_mkt_desc",
+          "node_type": "attribute",
           "label": "Web Market Desc",
           "stats": {
             "count": 30,
@@ -322,6 +333,7 @@
         },
         {
           "name": "web_market_manager",
+          "node_type": "attribute",
           "label": "Web Market Manager",
           "stats": {
             "count": 30,
@@ -365,6 +377,7 @@
         },
         {
           "name": "web_company_id",
+          "node_type": "attribute",
           "label": "Company ID",
           "stats": {
             "count": 30,
@@ -392,6 +405,7 @@
           "children": [
             {
               "name": "web_company_name",
+              "node_type": "attribute",
               "label": "Company Name",
               "stats": {
                 "count": 30,
@@ -421,6 +435,7 @@
     },
     {
       "name": "web_street_number",
+      "node_type": "attribute",
       "label": "Location",
       "stats": {
         "count": 30,
@@ -462,6 +477,7 @@
       "children": [
         {
           "name": "web_street_name",
+          "node_type": "attribute",
           "label": "Street Name",
           "stats": {
             "count": 30,
@@ -510,6 +526,7 @@
           "children": [
             {
               "name": "web_street_type",
+              "node_type": "attribute",
               "label": "Street Type",
               "stats": {
                 "count": 30,
@@ -543,6 +560,7 @@
               "children": [
                 {
                   "name": "web_suite_number",
+                  "node_type": "attribute",
                   "label": "Suite Number",
                   "stats": {
                     "count": 30,
@@ -584,6 +602,7 @@
                   "children": [
                     {
                       "name": "web_city",
+                      "node_type": "attribute",
                       "label": "City",
                       "stats": {
                         "count": 30,
@@ -604,6 +623,7 @@
                       "children": [
                         {
                           "name": "web_county",
+                          "node_type": "attribute",
                           "label": "County",
                           "stats": {
                             "count": 30,
@@ -623,6 +643,7 @@
                           "children": [
                             {
                               "name": "web_state",
+                              "node_type": "attribute",
                               "label": "State",
                               "stats": {
                                 "count": 30,
@@ -642,6 +663,7 @@
                               "children": [
                                 {
                                   "name": "web_zip",
+                                  "node_type": "attribute",
                                   "label": "ZIP",
                                   "stats": {
                                     "count": 30,
@@ -662,6 +684,7 @@
                                   "children": [
                                     {
                                       "name": "web_country",
+                                      "node_type": "attribute",
                                       "label": "Country",
                                       "stats": {
                                         "count": 30,
@@ -681,6 +704,7 @@
                                       "children": [
                                         {
                                           "name": "web_gmt_offset",
+                                          "node_type": "attribute",
                                           "label": "GMT Offset",
                                           "stats": {
                                             "count": 30,

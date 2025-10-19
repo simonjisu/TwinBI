@@ -23,13 +23,24 @@ Agent4OLAP/
 │   ├── package.json          # Cube.js server dependencies (`npm run dev`)
 │   └── README.md             # Cube project usage notes
 ├── data/                     # Canonical data exports shared with agents
-│   ├── tutorial/             # Tutorial dataset slices, indexes, hierarchies
-│   └── tpcds/                # TPC-DS dataset slices, indexes, hierarchies
+│   ├── tutorial/             # Tutorial dataset (DuckDB files + metadata)
+│   │   ├── database/         # DuckDB database file(s) served to Cube
+│   │   ├── hierarchy/        # Attribute trees powering graph visualizations
+│   │   ├── index/            # Generated indexes for selective predicates
+│   │   ├── tables/           # Materialized table snapshots
+│   │   └── tutorial-star-graph.json
+│   └── tpcds/                # TPC-DS dataset with richer star/snowflake graphs
+│       ├── database/
+│       ├── hierarchy/
+│       ├── index/
+│       ├── tables/
+│       ├── tpcds-star-graph.json
+│       └── tpcds-snowflake-graph.json
 ├── src/                      # Python tooling and agent-support utilities
 │   ├── hierarchy_duckdb.py   # Builds OLAP hierarchies & stats from DuckDB
 │   ├── schema_processor.py   # Generates schema metadata for agents/Cube
 │   ├── unique_index.py       # B+ tree helper for large cardinality columns
-│   ├── graph_vis.py          # Visual utilities for hierarchy exploration
+│   ├── graph_vis.py          # Renders schema graphs via `display_graph`
 │   └── README.md             # Usage examples for the Python helpers
 ├── lib/                      # Front-end & visualization assets (optional)
 ├── logs/                     # Runtime/application logs
@@ -37,6 +48,8 @@ Agent4OLAP/
 ```
 
 Legacy dbt artifacts under `tpcds/` remain in the repository for reference but are no longer part of the primary development workflow.
+
+Each dataset directory under `data/` mirrors the same layout (database files, hierarchy definitions, indexes, table extracts, and star/snowflake graph JSON). The visualization helpers in `src/graph_vis.py` load these artifacts to drive the interactive `display_graph` experience for both `tutorial` and `tpcds` cubes.
 
 ## Agent Architecture
 

@@ -9,7 +9,7 @@ import datetime as dt
 import yaml
 from loguru import logger
 
-from .unique_index import UniqueIndex
+from unique_index import UniqueIndex
 
 # -----------------------------
 # Helpers
@@ -155,26 +155,40 @@ def compute_column_stats(
 
 @dataclass
 class Node:
+    """Node representation in the hierarchy.
+    - name: column name
+    - node_type: type of the node (e.g., 'attribute', 'measure')
+    - label: human-readable label
+    - children: list of child nodes
+    - stats: optional statistics
+    """
     name: str
+    node_type: str
     label: Optional[str] = None
     children: List["Node"] = field(default_factory=list)
     stats: Optional[Dict[str, Any]] = None
-
+    agg: Optional[str] = None  # placeholder for measure type
+    
     def to_dict(self) -> Dict[str, Any]:
-        return  {
+        x = {
             "name": self.name,
+            "node_type": self.node_type,
             "label": self.label,
             "stats": self.stats,
             "children": [c.to_dict() for c in self.children]
         }
+        if self.agg is not None:
+            x["agg"] = self.agg
+        return x
 
 @dataclass
 class HierarchyTree:
     table: str
+    table_type: str
     children: List[Node] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"table": self.table, "children": [c.to_dict() for c in self.children]}
+        return {"table": self.table, "table_type": self.table_type, "children": [c.to_dict() for c in self.children]}
 
     def to_json(self, indent: int = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
@@ -183,17 +197,19 @@ class HierarchyTree:
 # YAML -> Tree (schema only)
 # -----------------------------
 
-def _node_from_yaml(y: Dict[str, Any]) -> Node:
+def _node_from_yaml(y: Dict[str, Any], is_fact: bool) -> Node:
     name = y.get("name")
+    node_type = "measure" if is_fact else "attribute"
     label = y.get("label") if y.get("label") else name
-    kids = [ _node_from_yaml(c) for c in y.get("children", []) ]
-    return Node(name=name, label=label, children=kids)
+    kids = [ _node_from_yaml(c, is_fact) for c in y.get("children", []) ]
+    return Node(name=name, node_type=node_type, label=label, children=kids, agg=y.get("agg"))
 
 def load_hierarchy_yaml(path: str | Path) -> HierarchyTree:
     y = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     table = y.get("table")
-    kids = [ _node_from_yaml(c) for c in y.get("children", []) ]
-    return HierarchyTree(table=table, children=kids)
+    table_type = y.get("table_type")
+    kids = [ _node_from_yaml(c, is_fact=(table_type == "fact")) for c in y.get("children", []) ]
+    return HierarchyTree(table=table, table_type=table_type, children=kids)
 
 # -----------------------------
 # Attach stats using DuckDB
@@ -223,8 +239,9 @@ def build_tree_with_stats(
     tree = load_hierarchy_yaml(yaml_path)
     col_types = get_table_columns(duckdb_conn, tree.table)
 
-    for child in tree.children:
-        _attach_stats_recursive(duckdb_conn, tree.table, child, col_types, index_path)
+    if tree.table_type != "fact":
+        for child in tree.children:
+            _attach_stats_recursive(duckdb_conn, tree.table, child, col_types, index_path)
 
     return tree
 
@@ -235,6 +252,7 @@ if __name__ == "__main__":
     # extract a json hierarchy from yaml file.
     # ./data/tpcds/database/tpcds.db"
     # ./data/tutorial/database/sales.db"
+    # uv run hierarchy_duckdb.py --db_type "tutorial"
     parser = argparse.ArgumentParser(description="Generate hierarchy JSON files with stats from DuckDB.")
     parser.add_argument("--db_type", type=str, default="tpcds", help="Type of database to use")
     args = parser.parse_args()

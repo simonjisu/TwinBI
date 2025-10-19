@@ -1,4 +1,5 @@
 table: promotion
+table_type: dim
 children:
 - name: p_promo_id
   label: Identity

@@ -1,8 +1,10 @@
 {
   "table": "call_center",
+  "table_type": "dim",
   "children": [
     {
       "name": "cc_call_center_id",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 6,
@@ -25,6 +27,7 @@
     },
     {
       "name": "cc_rec_start_date",
+      "node_type": "attribute",
       "label": "Record Start Date",
       "stats": {
         "count": 6,
@@ -50,6 +53,7 @@
       "children": [
         {
           "name": "cc_rec_end_date",
+          "node_type": "attribute",
           "label": "Record End Date",
           "stats": {
             "count": 6,
@@ -77,6 +81,7 @@
     },
     {
       "name": "cc_name",
+      "node_type": "attribute",
       "label": "Center Name",
       "stats": {
         "count": 6,
@@ -98,6 +103,7 @@
       "children": [
         {
           "name": "cc_class",
+          "node_type": "attribute",
           "label": "Class",
           "stats": {
             "count": 6,
@@ -119,6 +125,7 @@
         },
         {
           "name": "cc_tax_percentage",
+          "node_type": "attribute",
           "label": "Tax Percentage",
           "stats": {
             "count": 6,
@@ -145,6 +152,7 @@
         },
         {
           "name": "cc_sq_ft",
+          "node_type": "attribute",
           "label": "Sq Ft",
           "stats": {
             "count": 6,
@@ -173,6 +181,7 @@
         },
         {
           "name": "cc_hours",
+          "node_type": "attribute",
           "label": "Hours",
           "stats": {
             "count": 6,
@@ -194,6 +203,7 @@
         },
         {
           "name": "cc_employees",
+          "node_type": "attribute",
           "label": "Employees",
           "stats": {
             "count": 6,
@@ -221,6 +231,7 @@
         },
         {
           "name": "cc_manager",
+          "node_type": "attribute",
           "label": "Manager",
           "stats": {
             "count": 6,
@@ -244,6 +255,7 @@
         },
         {
           "name": "cc_mkt_id",
+          "node_type": "attribute",
           "label": "Market Organization",
           "stats": {
             "count": 6,
@@ -268,6 +280,7 @@
           "children": [
             {
               "name": "cc_mkt_class",
+              "node_type": "attribute",
               "label": "Market Class",
               "stats": {
                 "count": 6,
@@ -292,6 +305,7 @@
             },
             {
               "name": "cc_mkt_desc",
+              "node_type": "attribute",
               "label": "Market Desc",
               "stats": {
                 "count": 6,
@@ -315,6 +329,7 @@
             },
             {
               "name": "cc_market_manager",
+              "node_type": "attribute",
               "label": "Market Manager",
               "stats": {
                 "count": 6,
@@ -338,6 +353,7 @@
             },
             {
               "name": "cc_division",
+              "node_type": "attribute",
               "label": "Division",
               "stats": {
                 "count": 6,
@@ -363,6 +379,7 @@
               "children": [
                 {
                   "name": "cc_division_name",
+                  "node_type": "attribute",
                   "label": "Division Name",
                   "stats": {
                     "count": 6,
@@ -386,6 +403,7 @@
                 },
                 {
                   "name": "cc_company",
+                  "node_type": "attribute",
                   "label": "Company",
                   "stats": {
                     "count": 6,
@@ -411,6 +429,7 @@
                   "children": [
                     {
                       "name": "cc_company_name",
+                      "node_type": "attribute",
                       "label": "Company Name",
                       "stats": {
                         "count": 6,
@@ -442,6 +461,7 @@
     },
     {
       "name": "cc_street_number",
+      "node_type": "attribute",
       "label": "Location",
       "stats": {
         "count": 6,
@@ -463,6 +483,7 @@
       "children": [
         {
           "name": "cc_street_name",
+          "node_type": "attribute",
           "label": "Street Name",
           "stats": {
             "count": 6,
@@ -484,6 +505,7 @@
           "children": [
             {
               "name": "cc_street_type",
+              "node_type": "attribute",
               "label": "Street Type",
               "stats": {
                 "count": 6,
@@ -505,6 +527,7 @@
               "children": [
                 {
                   "name": "cc_suite_number",
+                  "node_type": "attribute",
                   "label": "Suite Number",
                   "stats": {
                     "count": 6,
@@ -526,6 +549,7 @@
                   "children": [
                     {
                       "name": "cc_city",
+                      "node_type": "attribute",
                       "label": "City",
                       "stats": {
                         "count": 6,
@@ -546,6 +570,7 @@
                       "children": [
                         {
                           "name": "cc_county",
+                          "node_type": "attribute",
                           "label": "County",
                           "stats": {
                             "count": 6,
@@ -565,6 +590,7 @@
                           "children": [
                             {
                               "name": "cc_state",
+                              "node_type": "attribute",
                               "label": "State",
                               "stats": {
                                 "count": 6,
@@ -584,6 +610,7 @@
                               "children": [
                                 {
                                   "name": "cc_zip",
+                                  "node_type": "attribute",
                                   "label": "ZIP",
                                   "stats": {
                                     "count": 6,
@@ -604,6 +631,7 @@
                                   "children": [
                                     {
                                       "name": "cc_country",
+                                      "node_type": "attribute",
                                       "label": "Country",
                                       "stats": {
                                         "count": 6,
@@ -623,6 +651,7 @@
                                       "children": [
                                         {
                                           "name": "cc_gmt_offset",
+                                          "node_type": "attribute",
                                           "label": "GMT Offset",
                                           "stats": {
                                             "count": 6,

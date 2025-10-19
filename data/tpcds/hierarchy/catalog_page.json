@@ -1,8 +1,10 @@
 {
   "table": "catalog_page",
+  "table_type": "dim",
   "children": [
     {
       "name": "cp_catalog_page_id",
+      "node_type": "attribute",
       "label": "Identity",
       "stats": {
         "count": 11718,
@@ -14,13 +16,14 @@
         "dtype": "string",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/catalog_page__cp_catalog_page_id"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/catalog_page__cp_catalog_page_id"
         }
       },
       "children": []
     },
     {
       "name": "cp_catalog_page_number",
+      "node_type": "attribute",
       "label": "Catalog Page Number",
       "stats": {
         "count": 11718,
@@ -35,12 +38,13 @@
         "dtype": "integer",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/index/catalog_page__cp_catalog_page_number"
+          "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/catalog_page__cp_catalog_page_number"
         }
       },
       "children": [
         {
           "name": "cp_catalog_number",
+          "node_type": "attribute",
           "label": "Catalog Number",
           "stats": {
             "count": 11718,
@@ -55,12 +59,13 @@
             "dtype": "integer",
             "unique_values": {
               "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/index/catalog_page__cp_catalog_number"
+              "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/catalog_page__cp_catalog_number"
             }
           },
           "children": [
             {
               "name": "cp_department",
+              "node_type": "attribute",
               "label": "Department",
               "stats": {
                 "count": 11718,
@@ -80,6 +85,7 @@
               "children": [
                 {
                   "name": "cp_type",
+                  "node_type": "attribute",
                   "label": "Type",
                   "stats": {
                     "count": 11718,
@@ -102,6 +108,7 @@
                 },
                 {
                   "name": "cp_description",
+                  "node_type": "attribute",
                   "label": "Description",
                   "stats": {
                     "count": 11718,
@@ -113,7 +120,7 @@
                     "dtype": "string",
                     "unique_values": {
                       "type": "bplustree",
-                      "values": "/home/jsjang/code/Agent4OLAP/data/index/catalog_page__cp_description"
+                      "values": "/home/jsjang/code/Agent4OLAP/data/tpcds/index/catalog_page__cp_description"
                     }
                   },
                   "children": []

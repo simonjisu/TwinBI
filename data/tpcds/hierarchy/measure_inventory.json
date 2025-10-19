@@ -1,0 +1,22 @@
+{
+  "table": "inventory",
+  "table_type": "fact",
+  "children": [
+    {
+      "name": "count",
+      "node_type": "measure",
+      "label": "Count",
+      "stats": null,
+      "children": [],
+      "agg": "count"
+    },
+    {
+      "name": "quantity_on_hand",
+      "node_type": "measure",
+      "label": "Quantity On Hand",
+      "stats": null,
+      "children": [],
+      "agg": "sum"
+    }
+  ]
+}

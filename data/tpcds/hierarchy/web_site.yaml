@@ -1,4 +1,5 @@
 table: web_site
+table_type: dim
 children:
 - name: web_site_id
   label: Identity

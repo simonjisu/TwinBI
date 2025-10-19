@@ -1,4 +1,5 @@
 table: call_center
+table_type: dim
 children:
 - name: cc_call_center_id
   label: Identity
