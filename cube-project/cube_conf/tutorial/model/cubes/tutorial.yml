@@ -17,21 +17,55 @@ cubes:
         sql: "{CUBE}.product_key = {dim_product}.product_key"
 
     measures:
+      - name: total_units_sold
+        sql: "units_sold"
+        type: sum
       - name: total_sales_amount
-        sql: "sales_amount"
+        sql: "total_receipts"
         type: sum
-      - name: total_quantity_sold
-        sql: "quantity_sold"
-        type: sum
-      - name: total_net_profit
-        sql: "net_profit"
-        type: sum
+      - name: average_unit_price
+        sql: "unit_price"
+        type: avg
+      - name: total_transactions
+        sql: sale_id
+        type: count
+      - name: average_order_value
+        type: number
+        sql: "SUM(${CUBE}.total_receipts) * 1.0 / NULLIF(COUNT(${CUBE}.sale_id), 0)"
+      - name: unique_products_sold
+        sql: product_key
+        type: count_distinct
+      - name: active_stores
+        sql: store_key
+        type: count_distinct
+      - name: active_days
+        sql: date_key
+        type: count_distinct
+      - name: sales_per_store
+        type: number
+        sql: "SUM(${CUBE}.total_receipts) * 1.0 / NULLIF(COUNT(DISTINCT ${CUBE}.store_key), 0)"
+      - name: sales_per_day
+        type: number
+        sql: "SUM(${CUBE}.total_receipts) * 1.0 / NULLIF(COUNT(DISTINCT ${CUBE}.date_key), 0)"
+      - name: revenue_per_unit
+        type: number
+        sql: "SUM(${CUBE}.total_receipts) * 1.0 / NULLIF(SUM(${CUBE}.units_sold), 0)"
 
     dimensions:
-      - name: transaction_id
-        sql: "transaction_id"
+      - name: sale_id
+        sql: "sale_id"
         type: number
         primary_key: true
+      - name: product_key
+        sql: "product_key"
+        type: number
+      - name: store_key
+        sql: "store_key"
+        type: number
+      - name: date_key
+        sql: "date_key"
+        type: number
+      
 
   - name: dim_date
     sql_table: main.dim_date
@@ -43,9 +77,6 @@ cubes:
       - name: date
         sql: "date"
         type: time
-      - name: day
-        sql: "day"
-        type: number
       - name: month
         sql: "month"
         type: number
@@ -66,20 +97,20 @@ cubes:
         sql: "store_key"
         type: number
         primary_key: true
-      - name: company
-        sql: "company"
+      - name: store_name
+        sql: "store_name"
         type: string
-      - name: region
-        sql: "region"
+      - name: sales_manager
+        sql: "sales_manager"
         type: string
-      - name: state
-        sql: "state"
+      - name: sales_district
+        sql: "sales_district"
         type: string
       - name: city
         sql: "city"
         type: string
-      - name: store_name
-        sql: "store_name"
+      - name: state
+        sql: "state"
         type: string
 
   - name: dim_product

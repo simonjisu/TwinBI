@@ -3,28 +3,81 @@
   "table_type": "fact",
   "children": [
     {
-      "name": "sales_amount",
+      "name": "total_units_sold",
+      "node_type": "measure",
+      "label": "Total Units Sold",
+      "stats": null,
+      "children": []
+    },
+    {
+      "name": "total_sales_amount",
       "node_type": "measure",
       "label": "Total Sales Amount",
       "stats": null,
-      "children": [],
-      "agg": "sum"
+      "children": []
     },
     {
-      "name": "quantity_sold",
+      "name": "average_unit_price",
       "node_type": "measure",
-      "label": "Total Quantity Sold",
+      "label": "Average Unit Price",
       "stats": null,
-      "children": [],
-      "agg": "sum"
+      "children": []
     },
     {
-      "name": "net_profit",
+      "name": "total_transactions",
       "node_type": "measure",
-      "label": "Total Net Profit",
+      "label": "Total Transactions",
       "stats": null,
-      "children": [],
-      "agg": "sum"
+      "children": []
+    },
+    {
+      "name": "average_order_value",
+      "node_type": "measure",
+      "label": "Average Order Value",
+      "stats": null,
+      "children": []
+    },
+    {
+      "name": "unique_products_sold",
+      "node_type": "measure",
+      "label": "Unique Products Sold",
+      "stats": null,
+      "children": []
+    },
+    {
+      "name": "active_stores",
+      "node_type": "measure",
+      "label": "Active Stores",
+      "stats": null,
+      "children": []
+    },
+    {
+      "name": "active_days",
+      "node_type": "measure",
+      "label": "Active Days",
+      "stats": null,
+      "children": []
+    },
+    {
+      "name": "sales_per_store",
+      "node_type": "measure",
+      "label": "Sales Per Store",
+      "stats": null,
+      "children": []
+    },
+    {
+      "name": "sales_per_day",
+      "node_type": "measure",
+      "label": "Sales Per Day",
+      "stats": null,
+      "children": []
+    },
+    {
+      "name": "revenue_per_unit",
+      "node_type": "measure",
+      "label": "Revenue Per Unit",
+      "stats": null,
+      "children": []
     }
   ]
 }

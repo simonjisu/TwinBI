@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "anywidget>=0.9.18",
     "cube-dbt>=0.6.2",
     "dbt-core>=1.10.11",
     "dbt-duckdb>=1.9.6",
@@ -24,12 +25,15 @@ dependencies = [
     "mcp>=1.14.1",
     "openai>=1.109.0",
     "pandas>=2.3.2",
+    "plotly>=6.3.1",
+    "networkx>=3.4.2",
     "python-dotenv>=1.1.1",
     "seaborn>=0.13.2",
     "torch==2.8.0",
     "torchvision==0.23.0",
     "transformers==4.55.2",
     "vllm==0.10.2",
+    "openai-agents>=0.3.3",
 ]
 
 

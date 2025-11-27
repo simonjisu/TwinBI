@@ -294,10 +294,10 @@ class SchemaExplorer:
                     'found': True,
                 })
 
-        if not value_matches:
-            raise ValueError(
-                f"Value '{value}' for attribute '{attribute_name}' not found (fact '{fact_table}', schema '{schema_type}')."
-            )
+        # if not value_matches:
+        #     raise ValueError(
+        #         f"Value '{value}' for attribute '{attribute_name}' not found (fact '{fact_table}', schema '{schema_type}')."
+        #     )
 
         return value_matches
 

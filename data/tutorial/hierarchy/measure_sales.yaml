@@ -1,12 +1,36 @@
 table: Fact_Sales
 table_type: fact
 children:
-  - name: sales_amount
+  - name: total_units_sold
+    label: Total Units Sold
+    type: sum
+  - name: total_sales_amount
     label: Total Sales Amount
-    agg: sum
-  - name: quantity_sold
-    label: Total Quantity Sold
-    agg: sum
-  - name: net_profit
-    label: Total Net Profit
-    agg: sum
+    type: sum
+  - name: average_unit_price
+    label: Average Unit Price
+    type: avg
+  - name: total_transactions
+    label: Total Transactions
+    type: count
+  - name: average_order_value
+    label: Average Order Value
+    type: "SUM(${CUBE}.total_receipts) * 1.0 / NULLIF(COUNT(${CUBE}.sale_id), 0)"
+  - name: unique_products_sold
+    label: Unique Products Sold
+    type: count_distinct
+  - name: active_stores
+    label: Active Stores
+    type: count_distinct
+  - name: active_days
+    label: Active Days
+    type: count_distinct
+  - name: sales_per_store
+    label: Sales Per Store
+    type: "SUM(${CUBE}.total_receipts) * 1.0 / NULLIF(COUNT(DISTINCT ${CUBE}.store_key), 0)"
+  - name: sales_per_day
+    label: Sales Per Day
+    type: "SUM(${CUBE}.total_receipts) * 1.0 / NULLIF(COUNT(DISTINCT ${CUBE}.date_key), 0)"
+  - name: revenue_per_unit
+    label: Revenue Per Unit
+    type: "SUM(${CUBE}.total_receipts) * 1.0 / NULLIF(SUM(${CUBE}.units_sold), 0)"

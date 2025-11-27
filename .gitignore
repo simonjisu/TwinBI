@@ -213,3 +213,4 @@ node_modules
 data/tpcds/index/*
 data/tutorial/index/*
 .cubestore
+superset

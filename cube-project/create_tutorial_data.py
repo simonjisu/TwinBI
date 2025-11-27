@@ -109,4 +109,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     main(args)
 
-    # uv run create_tutorial_data.py --rows 2000 --output "./data/tutorial/sales.db"
+    # uv run create_tutorial_data.py --rows 2000 --output "./data/tutorial/tutorial.db"
