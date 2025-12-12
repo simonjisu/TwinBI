@@ -27,20 +27,52 @@ $ source .venv/bin/activate
 (Agent4OLAP) $ docker compose -f docker-compose-tpcds.yml down
 ```
 
+### Setup - Superset
 
-### 
+```bash
+(Agent4OLAP) $ git clone --depth=1  https://github.com/apache/superset.git
+(Agent4OLAP) $ cp cube-project/docker-compose-superset.yml superset/docker-compose-superset.yml
+(Agent4OLAP) $ cd superset
+# create & start container
+(Agent4OLAP) $ docker compose -f docker-compose-superset.yml up -d
+# stop & remove container
+(Agent4OLAP) $ docker compose -f docker-compose-superset.yml down
+```
 
+# Cube Test
 
-### Archive
+```
+PGPASSWORD=1234 psql -h localhost -p 35432 -U user1 tutorial
+```
 
+# Superset 사용자 생성 방법
 
-Agent for OLAP
+```bash
+docker compose exec superset-light superset fab create-user \
+  --username user1 \
+  --firstname User \
+  --lastname One \
+  --email user1@example.com \
+  --password mypassword \
+  --role Gamma
+```
+--role에는 기본 제공 권한 중 하나 지정
+
+* Admin
+* Alpha (데이터 생성/편집 권한 O, 시스템 설정 X)
+* Gamma (읽기만 가능)
+* Public (로그인 없이 접근 가능한 권한)
+
+### Create Schema Graphs
 
 ```
 uv run src/schema_processor.py --create_graphs
-uv run src/hierarchy_duckdb.py
+cd src
+uv run hierarchy_duckdb.py --db_type tutorial
 ```
 
+
+### DBT Commands
 
 ```
 DBT_PROFILES_DIR=./.dbt dbt debug

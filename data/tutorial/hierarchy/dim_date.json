@@ -19,7 +19,7 @@
         "dtype": "integer",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/tutorial/index/Dim_Date__date_key"
+          "values": "data/tutorial/index/Dim_Date__date_key"
         }
       },
       "children": []
@@ -41,7 +41,7 @@
         "dtype": "date",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/tutorial/index/Dim_Date__date"
+          "values": "data/tutorial/index/Dim_Date__date"
         }
       },
       "children": [
@@ -62,7 +62,7 @@
             "dtype": "integer",
             "unique_values": {
               "type": "bplustree",
-              "values": "/home/jsjang/code/Agent4OLAP/data/tutorial/index/Dim_Date__week"
+              "values": "data/tutorial/index/Dim_Date__week"
             }
           },
           "children": []

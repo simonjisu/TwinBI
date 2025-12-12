@@ -265,15 +265,16 @@ if __name__ == "__main__":
         raise ValueError(f"Unsupported db_type: {args.db_type}. supported: tpcds, tutorial")
 
     execution_path = Path().resolve()
+    proj_path = execution_path.parent
     assert execution_path.stem == "src", f"Unexpected project path: {execution_path}"
 
-    data_path = execution_path.parent / 'data' / args.db_type
+    data_path = proj_path / 'data' / args.db_type
     database_path = data_path / 'database' / db_name
     duckdb_conn = duckdb.connect(database=str(database_path))
     logger.info(f"Connected to DuckDB database at {database_path}")
 
 
-    index_path = data_path / 'index'
+    index_path = (data_path / 'index').relative_to(proj_path)
     logger.info(f"Using index path at {index_path}")
     for yaml_path in (data_path / 'hierarchy').glob('*.yaml'):
         tree = build_tree_with_stats(yaml_path, index_path, duckdb_conn)
