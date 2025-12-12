@@ -64,13 +64,16 @@ class SchemaExplorer:
     tpcds_facts = TPCDS_FACT_TABLES
     tutorial_facts = TUTORIAL_FACT_TABLES
 
-    def __init__(self, data_path: Path | str):
+    def __init__(self, data_path: Path | str, schema_type: str):
         """data_path: Path to the database directory, e.g., ./data/tpcds or ./data/tutorial"""
-        self.data_path = Path(data_path)
+        self.data_path = Path(data_path).resolve()
+        self.project_root = self.data_path.parent.parent
+        assert self.project_root.name.lower() == 'agent4olap', f"Unexpected project root: {self.project_root}"
         self.db_type = "tpcds" if "tpcds" in self.data_path.parts else "tutorial"
         self.facts = self.tpcds_facts if self.db_type == "tpcds" else self.tutorial_facts
         self.snowflake, self.star = load_data(self.data_path)
         self.hierarchies = self._load_hierarchies(hierarchy_dir=self.data_path / "hierarchy")
+        self.schema_type = schema_type
 
     @classmethod
     def is_fact(cls, table_name: str, db_type: str) -> bool:
@@ -82,9 +85,9 @@ class SchemaExplorer:
             raise ValueError(f"Unknown db_type: {db_type}")
 
     def get_facts(self):
-        return self.facts
+        return list(self.facts)
 
-    def get_schema(self, schema_type: str, fact_table: str) -> list[dict]:
+    def get_schema(self, fact_table: str) -> list[dict]:
         """Get the schema of fact and its related dimensions.
         Args:
             schema_type (str): 'snowflake' or 'star'
@@ -92,44 +95,70 @@ class SchemaExplorer:
         Returns:
             list[dict]: a list of nodes in the schema graph. each node has table name(`id`), type(`fact` or `dimension`).
         """
-        gdict = self._get_graph_dict(schema_type)
+        gdict = self._get_graph_dict()
         
         if fact_table not in gdict:
             raise KeyError(f"{fact_table} not in graph_dict keys: {list(gdict.keys())}")
         
-        return list(map(lambda x: {'id': x['id'], 'type': x['type']}, 
-                        gdict[fact_table]['nodes']))
-    
-    def get_attributes(self, schema_type: str, fact_table: str, dimension_table: str) -> list[str]:
-        """Get the attributes of a dimension table in the schema of a fact table.
-        Args:
-            schema_type (str): 'snowflake' or 'star'
-            fact_table (str): fact table name
-            dimension_table (str): dimension table name
-        Returns:
-            list[str]: a list of attribute names in the dimension table.
-        """
-        gdict = self._get_graph_dict(schema_type)
-        
-        if fact_table not in gdict:
-            raise KeyError(f"{fact_table} not in graph_dict keys: {list(gdict.keys())}")
-        
+        out = []
+        # dimension tables
         for node in gdict[fact_table]['nodes']:
-            if node['id'] == dimension_table and node['type'] == 'dimension':
-                return node.get('attributes', [])
+            x = {
+                'name': node['id'], 
+                'type': node['type']
+            }
+            if node['type'] == 'dimension':
+                x['attributes'] = node.get('attributes', [])
+            else:
+                # get measures from hierarchies
+                attributes = self.hierarchies.get(node['id'])
+                if attributes:
+                    x['measures'] = [child.name for child in attributes.children if child.node_type == 'fact']
+                else:
+                    x['measures'] = []
+                
+                # add join keys from "edges"
+                fks = []
+                for e in gdict[fact_table]['edges']:
+                    link = f'{e["source"]}.{e["fk_field"]} = {e["target"]}.{e["fk_field"]}'
+                    fks.append(link)
+                x['fks'] = fks
+            out.append(x)
         
-        raise KeyError(f"{dimension_table} not found as a dimension in the schema of {fact_table}.")
+        # add foreign
+        return out
+    
+    
+    
+    # def get_attributes(self, fact_table: str, dimension_table: str) -> list[str]:
+    #     """Get the attributes of a dimension table in the schema of a fact table.
+    #     Args:
+    #         fact_table (str): fact table name
+    #         dimension_table (str): dimension table name
+    #     Returns:
+    #         list[str]: a list of attribute names in the dimension table.
+    #     """
+    #     gdict = self._get_graph_dict()
+        
+    #     if fact_table not in gdict:
+    #         raise KeyError(f"{fact_table} not in graph_dict keys: {list(gdict.keys())}")
+        
+    #     for node in gdict[fact_table]['nodes']:
+    #         if node['id'] == dimension_table and node['type'] == 'dimension':
+    #             return node.get('attributes', [])
+        
+    #     raise KeyError(f"{dimension_table} not found as a dimension in the schema of {fact_table}.")
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _get_graph_dict(self, schema_type: str) -> dict:
-        if schema_type == 'snowflake':
+    def _get_graph_dict(self) -> dict:
+        if self.schema_type == 'snowflake':
             return self.snowflake
-        if schema_type == 'star':
+        if self.schema_type == 'star':
             return self.star
-        raise ValueError(f"Invalid schema_type: {schema_type}. Choose 'snowflake' or 'star'.")
+        raise ValueError(f"Invalid schema_type: {self.schema_type}. Choose 'snowflake' or 'star'.")
 
     def _load_hierarchies(self, hierarchy_dir: Path) -> dict[str, HierarchyTree]:
         hierarchies: dict[str, HierarchyTree] = {}
@@ -146,8 +175,8 @@ class SchemaExplorer:
             hierarchies[tree.table] = tree
         return hierarchies
 
-    def _iter_dimensions(self, schema_type: str, fact_table: str) -> Iterator[str]:
-        gdict = self._get_graph_dict(schema_type)
+    def _iter_dimensions(self, fact_table: str) -> Iterator[str]:
+        gdict = self._get_graph_dict()
         if fact_table not in gdict:
             raise KeyError(f"{fact_table} not in graph_dict keys: {list(gdict.keys())}")
         for node in gdict[fact_table]['nodes']:
@@ -238,11 +267,13 @@ class SchemaExplorer:
     # Public search APIs
     # ------------------------------------------------------------------
 
-    def search_attribute(self, schema_type: str, fact_table: str, attribute_name: str) -> List[dict]:
-        """Return all hierarchy paths leading to the attribute for the fact schema."""
+    def search_attribute(self, fact_table: str, attribute_name: str) -> List[dict]:
+        """Return all hierarchy paths leading to the attribute for the fact schema.
+        
+        """
         results: List[dict] = []
 
-        for dimension in self._iter_dimensions(schema_type, fact_table):
+        for dimension in self._iter_dimensions(fact_table):
             tree = self.hierarchies.get(dimension)
             if not tree:
                 continue
@@ -257,13 +288,13 @@ class SchemaExplorer:
                 })
 
         if not results:
-            raise KeyError(f"Attribute '{attribute_name}' not found for fact '{fact_table}' in {schema_type} schema.")
+            raise KeyError(f"Attribute '{attribute_name}' not found for fact '{fact_table}' in {self.schema_type} schema.")
 
         return results
 
-    def search_value(self, schema_type: str, fact_table: str, attribute_name: str, value) -> List[dict]:
-        """Return hierarchy paths where the attribute value exists."""
-        matches = self.search_attribute(schema_type, fact_table, attribute_name)
+    def search_value(self, fact_table: str, attribute_name: str, value) -> List[dict]:
+        """Return whether the attribute value exists."""
+        matches = self.search_attribute(fact_table, attribute_name)
         value_matches: List[dict] = []
 
         for match in matches:
@@ -288,18 +319,20 @@ class SchemaExplorer:
                 continue
 
             if found:
-                value_matches.append({
-                    'match': match,
-                    'value': value,
-                    'found': True,
-                })
+                # value_matches.append({
+                #     'match': match,
+                #     'value': value,
+                #     'found': True,
+                # })
+                return found
 
         # if not value_matches:
         #     raise ValueError(
         #         f"Value '{value}' for attribute '{attribute_name}' not found (fact '{fact_table}', schema '{schema_type}')."
         #     )
 
-        return value_matches
+        # return value_matches
+        return False
 
     def search_measure(self, fact_table: str, measure_name: str) -> List[dict]:
         """Return all hierarchy paths leading to the requested measure."""
@@ -436,7 +469,7 @@ def build_subgraph(
         table_attributes: dict[str, list[str]] | None = None, 
         schema_filter: Optional[list[str]] = None,
         schema_type: str = 'star'):
-    nodes = {}  # id -> {'id': name, 'type': 'fact'|'dimension'}
+    nodes = {}  # id -> {'id': name, 'type': 'fact'|'dimension', 'attributes': [...]}
     es = []     # edges for the subgraph
 
     def ensure_node(db_type: str, name: str, schema_filter: Optional[list[str]] = None):

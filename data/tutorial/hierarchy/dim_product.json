@@ -19,7 +19,7 @@
         "dtype": "integer",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/tutorial/index/Dim_Product__product_key"
+          "values": "data/tutorial/index/Dim_Product__product_key"
         }
       },
       "children": []
@@ -38,7 +38,7 @@
         "dtype": "string",
         "unique_values": {
           "type": "bplustree",
-          "values": "/home/jsjang/code/Agent4OLAP/data/tutorial/index/Dim_Product__product_name"
+          "values": "data/tutorial/index/Dim_Product__product_name"
         }
       },
       "children": [

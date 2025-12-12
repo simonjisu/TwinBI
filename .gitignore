@@ -214,3 +214,4 @@ data/tpcds/index/*
 data/tutorial/index/*
 .cubestore
 superset
+.DS_Store

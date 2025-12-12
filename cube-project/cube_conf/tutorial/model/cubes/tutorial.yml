@@ -36,7 +36,10 @@ cubes:
       - name: average_order_value
         type: number
         sql: "SUM({CUBE}.total_receipts) * 1.0 / NULLIF(COUNT({CUBE}.sale_id), 0)"
+<<<<<<< HEAD
 
+=======
+>>>>>>> aea1cd9 (update)
       - name: unique_products_sold
         sql: "product_key"
         type: count_distinct
@@ -52,7 +55,13 @@ cubes:
       - name: sales_per_store
         type: number
         sql: "SUM({CUBE}.total_receipts) * 1.0 / NULLIF(COUNT(DISTINCT {CUBE}.store_key), 0)"
+<<<<<<< HEAD
 
+=======
+      - name: sales_per_day
+        type: number
+        sql: "SUM({CUBE}.total_receipts) * 1.0 / NULLIF(COUNT(DISTINCT {CUBE}.date_key), 0)"
+>>>>>>> aea1cd9 (update)
       - name: revenue_per_unit
         type: number
         sql: "SUM({CUBE}.total_receipts) * 1.0 / NULLIF(SUM({CUBE}.units_sold), 0)"
