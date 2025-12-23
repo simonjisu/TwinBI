@@ -1,4 +1,4 @@
-table: Fact_Sales
+table: fact_sales
 table_type: fact
 children:
   - name: total_units_sold
