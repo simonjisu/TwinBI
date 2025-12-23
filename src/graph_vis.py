@@ -10,8 +10,8 @@ import ipywidgets as W
 
 import networkx as nx
 import plotly.graph_objects as go
-from src.hierarchy_duckdb import HierarchyTree, Node
-from src.schema_processor import SchemaExplorer
+from hierarchy_duckdb import HierarchyTree, Node
+from schema_processor import SchemaExplorer
 
 __all__ = [
     "display_graph",

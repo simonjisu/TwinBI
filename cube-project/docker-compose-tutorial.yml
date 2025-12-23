@@ -2,7 +2,7 @@ services:
   cube:
     container_name: tutorial
     image: cubejs/cube:latest
-    user: "${UID}:${GID}"
+    user: "0:0" 
     ports:
       - 34000:4000
       - 35432:15432
