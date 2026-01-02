@@ -15,7 +15,7 @@ services:
 
       - CUBEJS_PG_SQL_PORT=15432          # 컨테이너 내부 포트
       - CUBEJS_SQL_USER=user1     # 원하는 ID
-      - CUBEJS_SQL_PASSWORD=1234   # 원하는 PW
+      - CUBEJS_SQL_PASSWORD=Noel1999   # 원하는 PW
     volumes:
       - ./data/tutorial:/cube/data
       - ./cube_conf/tutorial:/cube/conf

@@ -1,0 +1,25 @@
+services:
+  streamlit:
+    container_name: streamlit_app
+    build:
+      context: ./streamlit-app
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./streamlit-app/streamlit_app.py:/app/streamlit_app.py
+      - ./streamlit-app/.streamlit:/app/.streamlit
+    working_dir: /app
+    command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+    environment:
+      - SUPERSET_PUBLIC_URL=http://localhost:8088
+      - SUPERSET_INTERNAL_URL=http://superset_app:8088
+      - SUPERSET_USERNAME=admin
+      - SUPERSET_PASSWORD=admin
+      - SUPERSET_DASHBOARD_UUID=637bacc3-9cba-44e1-98da-8c9431018573
+    networks:
+      - superset_default
+
+networks:
+  superset_default:
+    external: true
