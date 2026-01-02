@@ -1,0 +1,52 @@
+@echo off
+setlocal enabledelayedexpansion
+
+REM ============================================================
+REM 1) Clone Superset into ./superset if it doesn't exist
+REM ============================================================
+if not exist superset (
+  git clone --depth=1 https://github.com/apache/superset.git superset
+)
+
+REM ============================================================
+REM 2) Checkout Superset tag 6.0.0
+REM ============================================================
+cd superset
+git fetch --tags --depth=1
+git checkout 6.0.0
+
+REM ============================================================
+REM 3) Set TAG 
+REM ============================================================
+set TAG=6.0.0-dev
+
+REM ============================================================
+REM 4) Start Superset using image tag compose
+REM ============================================================
+docker compose -f docker-compose-image-tag.yml up -d
+
+REM ============================================================
+REM 5) Create docker-compose.override.yml
+REM ============================================================
+(
+  echo services:
+  echo   superset:
+  echo     volumes:
+  echo       - ../cube-project:/app/data
+  echo   superset-worker:
+  echo     volumes:
+  echo       - ../cube-project:/app/data
+) > docker-compose.override.yml
+
+REM ============================================================
+REM 6) Restart with override
+REM ============================================================
+docker compose -f docker-compose-image-tag.yml -f docker-compose.override.yml up -d
+
+echo.
+echo DONE.
+echo Superset should be available at: http://localhost:8088
+echo Override written to: superset\docker-compose.override.yml
+echo.
+
+endlocal
