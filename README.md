@@ -20,11 +20,11 @@ $ source .venv/bin/activate
 (Agent4OLAP) $ uv sync
 (Agent4OLAP) $ cd cube-project
 (Agent4OLAP) $ echo -e "UID=$UID\nGID=$GID\nCUBEJS_TESSERACT_SQL_PLANNER=true" > .env
-(Agent4OLAP) $ uv run ./create_tpcds_data.py
+(Agent4OLAP) $ uv run ./create_tutorial_data.py
 # create & start container
-(Agent4OLAP) $ docker compose -f docker-compose-tpcds.yml up -d  
+(Agent4OLAP) $ docker compose -f docker-compose-tutorial.yml up -d  
 # stop & remove container
-(Agent4OLAP) $ docker compose -f docker-compose-tpcds.yml down
+(Agent4OLAP) $ docker compose -f docker-compose-tutorial.yml down
 ```
 
 ### Setup - Superset
@@ -79,3 +79,17 @@ DBT_PROFILES_DIR=./.dbt dbt debug
 DBT_PROFILES_DIR=./.dbt dbt ls --resource-type source
 DBT_PROFILES_DIR=./.dbt dbt build
 ```
+
+## NLQ Dashboard (Streamlit + FastAPI)
+
+Launch the backend and UI locally:
+
+```bash
+# terminal 1: FastAPI backend
+uvicorn backend.main:app --reload --port 8000
+
+# terminal 2: Streamlit UI
+streamlit run ui/app.py
+```
+
+The UI expects the backend at `http://localhost:8000` by default; override with `export BACKEND_URL=http://<host>:<port>`.

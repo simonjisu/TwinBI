@@ -8,8 +8,8 @@ from IPython.display import display
 from ipycytoscape import CytoscapeWidget
 import ipywidgets as W
 from loguru import logger
-from hierarchy_duckdb import HierarchyTree, Node
-from unique_index import UniqueIndex
+from src.hierarchy_duckdb import HierarchyTree, Node
+from src.unique_index import UniqueIndex
 
 TPCDS_FACT_TABLES = {
     "store_sales",
