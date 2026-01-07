@@ -4,3 +4,5 @@ psycopg2-binary>=2.9
 sqlalchemy>=2.0
 streamlit==1.39.0
 requests==2.32.3
+streamlit-agraph==0.0.45
+st-cytoscape>=0.0.5
