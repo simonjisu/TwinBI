@@ -215,4 +215,4 @@ data/tutorial/index/*
 .cubestore
 superset
 .DS_Store
-archive/*
+archive
