@@ -7,16 +7,17 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      - ./streamlit-app/streamlit_app.py:/app/streamlit_app.py
-      - ./streamlit-app/.streamlit:/app/.streamlit
+      - ./data:/app/cube_data:ro
+      - ./streamlit-app:/app              # <-- mount the whole app
     working_dir: /app
-    command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+    command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8501 --server.runOnSave true
     environment:
       - SUPERSET_PUBLIC_URL=http://localhost:8088
       - SUPERSET_INTERNAL_URL=http://superset_app:8088
       - SUPERSET_USERNAME=admin
       - SUPERSET_PASSWORD=admin
-      - SUPERSET_DASHBOARD_UUID=637bacc3-9cba-44e1-98da-8c9431018573
+      - SUPERSET_EMBED_UUID=1674d4e8-7c27-4507-af99-cd011cf1a006
+      - SUPERSET_DASHBOARD_UUID=6a38c27c-694c-4526-968a-04ebae79776c
     networks:
       - superset_default
 
