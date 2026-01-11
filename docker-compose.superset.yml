@@ -1,175 +1,142 @@
-x-superset-user: &superset-user root
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
-x-superset-volumes: &superset-volumes
-  - ./superset/docker:/app/docker
-  - ./superset/superset:/app/superset
-  - ./superset/superset-core:/app/superset-core
-  - ./superset/superset-frontend:/app/superset-frontend
+# -----------------------------------------------------------------------
+# We don't support docker compose for production environments.
+# If you choose to use this type of deployment make sure to
+# create you own docker environment file (docker/.env) with your own
+# unique random secure passwords and SECRET_KEY.
+#
+# For verbose logging during development:
+# - Set SUPERSET_LOG_LEVEL=debug in docker/.env-local for detailed Superset logs
+# -----------------------------------------------------------------------
+x-superset-image: &superset-image apachesuperset.docker.scarf.sh/apache/superset:${TAG:-latest-dev}
+x-superset-volumes:
+  &superset-volumes # /app/pythonpath_docker will be appended to the PYTHONPATH in the final container
+  - ./docker:/app/docker
   - superset_home:/app/superset_home
-
-x-common-build: &common-build
-  context: ./superset
-  target: ${SUPERSET_BUILD_TARGET:-dev}
-  cache_from:
-    - apache/superset-cache:3.10-slim-trixie
-  args:
-    DEV_MODE: "true"
-    INCLUDE_CHROMIUM: ${INCLUDE_CHROMIUM:-false}
-    INCLUDE_FIREFOX: ${INCLUDE_FIREFOX:-false}
-    BUILD_TRANSLATIONS: ${BUILD_TRANSLATIONS:-false}
-    LOAD_EXAMPLES_DUCKDB: ${LOAD_EXAMPLES_DUCKDB:-false}
 
 services:
   redis:
     image: redis:7
     container_name: superset_cache
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:6379:6379"
     volumes:
       - redis:/data
     networks:
       - agent4olap_net
 
   db:
+    env_file:
+      - path: docker/.env # default
+        required: true
+      - path: docker/.env-local # optional override
+        required: false
     image: postgres:16
     container_name: superset_db
     restart: unless-stopped
-    env_file:
-      - path: superset/docker/.env
-        required: true
-      - path: superset/docker/.env-local
-        required: false
-    ports:
-      - "127.0.0.1:5432:5432"
     volumes:
       - db_home:/var/lib/postgresql/data
-      - ./superset/docker/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+      - ./docker/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
     networks:
       - agent4olap_net
 
   superset:
     env_file:
-      - path: superset/docker/.env
+      - path: docker/.env # default
         required: true
-      - path: superset/docker/.env-local
+      - path: docker/.env-local # optional override
         required: false
-    build:
-      <<: *common-build
+    image: *superset-image
     container_name: superset_app
-    command: ["/app/docker/docker-bootstrap.sh", "app"]
+    command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
+    user: "root"
     restart: unless-stopped
     ports:
       - 8088:8088
-      # When in cypress-mode ->
-      - 8081:8081
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
       superset-init:
         condition: service_completed_successfully
-    user: *superset-user
     volumes: *superset-volumes
-    environment:
-      DATABASE_HOST: db
-      # examples 제거: SUPERSET__SQLALCHEMY_EXAMPLES_URI 설정 안 함
-      # 필요하면 여기서 override config를 지정
-      SUPERSET_CONFIG_PATH: /app/docker/pythonpath_dev/superset_config_overrides.py
-    networks:
-      - agent4olap_net
-
-  superset-websocket:
-    container_name: superset_websocket
-    build: ./superset/superset-websocket
-    ports:
-      - 8080:8080
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      - redis
-    # Mount everything in superset-websocket into container and
-    # then exclude node_modules and dist with bogus volume mount.
-    # This is necessary because host and container need to have
-    # their own, separate versions of these files. .dockerignore
-    # does not seem to work when starting the service through
-    # docker compose.
-    #
-    # For example, node_modules may contain libs with native bindings.
-    # Those bindings need to be compiled for each OS and the container
-    # OS is not necessarily the same as host OS.
-    volumes:
-      - ./superset/superset-websocket:/home/superset-websocket
-      - /home/superset-websocket/node_modules
-      - /home/superset-websocket/dist
-
-      # Mount config file. Create your own docker/superset-websocket/config.json
-      # for custom settings, then point to it here. Do not use this example in production.
-      - ./superset/docker/superset-websocket/config.json:/home/superset-websocket/config.json:ro
-    environment:
-      - PORT=8080
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_SSL=false
     networks:
       - agent4olap_net
 
   superset-init:
-    build:
-      <<: *common-build
+    image: *superset-image
     container_name: superset_init
     command: ["/app/docker/docker-init.sh"]
     env_file:
-      - path: superset/docker/.env
+      - path: docker/.env # default
         required: true
-      - path: superset/docker/.env-local
+      - path: docker/.env-local # optional override
         required: false
     depends_on:
       db:
         condition: service_started
       redis:
         condition: service_started
-    user: *superset-user
+    user: "root"
     volumes: *superset-volumes
-    environment:
-      # 필요하면 여기서 override config를 지정
-      SUPERSET_CONFIG_PATH: /app/docker/pythonpath_dev/superset_config_overrides.py
-      # examples 제거: SUPERSET__SQLALCHEMY_EXAMPLES_URI 설정 안 함
-      DATABASE_HOST: db
     healthcheck:
       disable: true
     networks:
       - agent4olap_net
 
-  superset-node:
-    build:
-      context: ./superset
-      target: superset-node
-      args:
-        # This prevents building the frontend bundle since we'll mount local folder
-        # and build it on startup while firing docker-frontend.sh in dev mode, where
-        # it'll mount and watch local files and rebuild as you update them
-        DEV_MODE: "true"
-        BUILD_TRANSLATIONS: ${BUILD_TRANSLATIONS:-false}
-    environment:
-      # set this to false if you have perf issues running the npm i; npm run dev in-docker
-      # if you do so, you have to run this manually on the host, which should perform better!
-      BUILD_SUPERSET_FRONTEND_IN_DOCKER: true
-      NPM_RUN_PRUNE: false
-      SCARF_ANALYTICS: "${SCARF_ANALYTICS:-}"
-      # configuring the dev-server to use the host.docker.internal to connect to the backend
-      superset: "http://superset_app:8088"
-      WEBPACK_DEVSERVER_HOST: "0.0.0.0"
-      WEBPACK_DEVSERVER_PORT: "9000"
-    ports:
-      - "${NODE_PORT:-9001}:9000"  # exposing the dynamic webpack dev server
-    container_name: superset_node
-    command: ["/app/docker/docker-frontend.sh"]
+  superset-worker:
+    image: *superset-image
+    container_name: superset_worker
+    command: ["/app/docker/docker-bootstrap.sh", "worker"]
     env_file:
-      - path: superset/docker/.env # default
+      - path: docker/.env # default
         required: true
-      - path: superset/docker/.env-local # optional override
+      - path: docker/.env-local # optional override
         required: false
+    restart: unless-stopped
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    user: "root"
     volumes: *superset-volumes
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A superset.tasks.celery_app:app inspect ping -d celery@$$HOSTNAME",
+        ]
+    networks:
+      - agent4olap_net
+
+  superset-worker-beat:
+    image: *superset-image
+    container_name: superset_worker_beat
+    command: ["/app/docker/docker-bootstrap.sh", "beat"]
+    env_file:
+      - path: docker/.env # default
+        required: true
+      - path: docker/.env-local # optional override
+        required: false
+    restart: unless-stopped
+    depends_on:
+      superset-init:
+        condition: service_completed_successfully
+    user: "root"
+    volumes: *superset-volumes
+    healthcheck:
+      disable: true
     networks:
       - agent4olap_net
 

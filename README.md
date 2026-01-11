@@ -28,77 +28,68 @@ $ source .venv/bin/activate
 (Agent4OLAP) $ uv run src/create_db_data.py --type sales --rows 5000 --db_path "data/sales/database/sales.db"
 ```
 
-### Setup - Superset
+### Setup
 
 ```bash
-(Agent4OLAP) $ git clone --depth=1  https://github.com/apache/superset.git
-```
-
-add these line to `superset/docker/.env-local` file
-
-issue JWC token for guest access
-```bash
-(Agent4OLAP) $ openssl rand -base64 48
-# [some random string]
-```
-
-```bash
-(Agent4OLAP) $ cp superset_config_overrides.py superset/docker/pythonpath_dev/superset_config_overrides.py
+(Agent4OLAP) $ git clone --depth=1 https://github.com/apache/superset.git superset
+(Agent4OLAP) $ cd superset && git fetch --tags --depth=1
+(Agent4OLAP) superset $ git checkout 6.0.0
+(Agent4OLAP) superset $ set TAG=6.0.0-dev
 ```
 
 ```python
 # add the following lines to superset/docker/pythonpath_dev/superset_config.py
 
-FEATURE_FLAGS = {
-    "ALERT_REPORTS": True,
-    "DRILL_BY": True,
-    "EMBEDDABLE_CHARTS": True,
-    "EMBEDDED_SUPERSET": True,
-    "DASHBOARD_CROSS_FILTERS": True,
-}
-GUEST_TOKEN_JWT_SECRET = os.environ["GUEST_TOKEN_JWT_SECRET"]
+FEATURE_FLAGS = {"ALERT_REPORTS": True, "DRILL_BY": True, "EMBEDDED_SUPERSET": True}
+
+TALISMAN_ENABLED = False
+GUEST_TOKEN_JWT_AUDIENCE = "superset"
+GUEST_TOKEN_HEADER_NAME = "X-GuestToken"
+GUEST_ROLE_NAME= "Gamma"
 GUEST_TOKEN_JWT_ALGO = "HS256"
-
-TALISMAN_ENABLED = True
-TALISMAN_CONFIG = {
-    "content_security_policy": {
-        "frame-ancestors": ["http://localhost:8501", "http://127.0.0.1:8501"]
-    }
+GUEST_TOKEN_JWT_SECRET = "ifJCllwMr-7vPky1kysSn1qRWjgYVKt-SAZt2edE9je5fob5MKKp0yWZJ0o41h2nAjpyjAC6vH30g_qL4iCBEA"  # changable
+GUEST_TOKEN_JWT_EXP_SECONDS = 3600  # 1 hour
+OVERRIDE_HTTP_HEADERS = {
+    "X-Frame-Options": "ALLOWALL",
 }
-
-# GUEST_TOKEN_HEADER_NAME = "X-GuestToken"
-# GUEST_TOKEN_JWT_AUDIENCE = "superset"
-X_FRAME_OPTIONS = "ALLOWALL"
-# GUEST_ROLE_NAME = "Gamma"
 ```
 
 ```bash
-(Agent4OLAP) $ chmod +x ./get_superset_uuid.sh
-(Agent4OLAP) $ ./get_superset_uuid.sh http://localhost:8088 admin admin 12
-# Superset: http://localhost:8088
-# User: admin
-# Dashboard ID: 12
-# 
-# [dashboard uuid]
+(Agent4OLAP) superset $ cp ../docker-compose.superset.yml ./superset/docker-compose.superset.yml
+(Agent4OLAP) superset $ docker-compose -f ./docker-compose.superset.yml up -d
 ```
 
-copy the DASHBOARD UUID and set it to `SUPERSET_DASHBOARD_UUID` in `docker-compose.streamlit.yml`
+Create the sales.db database in superset:
 
-In the superset web UI, create a new database connection to connect to the sales DB created above.
+```bash
+(Agent4OLAP) $ uv run src/create_db_data.py --type sales --rows 5000 --db_path "data/sales/database/sales.db"
+(Agent4OLAP) $ docker-compose -f ./docker-compose.sales.yml -d --build
+```
+
+In the superset web UI, create a new database connection to connect to the sales DB created above. 
+
+```
+Host: host.docker.internal
+Port: 35432
+Database name: sales
+Username: admin
+Password: admin
+```
+
+Then create a dashboard, and enable embedding for the dashboard:
 
 ```
 In the dashboard, click '...' --> Embed Dashboard --> Enable Dashboard Embedding --> check the uuid value
 ```
 
-copy the UUID to `SUPERSET_EMBED_UUID` in `docker-compose.streamlit.yml`
+At the same time, using admin account to edit the role 'Gamma' to add all permissions.
 
-Put the `http://localhost:8501,http://127.0.0.1:8501` in the `Settings > Allowed Domains (comma separated) ` field.
-
-### Run - Docker Compose
+Finally, run the streamlit app:
 
 ```bash
-(Agent4OLAP) $ docker-compose -f ./docker-compose.sales.yml -f ./docker-compose.streamlit.yml -f ./docker-compose.superset.yml up -d
+(Agent4OLAP) $ docker-compose -f ./docker-compose.streamlit.yml up -d --build
 ```
+
 
 # Cube DB Test
 
@@ -168,3 +159,34 @@ npm run build
 ```
 ./get_guest_tokens.sh http://localhost:8088 admin admin 12
 ```
+
+```
+cd streamlit-app/superset_embed_component
+npm install
+npm run build
+```
+
+https://medium.com/@vishalsadriya1224/embedding-apache-superset-dashboards-in-ruby-on-rails-and-react-a-role-level-security-guide-697da01676af
+
+
+## Archive
+
+
+Copy the UUID to `SUPERSET_EMBED_UUID` in `docker-compose.streamlit.yml`.
+
+The dashboard id can be found in the URL when viewing the dashboard, e.g., `http://localhost:8088/superset/dashboard/12/` -> dashboard id is `12`.
+
+
+The dashboard uuid can be found by running the `get_superset_uuid.sh` script:
+
+```bash
+# come back to the Agent4OLAP root dir
+(Agent4OLAP) $ chmod +x ./get_superset_uuid.sh
+(Agent4OLAP) $ ./get_superset_uuid.sh http://localhost:8088 admin admin 12
+# Superset: http://localhost:8088
+# User: admin
+# Dashboard ID: 12
+# 
+# [dashboard uuid]
+```
+copy the DASHBOARD UUID and set it to `SUPERSET_DASHBOARD_UUID` in `docker-compose.streamlit.yml`

@@ -122,11 +122,14 @@ if [[ "$EMB_CODE" == "200" ]]; then
 fi
 
 # 5) guest token
+# Prefer embedded UUID if available; fall back to numeric dashboard id.
+RESOURCE_ID="${EMBED_UUID:-$DASHBOARD_ID}"
+echo "RESOURCE_ID=${RESOURCE_ID}"
 GUEST_PAYLOAD="$(python - <<PY
 import json
 print(json.dumps({
   "user": {"username": "streamlit-guest"},
-  "resources": [{"type": "dashboard", "id": "${DASHBOARD_UUID}"}],
+  "resources": [{"type": "dashboard", "id": "${RESOURCE_ID}"}],
   "rls": []
 }))
 PY
@@ -163,3 +166,11 @@ if [[ -n "$EMBED_UUID" ]]; then
   echo "EMBED_UUID=${EMBED_UUID}"
 fi
 echo "GUEST_TOKEN=${GUEST_TOKEN}"
+python3 - <<PY
+import base64, json
+token = "${GUEST_TOKEN}"
+payload = token.split(".")[1]
+payload += "=" * (-len(payload) % 4)
+data = base64.urlsafe_b64decode(payload.encode("utf-8"))
+print("GUEST_TOKEN_PAYLOAD=" + data.decode("utf-8"))
+PY
