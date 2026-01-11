@@ -6,21 +6,22 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8501:8501"
+    # release 모드에서는 코드 마운트 ❌ (빌드 산출물 덮어씀)
     volumes:
       - ./data:/app/cube_data:ro
-      - ./streamlit-app:/app              # <-- mount the whole app
-    working_dir: /app
-    command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8501 --server.runOnSave true
     environment:
+      - SUPERSET_EMBED_COMPONENT_RELEASE=1
       - SUPERSET_PUBLIC_URL=http://localhost:8088
       - SUPERSET_INTERNAL_URL=http://superset_app:8088
       - SUPERSET_USERNAME=admin
       - SUPERSET_PASSWORD=admin
-      - SUPERSET_EMBED_UUID=1674d4e8-7c27-4507-af99-cd011cf1a006
-      - SUPERSET_DASHBOARD_UUID=6a38c27c-694c-4526-968a-04ebae79776c
+      - SUPERSET_EMBED_UUID=2aa226b5-10e3-47a7-bc81-d4796cd55a06
+      - SUPERSET_GUEST_AUD=superset
+      # - SUPERSET_DASHBOARD_ID=12
     networks:
-      - superset_default
+      - agent4olap_net
 
 networks:
-  superset_default:
+  agent4olap_net:
+    name: agent4olap_net
     external: true

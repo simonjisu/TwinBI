@@ -4,12 +4,9 @@ from pathlib import Path
 from typing import Callable, Iterator, List, Optional
 
 import pandas as pd
-from IPython.display import display
-from ipycytoscape import CytoscapeWidget
-import ipywidgets as W
 from loguru import logger
-from src.hierarchy_duckdb import HierarchyTree, Node
-from src.unique_index import UniqueIndex
+from hierarchy_duckdb import HierarchyTree, Node
+from unique_index import UniqueIndex
 
 TPCDS_FACT_TABLES = {
     "store_sales",
@@ -20,7 +17,7 @@ TPCDS_FACT_TABLES = {
     "web_returns",
     "inventory",
 }
-TUTORIAL_FACT_TABLES = {
+SALES_FACT_TABLES = {
     "fact_sales",
 }
 
@@ -46,7 +43,7 @@ def hierarchy_from_json(path: Path) -> HierarchyTree:
 
 
 def load_data(data_path: Path):
-    db_type = "tpcds" if "tpcds" in data_path.parts else "tutorial"
+    db_type = "tpcds" if "tpcds" in data_path.parts else "sales"
     try:
         with open(data_path / f"{db_type}-snowflake-graph.json") as f:
             snowflake = json.load(f)
@@ -62,15 +59,15 @@ def load_data(data_path: Path):
 
 class SchemaExplorer:
     tpcds_facts = TPCDS_FACT_TABLES
-    tutorial_facts = TUTORIAL_FACT_TABLES
+    sales_facts = SALES_FACT_TABLES
 
     def __init__(self, data_path: Path | str, schema_type: str):
-        """data_path: Path to the database directory, e.g., ./data/tpcds or ./data/tutorial"""
+        """data_path: Path to the database directory, e.g., ./data/tpcds or ./data/sales"""
         self.data_path = Path(data_path).resolve()
         self.project_root = self.data_path.parent.parent
         assert self.project_root.name.lower() == 'agent4olap', f"Unexpected project root: {self.project_root}"
-        self.db_type = "tpcds" if "tpcds" in self.data_path.parts else "tutorial"
-        self.facts = self.tpcds_facts if self.db_type == "tpcds" else self.tutorial_facts
+        self.db_type = "tpcds" if "tpcds" in self.data_path.parts else "sales"
+        self.facts = self.tpcds_facts if self.db_type == "tpcds" else self.sales_facts
         self.snowflake, self.star = load_data(self.data_path)
         self.hierarchies = self._load_hierarchies(hierarchy_dir=self.data_path / "hierarchy")
         self.schema_type = schema_type
@@ -79,8 +76,8 @@ class SchemaExplorer:
     def is_fact(cls, table_name: str, db_type: str) -> bool:
         if db_type == "tpcds":
             return table_name in cls.tpcds_facts
-        elif db_type == "tutorial":
-            return table_name in cls.tutorial_facts
+        elif db_type == "sales":
+            return table_name in cls.sales_facts
         else:
             raise ValueError(f"Unknown db_type: {db_type}")
 
@@ -415,8 +412,8 @@ def tpcds_extract_edges(tables_path: Path) -> tuple[dict[str, list], dict[str, d
 
     return out_edges, prefix2info, table_attributes
 
-def tutorial_extract_edges(tables_path: Path) -> tuple[dict[str, list], None, dict[str, list[str]]]:
-    db_type = 'tutorial'
+def sales_extract_edges(tables_path: Path) -> tuple[dict[str, list], None, dict[str, list[str]]]:
+    db_type = 'sales'
     prefix2info = None
     table_attributes: dict[str, list[str]] = {}
     edges = []
@@ -530,14 +527,14 @@ def build_subgraph(
 
 def create_schema_graphs(data_path: Path):
     # keep only for these schema
-    db_type = 'tpcds' if 'tpcds' in data_path.parts else 'tutorial'
+    db_type = 'tpcds' if 'tpcds' in data_path.parts else 'sales'
     logger.info(f"Creating schema graphs for {db_type} in {data_path}")
     with open(data_path / f'{db_type}-schema.json') as f:
         schema: dict[str, list[str]] = json.load(f)
 
     schema_types = ['star', 'snowflake'] if db_type == 'tpcds' else ['star']
-    extract_edges_func: Callable = tpcds_extract_edges if db_type == 'tpcds' else tutorial_extract_edges
-    fact_tables = TPCDS_FACT_TABLES if db_type == 'tpcds' else TUTORIAL_FACT_TABLES
+    extract_edges_func: Callable = tpcds_extract_edges if db_type == 'tpcds' else sales_extract_edges
+    fact_tables = TPCDS_FACT_TABLES if db_type == 'tpcds' else SALES_FACT_TABLES
     
     for schema_type in schema_types:
         out_edges, prefix2info, table_attributes = extract_edges_func(data_path / 'tables')
@@ -604,20 +601,20 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--db_type', type=str, help='Database type (tpcds or tutorial).')
+    parser.add_argument('--db_type', type=str, help='Database type (tpcds or sales).')
     parser.add_argument('--create_graphs', action='store_true', help='Flag to create schema graphs.')
     parser.add_argument('--test', action='store_true', help='Run SchemaExplorer search tests.')
     args = parser.parse_args()
 
 
     # execution
-    execution_path = Path().resolve()
-    assert execution_path.stem == 'src', "Please run the script from the 'src' directory."
-    data_path = execution_path.parent / 'data' / args.db_type
+    proj_path = Path().resolve()
+    assert proj_path.stem.lower() == 'agent4olap', f"Unexpected project path: {proj_path}"
+    data_path = proj_path / 'data' / args.db_type
 
     if args.create_graphs:
-        # uv run schema_processor.py --db_type tutorial --create_graphs
-        # uv run schema_processor.py --db_type tpcds --create_graphs
+        # uv run src/schema_processor.py --db_type sales --create_graphs
+        # uv run src/schema_processor.py --db_type tpcds --create_graphs
         if not data_path.exists():
             data_path.mkdir(parents=True)
         create_schema_graphs(data_path)

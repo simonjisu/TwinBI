@@ -2,37 +2,32 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { Streamlit, ComponentProps } from "streamlit-component-lib";
 import { embedDashboard } from "@superset-ui/embedded-sdk";
 
-console.log("SupersetEmbed BUILD:", new Date().toISOString());
-
 type Args = {
-  dashboardId: string;
-  supersetDomain: string;
+  dashboardId: string;      // /embedded/<uuid> 의 uuid
+  supersetDomain: string;   // 예: http://localhost:8088
   guestToken: string;
   height?: number;
+  uiConfig?: any;
 };
 
 export default function SupersetEmbed(props: ComponentProps) {
   const args = props.args as Args;
   const mountRef = useRef<HTMLDivElement | null>(null);
 
-  const dashboardId = args.dashboardId;
-  const supersetDomain = args.supersetDomain;
-  const guestToken = args.guestToken;
+  const { dashboardId, supersetDomain, guestToken } = args;
 
   const requestedHeight = args.height ?? 900;
-  const effectiveHeight = Math.max(
-    1000,
-    Math.min(requestedHeight, window.innerHeight - 120)
-  );
+  const effectiveHeight = Math.max(600, Math.min(requestedHeight, window.innerHeight - 120));
 
   const uiConfig = useMemo(
-    () => ({
-      hideTitle: false,
-      hideChartControls: false,
-      hideTab: false,
-      filters: { expanded: true },
-    }),
-    []
+    () =>
+      args.uiConfig ?? {
+        hideTitle: false,
+        hideChartControls: false,
+        hideTab: false,
+        filters: { expanded: true }
+      },
+    [args.uiConfig]
   );
 
   useEffect(() => {
@@ -42,77 +37,61 @@ export default function SupersetEmbed(props: ComponentProps) {
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
-    if (!dashboardId || !supersetDomain || !guestToken) return;
 
-    // Pre-size the mount point BEFORE embedding
+    if (!dashboardId || !supersetDomain || !guestToken) {
+      mount.innerHTML =
+        `<div style="padding:12px;font-family:system-ui;color:#b45309;">
+          Missing args: dashboardId / supersetDomain / guestToken
+        </div>`;
+      Streamlit.setFrameHeight(140);
+      return;
+    }
+
     mount.style.width = "100%";
     mount.style.height = `${effectiveHeight}px`;
     mount.innerHTML = "";
 
+    // Streamlit iframe 높이도 선반영
     Streamlit.setFrameHeight(effectiveHeight);
 
-    embedDashboard({
-      id: dashboardId,
-      supersetDomain,
-      mountPoint: mount,
-      fetchGuestToken: async () => guestToken,
-      dashboardUiConfig: uiConfig,
-    })
-      .then(() => {
-        const applySize = () => {
-          const iframe = mount.querySelector('iframe[title="Embedded Dashboard"]') as HTMLIFrameElement | null;
-          if (iframe) {
-            iframe.style.width = "100%";
-            iframe.style.height = `${effectiveHeight}px`;
-            iframe.style.minHeight = `${effectiveHeight}px`;
-            iframe.style.display = "block";
-            
-            // CRITICAL: Trigger resize event to force Superset to recalculate layouts
-            if (iframe.contentWindow) {
-              // Dispatch resize event to the iframe's window
-              iframe.contentWindow.dispatchEvent(new Event('resize'));
-              
-              // Also try postMessage for Superset's event listener
-              iframe.contentWindow.postMessage(
-                { type: 'resize', width: mount.offsetWidth, height: effectiveHeight },
-                supersetDomain
-              );
-            }
-            
-            // Force parent window resize as fallback
-            window.dispatchEvent(new Event('resize'));
-            
-            Streamlit.setFrameHeight(effectiveHeight);
-            return true;
-          }
-          return false;
-        };
+    let cancelled = false;
 
-        // Try multiple times with delays to catch async rendering
-        const attempts = [0, 100, 300, 500, 1000];
-        attempts.forEach(delay => {
-          setTimeout(() => {
-            applySize();
-          }, delay);
+    (async () => {
+      try {
+        await embedDashboard({
+          id: dashboardId,
+          supersetDomain,
+          mountPoint: mount,
+          fetchGuestToken: async () => guestToken,
+          dashboardUiConfig: uiConfig
         });
 
-        // Also watch for late insertion
-        const obs = new MutationObserver(() => {
-          if (applySize()) {
-            // Keep observer alive to catch dashboard re-renders
-            setTimeout(() => applySize(), 200);
-          }
-        });
-        obs.observe(mount, { childList: true, subtree: true });
+        if (cancelled) return;
 
-        // Clean up observer after 5 seconds
-        setTimeout(() => obs.disconnect(), 5000);
-      })
-      .catch((e) => {
+        // embedDashboard가 iframe을 만들기 때문에, 우리는 iframe 스타일만 "외부에서" 조정
+        const iframe = mount.querySelector('iframe[title="Embedded Dashboard"]') as HTMLIFrameElement | null;
+        if (iframe) {
+          iframe.style.width = "100%";
+          iframe.style.height = `${effectiveHeight}px`;
+          iframe.style.display = "block";
+          iframe.style.border = "0";
+          iframe.referrerPolicy = "origin"; // or "strict-origin-when-cross-origin"
+
+        }
+
+        Streamlit.setFrameHeight(effectiveHeight);
+      } catch (e: any) {
         console.error("embedDashboard failed:", e);
-        mount.innerHTML = `<div style="padding:12px;font-family:system-ui;color:#b91c1c;">Embed failed: ${String(e)}</div>`;
+        mount.innerHTML = `<div style="padding:12px;font-family:system-ui;color:#b91c1c;">
+          Embed failed: ${String(e?.message ?? e)}
+        </div>`;
         Streamlit.setFrameHeight(220);
-      });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [dashboardId, supersetDomain, guestToken, effectiveHeight, uiConfig]);
 
   return (
@@ -123,8 +102,7 @@ export default function SupersetEmbed(props: ComponentProps) {
           width: "100%",
           height: effectiveHeight,
           borderRadius: 12,
-          overflow: "hidden",
-          minWidth: "100%", // Ensure minimum width
+          overflow: "hidden"
         }}
       />
     </div>

@@ -101,8 +101,10 @@ CELERY_CONFIG = CeleryConfig
 
 FEATURE_FLAGS = {
     "ALERT_REPORTS": True,
-    "EMBEDDED_SUPERSET": True,
     "DRILL_BY": True,
+    "EMBEDDABLE_CHARTS": True,
+    "EMBEDDED_SUPERSET": True,
+    "DASHBOARD_CROSS_FILTERS": True,
 }
 ALERT_REPORTS_NOTIFICATION_DRY_RUN = True
 WEBDRIVER_BASEURL = f"http://superset_app{os.environ.get('SUPERSET_APP_ROOT', '/')}/"  # When using docker compose baseurl should be http://superset_nginx{ENV{BASEPATH}}/  # noqa: E501

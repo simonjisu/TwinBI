@@ -1,6 +1,0 @@
-column,datatype,NULLs,Primary Key,Foreign Key
-hd_demo_sk,identifier,N,Y,
-hd_income_band_sk,identifier,,,ib_income_band_sk
-hd_buy_potential,char(15),,,
-hd_dep_count,integer,,,
-hd_vehicle_count,integer,,,

@@ -1,5 +1,0 @@
-column,datatype,NULLs,Primary Key,Foreign Key
-inv_date_sk,identifier,,Y,d_date_sk
-inv_item_sk,identifier,,Y,i_item_sk
-inv_warehouse_sk,identifier,,Y,w_warehouse_sk
-inv_quantity_on_hand,integer,,,

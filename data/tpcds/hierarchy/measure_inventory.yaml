@@ -1,9 +1,0 @@
-table: inventory
-table_type: fact
-children:
-  - name: count
-    agg: count
-    label: Count
-  - name: quantity_on_hand
-    agg: sum
-    label: Quantity On Hand

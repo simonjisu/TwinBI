@@ -1,8 +1,0 @@
-table: income_band
-table_type: dim
-children:
-- name: ib_lower_bound
-  label: Income Range
-  children:
-  - name: ib_upper_bound
-    label: Upper Bound

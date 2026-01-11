@@ -1,4 +1,0 @@
-column,datatype,NULLs,Primary Key,Foreign Key
-ib_income_band_sk,identifier,N,Y,
-ib_lower_bound,integer,,,
-ib_upper_bound,integer,,,

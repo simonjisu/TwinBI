@@ -9,7 +9,7 @@ import datetime as dt
 import yaml
 from loguru import logger
 
-from src.unique_index import UniqueIndex
+from unique_index import UniqueIndex
 
 # -----------------------------
 # Helpers
@@ -259,14 +259,16 @@ if __name__ == "__main__":
 
     db_name = {
         "tpcds": "tpcds.db",
-        "tutorial": "sales.db"
+        "sales": "sales.db"
     }.get(args.db_type)
     if db_name is None:
         raise ValueError(f"Unsupported db_type: {args.db_type}. supported: tpcds, tutorial")
 
-    execution_path = Path().resolve()
-    proj_path = execution_path.parent
-    assert execution_path.stem == "src", f"Unexpected project path: {execution_path}"
+    proj_path = Path().resolve()
+    assert proj_path.stem.lower() == 'agent4olap', f"Unexpected project path: {proj_path}"
+    # proj_path = execution_path.parent
+
+    # assert execution_path.stem == "", f"Unexpected project path: {execution_path}"
 
     data_path = proj_path / 'data' / args.db_type
     database_path = data_path / 'database' / db_name

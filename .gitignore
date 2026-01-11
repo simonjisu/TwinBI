@@ -209,7 +209,7 @@ __marimo__/
 *.wal
 cube/*
 node_modules
-data/tpcds/index/*
+data/sales/index/*
 data/tutorial/index/*
 .cubestore
 superset

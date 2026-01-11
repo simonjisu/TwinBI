@@ -1,0 +1,28 @@
+services:
+  cube:
+    container_name: sales
+    image: cubejs/cube:latest
+    user: "0:0" 
+    ports:
+      - 34000:4000
+      - 35432:15432
+    environment:
+      - CUBEJS_DB_TYPE=duckdb
+      - CUBEJS_DB_DUCKDB_DATABASE_PATH=/cube/data/sales.db
+      - CUBEJS_DEV_MODE=true
+      - CUBEJS_API_SECRET=secret
+      - CUBEJS_TESSERACT_SQL_PLANNER=true
+
+      - CUBEJS_PG_SQL_PORT=15432
+      - CUBEJS_SQL_USER=admin
+      - CUBEJS_SQL_PASSWORD=admin
+    volumes:
+      - ./data/sales/database:/cube/data
+      - ./data/sales/cube_conf:/cube/conf
+    networks:
+      - agent4olap_net
+
+networks:
+  agent4olap_net:
+    name: agent4olap_net
+    external: true

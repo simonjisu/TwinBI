@@ -1,8 +1,0 @@
-table: household_demographics
-table_type: dim
-children:
-- name: hd_dep_count
-  label: Household Structure
-  children:
-  - name: hd_vehicle_count
-    label: Vehicle Count

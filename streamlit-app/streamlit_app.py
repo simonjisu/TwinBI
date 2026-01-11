@@ -4,7 +4,6 @@ import os
 import json
 import requests
 import streamlit as st
-import streamlit.components.v1 as components
 from pathlib import Path
 import html
 
@@ -14,48 +13,53 @@ from streamlit_agraph import agraph, Node, Edge, Config
 
 SUPERSET_PUBLIC_URL = os.getenv("SUPERSET_PUBLIC_URL", "http://localhost:8088")
 SUPERSET_INTERNAL_URL = os.getenv("SUPERSET_INTERNAL_URL", "http://superset_app:8088")
-
 SUPERSET_USERNAME = os.getenv("SUPERSET_USERNAME", "admin")
 SUPERSET_PASSWORD = os.getenv("SUPERSET_PASSWORD", "admin")
+EMBED_UUID = os.getenv("SUPERSET_EMBED_UUID", "")
 
-GUEST_TOKEN_AUD = os.getenv("SUPERSET_GUEST_AUD", "superset")
+def get_dashboard_uuid_by_id(dashboard_id: str) -> str:
+    if not dashboard_id:
+        return ""
+    sess = _api_session_with_bearer()
+    r = sess.get(f"{SUPERSET_INTERNAL_URL}/api/v1/dashboard/{dashboard_id}", timeout=30)
+    r.raise_for_status()
+    return r.json()["result"]["uuid"]
 
-DASHBOARD_ID = os.getenv("SUPERSET_DASHBOARD_ID", "12")
+def _api_session_with_bearer() -> requests.Session:
+    sess = requests.Session()
 
-def _api_session_with_bearer() -> tuple[requests.Session, str]:
-    s = requests.Session()
-    r = s.post(
+    # login (get access token)
+    r = sess.post(
         f"{SUPERSET_INTERNAL_URL}/api/v1/security/login",
         json={
             "username": SUPERSET_USERNAME,
             "password": SUPERSET_PASSWORD,
             "provider": "db",
-            "refresh": False,
+            "refresh": True,
         },
         timeout=30,
     )
-    if r.status_code != 200:
-        raise RuntimeError(f"Superset login failed {r.status_code}: {r.text}")
-
+    r.raise_for_status()
     access_token = r.json()["access_token"]
-    s.headers.update({"Authorization": f"Bearer {access_token}"})
-    return s, access_token
 
+    sess.headers.update({"Authorization": f"Bearer {access_token}"})
+    return sess
 
-def _api_get_csrf(session: requests.Session) -> str:
-    r = session.get(f"{SUPERSET_INTERNAL_URL}/api/v1/security/csrf_token/", timeout=30)
-    if r.status_code != 200:
-        raise RuntimeError(f"CSRF fetch failed {r.status_code}: {r.text}")
+def _api_get_csrf(sess: requests.Session) -> str:
+    r = sess.get(f"{SUPERSET_INTERNAL_URL}/api/v1/security/csrf_token/", timeout=30)
+    r.raise_for_status()
     return r.json()["result"]
 
-
 @st.cache_data(ttl=240)
-def get_guest_token(dashboard_id: str) -> str:
-    sess, _access = _api_session_with_bearer()
+def get_guest_token_for_dashboard_uuid(dashboard_uuid: str) -> str:
+    if not dashboard_uuid or len(dashboard_uuid) < 20:
+        raise RuntimeError(f"SUPERSET_DASHBOARD_UUID looks wrong: {dashboard_uuid}")
+
+    sess = _api_session_with_bearer()
     csrf = _api_get_csrf(sess)
 
     payload = {
-        "resources": [{"type": "dashboard", "id": str(dashboard_id)}],
+        "resources": [{"type": "dashboard", "id": dashboard_uuid}],
         "rls": [],
         "user": {"username": "streamlit-guest"},
         "aud": os.getenv("SUPERSET_GUEST_AUD", "superset"),
@@ -75,7 +79,7 @@ def get_guest_token(dashboard_id: str) -> str:
         timeout=30,
     )
     if r.status_code != 200:
-        raise RuntimeError(f"Guest token failed {r.status_code}: {r.text}")
+        raise RuntimeError(f"guest_token failed {r.status_code}: {r.text}")
 
     return r.json()["token"]
 
@@ -142,8 +146,11 @@ st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 
 # --- Sidebar Chat ---
 with st.sidebar:
+    dashboard_id = st.text_input("Dashboard ID", value="12", help="Superset Dashboard Numeric ID")
+    DASHBOARD_UUID = get_dashboard_uuid_by_id(dashboard_id)
+    st.write("DASHBOARD_UUID:", DASHBOARD_UUID)
+    st.write("EMBED_UUID:", EMBED_UUID)
     st.header("Chat")
-
     st.markdown(
         """
         <style>
@@ -267,15 +274,21 @@ st.markdown("""
     """, unsafe_allow_html=True)
 st.title("Agent4OLAP")
 
-EMBED_UUID = os.getenv("SUPERSET_EMBED_UUID", "")
 # DASHBOARD_UUID = os.getenv("SUPERSET_DASHBOARD_UUID", "") 
 
-token = get_guest_token(DASHBOARD_ID)  # guest token resource should reference the DASHBOARD uuid
-superset_embed(
-    dashboard_id=EMBED_UUID,   # the iframe should load /embedded/<EMBED_UUID>
-    superset_domain=SUPERSET_PUBLIC_URL,
-    guest_token=token,
-    height=1550,
-    key="dash_2",
-)
+if not EMBED_UUID:
+    st.error("SUPERSET_EMBED_UUID is empty. Set it from Superset 'Embed dashboard' UI.")
+    st.stop()
 
+if not DASHBOARD_UUID:
+    st.error("DASHBOARD_UUID is empty. Enter the dashboard id to get UUID.")
+    st.stop()
+else:
+    token = get_guest_token_for_dashboard_uuid(DASHBOARD_UUID)
+    superset_embed(
+        dashboard_id=EMBED_UUID,
+        superset_domain=SUPERSET_PUBLIC_URL,
+        guest_token=token,
+        height=1550,
+        key="dash_2",
+    )

@@ -38,6 +38,7 @@ dependencies = [
     "openai-agents>=0.3.3",
     "streamlit>=1.52.1",
     "requests>=2.32.5",
+    "streamlit-agraph>=0.0.45",
 ]
 
 
