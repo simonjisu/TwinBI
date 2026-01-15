@@ -5,12 +5,20 @@ import { embedDashboard } from "@superset-ui/embedded-sdk";
 console.log("SupersetEmbed BUILD:", new Date().toISOString());
 export default function SupersetEmbed(props) {
     const args = props.args;
+    console.log("=== SUPERSET EMBED DEBUG ===");
+    console.log("All args:", args);
+    console.log("args.height:", args.height);
+    console.log("typeof args.height:", typeof args.height);
     const mountRef = useRef(null);
     const dashboardId = args.dashboardId;
     const supersetDomain = args.supersetDomain;
     const guestToken = args.guestToken;
-    const requestedHeight = args.height ?? 900;
-    const effectiveHeight = Math.max(1000, Math.min(requestedHeight, window.innerHeight - 120));
+    const requestedHeight = args.height ?? 1000;
+    // const effectiveHeight = Math.max(1000, Math.min(requestedHeight, window.innerHeight - 120));
+    const effectiveHeight = 550;
+    console.log("requestedHeight:", requestedHeight);
+    console.log("effectiveHeight:", effectiveHeight);
+    console.log("===========================");
     const uiConfig = useMemo(() => ({
         hideTitle: false,
         hideChartControls: false,

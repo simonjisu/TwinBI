@@ -1,0 +1,24 @@
+views:
+  - name: view_s1_marketing_qtr
+    description: "Scenario 1: Marketing group Q2 2024 — revenue, store reach, and brand drill"
+    cubes:
+      # anchor (fact measures)
+      - join_path: fact_sales
+        includes:
+          - total_receipts     # revenue
+          - store_key          
+          - date_key           
+
+      # product dimensions (group + drill target)
+      - join_path: fact_sales.dim_product
+        prefix: true
+        includes:
+          - marketing_group
+          - brand
+
+      # date dimensions (filters)
+      - join_path: fact_sales.dim_date
+        prefix: true
+        includes:
+          - year
+          - quarter
