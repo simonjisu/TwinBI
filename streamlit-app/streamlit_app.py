@@ -83,65 +83,185 @@ def get_guest_token(dashboard_uuid: str) -> str:
 def _load_graph_json(path: str) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
+NODE_FONT = {"color": "white", "size": 18, "strokeWidth": 2, "strokeColor": "rgba(0,0,0,0.55)"}
+MEASURE_FONT = {"color": "white", "size": 16, "strokeWidth": 2, "strokeColor": "rgba(0,0,0,0.55)"}
+ATTR_FONT = {"color": "white", "size": 15, "strokeWidth": 2, "strokeColor": "rgba(0,0,0,0.55)"}
+
 def render_schema_graph(path: str):
     data = _load_graph_json(path)
 
-    # allow multiple possible keys
-    raw_nodes = data.get("nodes", [])
-    raw_edges = data.get("edges", [])
+    # unwrap nested: {"fact_sales": {...}}
+    if "nodes" not in data and isinstance(data, dict):
+        for _k, v in data.items():
+            if isinstance(v, dict) and ("nodes" in v or "edges" in v):
+                data = v
+                break
 
-    def node_id(n):
-        return str(n.get("id") or n.get("name") or n.get("key"))
+    raw_nodes = data.get("nodes", []) or []
+    raw_edges = data.get("edges", []) or []
+    measures = data.get("measures", []) or []
 
-    def node_label(n):
-        return str(n.get("label") or n.get("name") or n.get("id") or n.get("key"))
+    def nid(n): return str(n.get("id") or "")
+    def ntype(n): return str(n.get("type") or "dimension").lower()
 
-    nodes = [
-        Node(id=node_id(n), label=node_label(n), size=22)
-        for n in raw_nodes
-        if node_id(n)
-    ]
+    fact_id = str(data.get("fact") or "fact_sales")
 
+    # ---- Build nodes (4 types) ----
+    nodes = []
+    node_kind = {}  # id -> kind for styling/legend
+
+    # Fact node (center)
+    nodes.append(Node(
+        id=fact_id, label=fact_id, size=38, shape="square", color="#d9534f",
+        font=NODE_FONT
+    ))
+    node_kind[fact_id] = "fact"
+
+    # Dimension nodes + Attribute nodes
+    for n in raw_nodes:
+        _id = nid(n)
+        t = ntype(n)
+        if not _id or _id == fact_id:
+            continue
+
+        if t == "dimension":
+            nodes.append(Node(
+                id=_id, label=_id, size=26, shape="square", color="#7aa6d6",
+                font=NODE_FONT
+            ))
+            node_kind[_id] = "dimension"
+
+            attrs = n.get("attributes") or []
+            if isinstance(attrs, list):
+                for a in attrs:
+                    aid = f"{_id}::{a}"
+                    nodes.append(Node(
+                        id=aid, label=str(a), size=16, shape="dot", color="#f0ad4e",
+                        font=ATTR_FONT
+                    ))
+                    node_kind[aid] = "attribute"
+
+    # Measure nodes around fact
+    for m in measures:
+        mid = f"{fact_id}::m::{m}"
+        nodes.append(Node(
+            id=mid, label=str(m).replace("_"," "), size=18, shape="diamond", color="#5cb85c",
+            font=MEASURE_FONT
+        ))
+        node_kind[mid] = "measure"
+
+    # ---- Build edges (3 types) ----
     edges = []
-    for e in raw_edges:
-        src = e.get("source") or e.get("from")
-        tgt = e.get("target") or e.get("to")
-        if src and tgt:
-            edges.append(Edge(source=str(src), target=str(tgt), label=str(e.get("label", ""))))
 
+    # fact -> dimension (solid) using your FK/PK
+    for e in raw_edges:
+        src = str(e.get("source") or "")
+        tgt = str(e.get("target") or "")
+        if not src or not tgt:
+            continue
+        fk = str(e.get("fk_field") or "")
+        pk = str(e.get("pk_field") or "")
+        label = f"{fk} → {pk}" if (fk or pk) else ""
+
+        edges.append(
+            Edge(
+                source=src,
+                target=tgt,
+                label="",
+                color="#999999",
+                width=2,
+            )
+        )
+
+    # dimension -> attribute (dashed, light)
+    for n in raw_nodes:
+        _id = nid(n)
+        if not _id or ntype(n) != "dimension":
+            continue
+        attrs = n.get("attributes") or []
+        if isinstance(attrs, list):
+            for a in attrs:
+                aid = f"{_id}::{a}"
+                edges.append(
+                    Edge(
+                        source=_id,
+                        target=aid,
+                        label="",
+                        color="#c0c0c0",
+                        width=1,
+                        dashes=True,
+                    )
+                )
+
+    # fact -> measure (dotted/green)
+    for m in measures:
+        mid = f"{fact_id}::m::{m}"
+        edges.append(
+            Edge(
+                source=fact_id,
+                target=mid,
+                label="",
+                color="#5cb85c",
+                width=1,
+                dashes=True,
+            )
+        )
+
+    # ---- Layout tuning ----
     cfg = Config(
         width="100%",
-        height=520,
-        directed=True,
+        height=560,
+        directed=False,
         physics=True,
+        hierarchical=False,
+        nodeHighlightBehavior=True,
+        highlightColor="#F7A7A6",
+        collapsible=True,
+        min_zoom=0.12,
+        max_zoom=2.2,
+        options={
+            "interaction": {"hover": True, "navigationButtons": True},
+
+            # pread nodes apart
+            "physics": {
+                "solver": "barnesHut",
+                "barnesHut": {
+                    "gravitationalConstant": -20000,  # more negative = more repulsion
+                    "centralGravity": 0.20,           # lower keeps clusters from collapsing
+                    "springLength": 300,              # longer edges
+                    "springConstant": 0.02,           # stiffness
+                    "damping": 0.35,                  # less jitter
+                    "avoidOverlap": 1.0
+                },
+                "stabilization": {"iterations": 250}
+            }
+        }
     )
 
+
+    st.caption(f"schema nodes={len(nodes)} edges={len(edges)}")
     agraph(nodes=nodes, edges=edges, config=cfg)
 
+    # Simple legend (matches your screenshot intent)
+    st.markdown(
+        """
+        **Legend:** 🟥 Fact &nbsp;&nbsp; 🟦 Dimension &nbsp;&nbsp; 🟠 Attribute &nbsp;&nbsp; 🟩 Measure
+        """
+    )
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
-
-# --- Sidebar Chat ---
-# with st.sidebar:
-#     st.header("Chat")
-
-#     if "msgs" not in st.session_state:
-#         st.session_state.msgs = []
-
-#     # put the input in the sidebar too
-#     prompt = st.chat_input("Ask about what you see…")
-#     if prompt:
-#         st.session_state.msgs.append(("user", prompt))
-#         st.session_state.msgs.append(
-#             ("assistant", "Tell me which chart/scenario you mean and what you want to analyze.")
-#         )
-
-#     for role, msg in st.session_state.msgs:
-#         with st.chat_message(role):
-#             st.write(msg)
+st.markdown("""
+<style>
+/* Expander title text */
+div[data-testid="stExpander"] summary p {
+    font-size: 20px !important;
+    font-weight: 700 !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # --- Sidebar Chat ---
 with st.sidebar:
-    st.header("Chat")
+    st.title("Chat")
 
     st.markdown(
         """
@@ -150,7 +270,7 @@ with st.sidebar:
         section[data-testid="stSidebar"] .chat-panel{
             border: 1px solid rgba(255,255,255,0.08);
             border-radius: 14px;
-            padding: 10px;
+            padding: 7px;
             background: rgba(255,255,255,0.03);
         }
 
@@ -252,9 +372,8 @@ with st.sidebar:
 
     st.divider()
 
-    # with st.popover("🧬 Schema", use_container_width=True):
-    #     st.write("Schema Explorer")
-    #     render_schema_graph("/app/cube_data/tutorial/tutorial-star-graph.json")
+    with st.expander("Schema", expanded=False):
+        render_schema_graph("/app/cube_data/sales/sales-star-graph.json")
 
 # --- Main area: Dashboard ---
 st.markdown("""
@@ -291,19 +410,18 @@ def get_embed_uuid_by_dashboard_id(dashboard_id: str) -> str:
 # DASHBOARD_ID = os.getenv("SUPERSET_DASHBOARD_ID", "12")
 
 
-with st.sidebar:
-    DASHBOARD_ID = st.text_input("Dashboard ID", value="12", help="Superset Dashboard Numeric ID")
-    DASHBOARD_UUID = get_dashboard_uuid_by_id(DASHBOARD_ID)
-    EMBED_UUID = get_embed_uuid_by_dashboard_id(DASHBOARD_ID)
+DASHBOARD_ID = os.getenv("SUPERSET_DASHBOARD_ID", "12")
+DASHBOARD_UUID = get_dashboard_uuid_by_id(DASHBOARD_ID)
+EMBED_UUID = get_embed_uuid_by_dashboard_id(DASHBOARD_ID)
     
     # st.write("DASHBOARD_ID (env):", DASHBOARD_ID)
     # st.write("DASHBOARD_UUID (env):", DASHBOARD_UUID)
     # st.write("EMBED_UUID (env):", EMBED_UUID)
     # st.write("--------------------------------")
-    st.write("DASHBOARD_ID (api):", DASHBOARD_ID)
-    st.write("DASHBOARD_UUID (api):", DASHBOARD_UUID)
-    st.write("EMBED_UUID (api):", EMBED_UUID)
-    st.write("--------------------------------")
+    # st.write("DASHBOARD_ID (api):", DASHBOARD_ID)
+    # st.write("DASHBOARD_UUID (api):", DASHBOARD_UUID)
+    # st.write("EMBED_UUID (api):", EMBED_UUID)
+    # st.write("--------------------------------")
     
 token = get_guest_token(DASHBOARD_ID)
 # with st.sidebar:
@@ -316,6 +434,67 @@ else:
         dashboard_id=EMBED_UUID,
         superset_domain=SUPERSET_PUBLIC_URL,
         guest_token=token,
-        height=1550,
+        height=1000,
         key="dash_2",
     )
+
+
+# Results section with tabs
+st.markdown("---")  # Divider line
+
+st.markdown("""
+    <style>
+    /* Make tabs tighter */
+    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p {
+        font-size: 20px;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        padding-top: 0rem;
+    }
+    /* Reduce space after divider */
+    hr {
+        margin-bottom: 1rem;
+    }
+    /* Reduce space around header */
+    h2 {
+        margin-top: 0rem;
+        margin-bottom: 0.5rem;
+    }
+    /* Reduce space above tabs */
+    .stTabs {
+        margin-top: -0.5rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+with st.expander("Output", expanded=True):
+
+    # Create tabs
+    tab1, tab2 = st.tabs(["Table", "SQL"])
+
+    with tab1:
+        # Example: Show a dataframe
+        # st.dataframe(your_data)
+        
+        # Example placeholder content
+        import pandas as pd
+        sample_data = pd.DataFrame({
+            'Date': ['2024-01-01', '2024-01-02', '2024-01-03'],
+            'Sales': [1000, 1500, 1200],
+            'Revenue': [5000, 7500, 6000]
+        })
+        st.dataframe(sample_data, use_container_width=True)
+
+    with tab2:
+        # Show SQL query
+        sql_query = """
+    SELECT 
+        date,
+        SUM(sales) as total_sales,
+        SUM(revenue) as total_revenue
+    FROM sales_data
+    WHERE date >= '2024-01-01'
+    GROUP BY date
+    ORDER BY date;
+    """
+        st.code(sql_query, language="sql")

@@ -110,10 +110,10 @@ cubes:
         type: number
       - name: quarter
         sql: "quarter"
-        type: number
+        type: string
       - name: year
         sql: "year"
-        type: number
+        type: string
       - name: week
         sql: "week"
         type: number
