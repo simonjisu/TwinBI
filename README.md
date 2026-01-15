@@ -55,7 +55,7 @@ OVERRIDE_HTTP_HEADERS = {
 ```
 
 ```bash
-(Agent4OLAP) superset $ cp ../docker-compose.superset.yml ./superset/docker-compose.superset.yml
+(Agent4OLAP) superset $ cp ../docker-compose.superset.yml ./docker-compose.superset.yml
 (Agent4OLAP) superset $ docker-compose -f ./docker-compose.superset.yml up -d
 ```
 
@@ -74,6 +74,7 @@ Port: 35432
 Database name: sales
 Username: admin
 Password: admin
+Name: Sales-DuckDB
 ```
 
 Then create a dashboard, and enable embedding for the dashboard:
@@ -83,6 +84,13 @@ In the dashboard, click '...' --> Embed Dashboard --> Enable Dashboard Embedding
 ```
 
 At the same time, using admin account to edit the role 'Gamma' to add all permissions.
+
+```
+can grant guest token SecurityRestApi
+can read Log
+can write Log
+catalog access [Sales-DuckDB]
+```
 
 Finally, run the streamlit app:
 

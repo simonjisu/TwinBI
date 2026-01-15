@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "anywidget>=0.9.18",
-    "fastapi>=0.115.6",
+    "fastapi[standard]>=0.115.6",
     "cube-dbt>=0.6.2",
     "dbt-core>=1.10.11",
     "dbt-duckdb>=1.9.6",
@@ -39,6 +39,7 @@ dependencies = [
     "streamlit>=1.52.1",
     "requests>=2.32.5",
     "streamlit-agraph>=0.0.45",
+    "psycopg2-binary>=2.9.11",
 ]
 
 

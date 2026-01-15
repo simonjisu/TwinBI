@@ -5,15 +5,20 @@ import json
 import requests
 import streamlit as st
 import streamlit.components.v1 as components
+import uuid
 from pathlib import Path
 import html
 
 from superset_embed_component import superset_embed
 
+from fastapi_client import post_chat
+
 from streamlit_agraph import agraph, Node, Edge, Config
 
 SUPERSET_PUBLIC_URL = os.getenv("SUPERSET_PUBLIC_URL", "http://localhost:8088")
 SUPERSET_INTERNAL_URL = os.getenv("SUPERSET_INTERNAL_URL", "http://superset_app:8088")
+FASTAPI_INTERNAL_URL = os.getenv("FASTAPI_INTERNAL_URL", "http://localhost:8000")
+STREAMLIT_USER_ID = os.getenv("STREAMLIT_USER_ID", "streamlit_user")
 
 SUPERSET_USERNAME = os.getenv("SUPERSET_USERNAME", "admin")
 SUPERSET_PASSWORD = os.getenv("SUPERSET_PASSWORD", "admin")
@@ -214,6 +219,7 @@ with st.sidebar:
 
     # state (safe + minimal)
     st.session_state.setdefault("msgs", [])
+    st.session_state.setdefault("session_id", uuid.uuid4().hex)
 
     # Slot so the chat box stays ABOVE the input visually,
     # but we can still process input before rendering messages.
@@ -222,9 +228,25 @@ with st.sidebar:
     # Input with the arrow inside the field
     prompt = st.chat_input("Ask about what you see…")
     if prompt and prompt.strip():
-        st.session_state.msgs.append(("user", prompt.strip()))
-        # replace with your real response
-        st.session_state.msgs.append(("assistant", "Tell me which chart/scenario you mean and what you want to analyze."))
+        message = prompt.strip()
+        st.session_state.msgs.append(("user", message))
+        session_id = st.session_state["session_id"]
+        request_id = None
+        try:
+            result = post_chat(
+                base_url=FASTAPI_INTERNAL_URL,
+                session_id=session_id,
+                user_id=STREAMLIT_USER_ID,
+                message=message,
+            )
+            assistant_message = result.get(
+                "answer",
+                "FastAPI response missing 'answer'.",
+            )
+            request_id = result.get("request_id")
+        except Exception as exc:
+            assistant_message = f"FastAPI error: {exc}"
+        st.session_state.msgs.append(("assistant", assistant_message))
 
     # Build ALL chat HTML in one go (reliable DOM)
     parts = []
@@ -286,28 +308,18 @@ def get_embed_uuid_by_dashboard_id(dashboard_id: str) -> str:
     r.raise_for_status()
     return r.json()["result"]["uuid"]
 
-# EMBED_UUID = os.getenv("SUPERSET_EMBED_UUID", "")
-# DASHBOARD_UUID = os.getenv("SUPERSET_DASHBOARD_UUID", "")
-# DASHBOARD_ID = os.getenv("SUPERSET_DASHBOARD_ID", "12")
-
-
 with st.sidebar:
     DASHBOARD_ID = st.text_input("Dashboard ID", value="12", help="Superset Dashboard Numeric ID")
     DASHBOARD_UUID = get_dashboard_uuid_by_id(DASHBOARD_ID)
     EMBED_UUID = get_embed_uuid_by_dashboard_id(DASHBOARD_ID)
-    
-    # st.write("DASHBOARD_ID (env):", DASHBOARD_ID)
-    # st.write("DASHBOARD_UUID (env):", DASHBOARD_UUID)
-    # st.write("EMBED_UUID (env):", EMBED_UUID)
-    # st.write("--------------------------------")
+    st.write("USERNAME:", SUPERSET_USERNAME)
+    st.write("PASSWORD:", SUPERSET_PASSWORD)
     st.write("DASHBOARD_ID (api):", DASHBOARD_ID)
     st.write("DASHBOARD_UUID (api):", DASHBOARD_UUID)
     st.write("EMBED_UUID (api):", EMBED_UUID)
     st.write("--------------------------------")
     
 token = get_guest_token(DASHBOARD_ID)
-# with st.sidebar:
-#     st.write("Guest Token:", token)
 if not token:
     st.error(f"Failed to get guest token for Superset dashboard. Maybe the UUID is not reachable? EMBED_UUID={bool(EMBED_UUID)} or DASHBOARD_UUID={bool(DASHBOARD_UUID)} is invalid or embedding is not enabled.")
     st.stop()
