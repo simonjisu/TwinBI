@@ -8,6 +8,9 @@ type Args = {
   dashboardId: string;
   supersetDomain: string;
   guestToken: string;
+  eventApiBase?: string;
+  sessionId?: string;
+  userId?: string;
   height?: number;
 };
 
@@ -18,6 +21,9 @@ export default function SupersetEmbed(props: ComponentProps) {
   const dashboardId = args.dashboardId;
   const supersetDomain = args.supersetDomain;
   const guestToken = args.guestToken;
+  const eventApiBase = args.eventApiBase;
+  const sessionId = args.sessionId;
+  const userId = args.userId;
 
   const requestedHeight = args.height ?? 900;
   const effectiveHeight = Math.max(
@@ -38,6 +44,26 @@ export default function SupersetEmbed(props: ComponentProps) {
   useEffect(() => {
     Streamlit.setComponentReady();
   }, []);
+
+  const lastTabEventRef = useRef<string | null>(null);
+
+  const postEvent = async (eventType: string, payload: Record<string, unknown>) => {
+    if (!eventApiBase || !sessionId) return;
+    try {
+      await fetch(`${eventApiBase.replace(/\/+$/, "")}/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          user_id: userId ?? null,
+          event_type: eventType,
+          payload,
+        }),
+      });
+    } catch (err) {
+      console.warn("Failed to post event", err);
+    }
+  };
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -114,6 +140,43 @@ export default function SupersetEmbed(props: ComponentProps) {
         Streamlit.setFrameHeight(220);
       });
   }, [dashboardId, supersetDomain, guestToken, effectiveHeight, uiConfig]);
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (!supersetDomain) return;
+      const origin = new URL(supersetDomain).origin;
+      if (event.origin !== origin) return;
+      if (!event.data) return;
+
+      const raw =
+        typeof event.data === "string" ? event.data : JSON.stringify(event.data);
+      if (!/tab/i.test(raw)) return;
+
+      const data = event.data as Record<string, unknown>;
+      const tabId =
+        (data && (data.tabId || data.tab_id)) ||
+        (data && (data.activeTabId || data.active_tab_id));
+      const tabName =
+        (data && (data.tabName || data.tab_name)) ||
+        (data && (data.activeTabName || data.active_tab_name));
+
+      const token = raw.slice(0, 200);
+      if (lastTabEventRef.current === token) return;
+      lastTabEventRef.current = token;
+
+      postEvent("superset_tab_click", {
+        dashboard_id: dashboardId,
+        tab_id: tabId,
+        tab_name: tabName,
+        raw: event.data,
+      });
+    };
+
+    window.addEventListener("message", handler);
+    return () => {
+      window.removeEventListener("message", handler);
+    };
+  }, [dashboardId, supersetDomain, eventApiBase, sessionId, userId]);
 
   return (
     <div style={{ width: "100%" }}>

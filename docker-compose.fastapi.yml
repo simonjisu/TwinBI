@@ -1,0 +1,35 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: fastapi/Dockerfile
+    container_name: fastapi_api
+    ports:
+      - "8000:8000"
+    environment:
+      - DUCKDB_PATH=/data/events.duckdb
+      - SUPERSET_META_DB_URI=postgresql://superset:superset@superset_db:5432/superset
+      - SUPERSET_POLL_INTERVAL_SEC=2
+      - SUPERSET_BATCH_SIZE=200
+      - SUPERSET_PUBLIC_URL=http://localhost:8088
+      - SUPERSET_INTERNAL_URL=http://superset_app:8088
+      - SUPERSET_USERNAME=harry_potter
+      - SUPERSET_PASSWORD=1234
+      - SUPERSET_GUEST_AUD=superset
+      - SUPERSET_LOG_DASHBOARD_ID=12
+      - SUPERSET_LOG_USER_ID=
+      - SUPERSET_LOG_USERNAME=
+      - CUBE_REST_URL=http://sales:4000
+      - CUBE_SQL_HOST=sales
+      - CUBE_SQL_PORT=15432
+      - CUBE_CONF_PATH=/cube/conf
+      - CORS_ORIGINS=http://localhost:8501
+    volumes:
+      - ./data/logs:/data
+      - ./data/sales/cube_conf:/cube/conf:ro
+    networks:
+      - agent4olap_net
+
+networks:
+  agent4olap_net:
+    external: true

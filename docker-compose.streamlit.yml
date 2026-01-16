@@ -16,6 +16,8 @@ services:
       - SUPERSET_PUBLIC_URL=http://localhost:8088
       - SUPERSET_INTERNAL_URL=http://superset_app:8088
       - FASTAPI_INTERNAL_URL=http://api:8000
+      - FASTAPI_PUBLIC_URL=http://localhost:8000
+      - FASTAPI_PUBLIC_URL=http://localhost:8000
       - SUPERSET_USERNAME=harry_potter
       - SUPERSET_PASSWORD=1234
       - SUPERSET_GUEST_AUD=superset

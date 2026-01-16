@@ -89,7 +89,11 @@ At the same time, using admin account to edit the role 'Gamma' to add all permis
 can grant guest token SecurityRestApi
 can read Log
 can write Log
+can get or create Dataset
+can write Dataset
+can warmup cache Dataset
 catalog access [Sales-DuckDB]
+
 ```
 
 Finally, run the streamlit app:

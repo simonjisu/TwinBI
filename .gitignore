@@ -215,3 +215,4 @@ data/tutorial/index/*
 superset
 .DS_Store
 archive
+*.duckdb
