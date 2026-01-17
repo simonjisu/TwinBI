@@ -6,6 +6,8 @@ services:
     container_name: fastapi_api
     ports:
       - "8000:8000"
+    env_file:
+      - ./fastapi/.env
     environment:
       - DUCKDB_PATH=/data/events.duckdb
       - SUPERSET_META_DB_URI=postgresql://superset:superset@superset_db:5432/superset

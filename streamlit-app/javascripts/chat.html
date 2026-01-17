@@ -1,0 +1,313 @@
+<div id="{{CHAT_CONTAINER_ID}}" class="chat-root">
+  <style>
+    html, body {
+      background: #262731;
+    }
+    .chat-root {
+      font-family: sans-serif;
+      color: #fff;
+      background: #262731;
+    }
+    .chat-header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #262731;
+      padding: 6px 0 10px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .chat-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+      font-size: 18px;
+      color: #ffffff;
+    }
+    .chat-input-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .chat-input {
+      flex: 1;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #262731;
+      color: #fff;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+    .chat-send {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #1f2937;
+      color: #fff;
+      border-radius: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .chat-status {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .chat-panel {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 8px;
+      background: #262731;
+      margin-top: 10px;
+    }
+    .scroller {
+      overflow: auto;
+      height: 420px;
+      display: flex;
+      flex-direction: column-reverse;
+      overflow-anchor: auto !important;
+    }
+    .scroller-content {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 6px 0 12px 0;
+    }
+    .meta {
+      display: flex;
+      align-items: center;
+      margin: 0 2px -6px 2px;
+      opacity: 0.9;
+    }
+    .meta.user {
+      justify-content: flex-end;
+    }
+    .meta.assistant {
+      justify-content: flex-start;
+    }
+    .avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transform: translateZ(0);
+    }
+    .bubble {
+      padding: 10px 12px;
+      border-radius: 16px;
+      max-width: 92%;
+      line-height: 1.35;
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+    }
+    .bubble.user {
+      margin-left: auto;
+      background: rgba(0, 140, 255, 0.22);
+      border: 1px solid rgba(0, 140, 255, 0.35);
+    }
+    .bubble.assistant {
+      margin-right: auto;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+  </style>
+  <div class="chat-header">
+    <div class="chat-title">Chat</div>
+    <div class="chat-input-row">
+      <input class="chat-input" type="text" placeholder="Ask about what you see..." />
+      <button class="chat-send">Send</button>
+    </div>
+    <div class="chat-status">ready</div>
+  </div>
+  <div class="chat-panel">
+    <div class="scroller">
+      <div class="scroller-content"></div>
+    </div>
+  </div>
+</div>
+<script>
+  const root = document.getElementById("{{CHAT_CONTAINER_ID}}");
+  const inputEl = root.querySelector(".chat-input");
+  const sendBtn = root.querySelector(".chat-send");
+  const statusEl = root.querySelector(".chat-status");
+  const listEl = root.querySelector(".scroller-content");
+
+  const apiBase = "{{FASTAPI_PUBLIC_URL}}";
+  const sessionId = "{{SESSION_ID}}";
+  const userId = "{{USER_ID}}";
+  const storageKey = `chat_messages_${sessionId}`;
+  const dashboardId = "{{DASHBOARD_ID}}";
+  const chartStorageKey = `chat_active_chart_${sessionId}`;
+  const logStorageKey = dashboardId
+    ? `superset-log-last-id-${dashboardId}`
+    : null;
+  const chartMap = new Map();
+  let activeChartId = null;
+  let activeChartName = null;
+
+  function setStatus(text) {
+    statusEl.textContent = text;
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+  }
+
+  function loadMessages() {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw) : [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function saveMessages(messages) {
+    localStorage.setItem(storageKey, JSON.stringify(messages));
+  }
+
+  function renderMessages(messages) {
+    listEl.innerHTML = "";
+    const recent = messages.slice(-80);
+    for (const msg of recent) {
+      const role = msg.role === "user" ? "user" : "assistant";
+      const icon = role === "user" ? "🧑" : "🤖";
+      const safe = escapeHtml(msg.content || "");
+      const meta = document.createElement("div");
+      meta.className = `meta ${role}`;
+      meta.innerHTML = `<span class="avatar">${icon}</span>`;
+      const bubble = document.createElement("div");
+      bubble.className = `bubble ${role}`;
+      bubble.innerHTML = safe;
+      listEl.appendChild(meta);
+      listEl.appendChild(bubble);
+    }
+  }
+
+  async function loadChartMap() {
+    if (!dashboardId) return;
+    try {
+      const res = await fetch(`${apiBase}/superset/dashboards/${dashboardId}/charts`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const charts = data && data.charts ? data.charts : [];
+      charts.forEach((chart) => {
+        const sliceId = chart.slice_id || chart.chart_id;
+        if (!sliceId) return;
+        chartMap.set(String(sliceId), chart.name || "");
+      });
+    } catch (err) {}
+  }
+
+  function loadActiveChart() {
+    try {
+      const raw = localStorage.getItem(chartStorageKey);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      activeChartId = data.chart_id ?? null;
+      activeChartName = data.chart_name ?? null;
+    } catch (err) {}
+  }
+
+  function saveActiveChart() {
+    localStorage.setItem(
+      chartStorageKey,
+      JSON.stringify({ chart_id: activeChartId, chart_name: activeChartName })
+    );
+  }
+
+  function startLogListener() {
+    if (!dashboardId || !window.EventSource) return;
+    const lastId = logStorageKey ? Number(localStorage.getItem(logStorageKey) || "0") : 0;
+    const logUrl = `${apiBase}/superset/logs/stream?limit=50&poll_interval_sec=1.0&dashboard_id=${dashboardId}&last_id=${lastId}`;
+    const source = new EventSource(logUrl);
+    source.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (!data) return;
+        if (data.superset_log_id && logStorageKey) {
+          localStorage.setItem(logStorageKey, String(data.superset_log_id));
+        }
+        const sliceId = data.slice_id;
+        if (!sliceId) return;
+        activeChartId = Number(sliceId);
+        const name = chartMap.get(String(sliceId));
+        activeChartName = name || `Chart ${sliceId}`;
+        saveActiveChart();
+      } catch (err) {}
+    };
+  }
+
+  async function sendMessage() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    inputEl.value = "";
+
+    const messages = loadMessages();
+    messages.push({ role: "user", content: text });
+    saveMessages(messages);
+    renderMessages(messages);
+
+    setStatus("sending...");
+    try {
+      const history = messages.slice(0, -1);
+      const response = await fetch(`${apiBase}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: sessionId,
+          user_id: userId,
+          message: text,
+          history: history.slice(-20),
+          active_chart_id: activeChartId,
+          active_chart_name: activeChartName,
+          debug: true,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      const answer = data.answer || "No answer.";
+      messages.push({ role: "assistant", content: answer });
+      saveMessages(messages);
+      renderMessages(messages);
+      setStatus("ready");
+
+      if (data.request_id) {
+        fetch(`${apiBase}/events`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: sessionId,
+            user_id: userId,
+            event_type: "chat_message",
+            payload: { request_id: data.request_id, message: text },
+          }),
+        }).catch(() => {});
+      }
+    } catch (err) {
+      messages.push({ role: "assistant", content: `FastAPI error: ${err}` });
+      saveMessages(messages);
+      renderMessages(messages);
+      setStatus("error");
+    }
+  }
+
+  sendBtn.addEventListener("click", sendMessage);
+  inputEl.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      sendMessage();
+    }
+  });
+
+  loadActiveChart();
+  loadChartMap().then(startLogListener);
+  renderMessages(loadMessages());
+</script>

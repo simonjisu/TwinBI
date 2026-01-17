@@ -96,12 +96,29 @@ catalog access [Sales-DuckDB]
 
 ```
 
+Now, we need to set the following variables in `docker-compose.streamlit.yml`:
+
+```bash
+# .env file settings: in fastapi
+OPENAI_API_KEY=your_openai_api_key
+```
+
+Run the FastAPI backend:
+
+```bash
+(Agent4OLAP) $ docker-compose -f ./docker-compose.fastapi.yml up -d --build
+```
+
 Finally, run the streamlit app:
 
 ```bash
 (Agent4OLAP) $ docker-compose -f ./docker-compose.streamlit.yml up -d --build
 ```
 
+```bash
+# Run in one line
+docker compose -f docker-compose.sales.yml -f docker-compose.streamlit.yml -f docker-compose.fastapi.yml up -d --build
+```
 
 # Cube DB Test
 

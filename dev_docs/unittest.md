@@ -12,7 +12,7 @@ The FastAPI initial implementation has unit tests under `unittest/`.
 
 - `/health` returns status ok.
 - `/events` responds ok and persists UI events into DuckDB.
-- `/chat` persists a Streamlit chat log row into DuckDB.
+- `/chat` persists a Streamlit chat log row into DuckDB and supports `debug: true`.
 - `/poller/status` reports disabled state when Superset polling is not configured.
 - `/poller/reset` clears the Superset checkpoint.
 - `/poller/trigger` runs a single poll cycle (or returns disabled).
@@ -28,6 +28,11 @@ The FastAPI initial implementation has unit tests under `unittest/`.
 - `/cube/schema` returns 400 when Cube conf path is missing.
 - `/superset/dashboards/{dashboard_id}/charts` returns 400 when Superset config is missing.
 - `/superset/dashboards/{dashboard_id}/tab-map` returns 400 when Superset config is missing.
+- `/superset/charts/{chart_id}/data` returns 400 when Superset config is missing, or 404 when no chart log exists.
+- `/chat/context/latest` returns a null context when no chat has been processed.
+- `/chat/debug/latest` returns null until a debug chat is sent.
+- `/chat/dialogue` returns a dialogue list for a session_id.
+- `/superset/charts/{chart_id}/log-context` returns 404 when no logs exist.
 - Streamlit FastAPI client builds URLs and posts to `/chat` and `/events`.
 - Superset poller builds filtered SQL when dashboard/user filters are set.
 - QueryTranslater parses Superset chart logs into SQL.
@@ -84,6 +89,26 @@ self.assertEqual(response.status_code, 200)
 client.app.state.writer.flush_blocking()
 ```
 
+### Chat endpoint test (with history)
+
+```python
+payload = {
+    "session_id": "s_2",
+    "user_id": "u_2",
+    "message": "hello",
+    "history": [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "how can I help?"},
+    ],
+    "active_chart_id": 316,
+    "active_chart_name": "Sales by Product",
+    "debug": True,
+}
+response = client.post("/chat", json=payload)
+self.assertEqual(response.status_code, 200)
+self.assertIn("debug", response.json())
+```
+
 ### Superset logs latest endpoint test
 
 ```python
@@ -111,6 +136,46 @@ self.assertEqual(schema.status_code, 400)
 ```python
 tab_map = client.get("/superset/dashboards/12/tab-map")
 self.assertEqual(tab_map.status_code, 400)
+```
+
+### Superset chart data endpoint test
+
+```python
+data = client.get("/superset/charts/12/data")
+self.assertEqual(data.status_code, 400)
+payload = data.json()
+self.assertIn("detail", payload)
+```
+
+### Superset chart log context endpoint test
+
+```python
+log_context = client.get("/superset/charts/12/log-context")
+self.assertEqual(log_context.status_code, 404)
+```
+
+### Chat context latest endpoint test
+
+```python
+context = client.get("/chat/context/latest")
+self.assertEqual(context.status_code, 200)
+self.assertIsNone(context.json().get("context"))
+```
+
+### Chat debug latest endpoint test
+
+```python
+debug = client.get("/chat/debug/latest")
+self.assertEqual(debug.status_code, 200)
+self.assertIsNone(debug.json().get("debug"))
+```
+
+### Chat dialogue endpoint test
+
+```python
+dialogue = client.get("/chat/dialogue", params={"session_id": "s_1"})
+self.assertEqual(dialogue.status_code, 200)
+self.assertIn("dialogue", dialogue.json())
 ```
 
 ### Cube meta endpoint test

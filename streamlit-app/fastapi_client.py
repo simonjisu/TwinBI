@@ -15,6 +15,7 @@ def post_chat(
     session_id: str,
     user_id: str | None,
     message: str,
+    history: list[dict[str, str]] | None = None,
     timeout: float = 15.0,
 ) -> dict[str, Any]:
     payload = {
@@ -22,6 +23,8 @@ def post_chat(
         "user_id": user_id,
         "message": message,
     }
+    if history:
+        payload["history"] = history
     url = _join_url(base_url, "/chat")
     response = requests.post(url, json=payload, timeout=timeout)
     response.raise_for_status()

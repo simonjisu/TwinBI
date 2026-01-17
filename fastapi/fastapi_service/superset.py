@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 import duckdb
 import requests
+import sqlglot
 
 from fastapi_service import db
 from fastapi_service.config import Settings
@@ -82,12 +83,8 @@ class QueryTranslater:
         select_exprs = self._render_select(
             columns, metrics, base_alias, join_tables, dataset_columns
         )
-        filters = []
-        if isinstance(query.get("filters"), list):
-            filters.extend(query.get("filters") or [])
         form_data = payload.get("form_data") if isinstance(payload, dict) else {}
-        if isinstance(form_data, dict) and isinstance(form_data.get("filters"), list):
-            filters.extend(form_data.get("filters") or [])
+        filters = self._collect_filters(query, form_data)
         filters = self._dedupe_filters(filters)
         where_exprs = self._render_filters(
             filters, base_alias, join_tables, dataset_columns
@@ -114,6 +111,7 @@ class QueryTranslater:
             sql += " ORDER BY " + ", ".join(order_by)
         if isinstance(limit, int) and limit > 0:
             sql += f" LIMIT {limit}"
+        sql = self._pretty_sql(sql)
         return {
             "sql": sql,
             "filters": self._normalize_filters(filters),
@@ -125,6 +123,12 @@ class QueryTranslater:
         if not parsed:
             return None
         return parsed.get("sql")
+
+    def _pretty_sql(self, sql: str) -> str:
+        try:
+            return sqlglot.transpile(sql, read="duckdb", pretty=True)[0]
+        except Exception:
+            return sql
 
     def _parse_datasource_id(self, datasource: Any) -> tuple[int | None, str | None]:
         if isinstance(datasource, dict):
@@ -269,9 +273,7 @@ class QueryTranslater:
         for flt in filters:
             if not isinstance(flt, dict):
                 continue
-            raw_col = flt.get("col") or flt.get("subject")
-            op = flt.get("op")
-            val = flt.get("val")
+            raw_col, op, val = self._coerce_filter_fields(flt)
             col_name = self._extract_filter_col_name(raw_col)
             if not col_name or not op:
                 continue
@@ -280,6 +282,7 @@ class QueryTranslater:
             )
             if not col:
                 continue
+            val = self._unwrap_filter_value(val)
             if op == "TEMPORAL_RANGE":
                 if not val or val == "No filter":
                     continue
@@ -297,6 +300,10 @@ class QueryTranslater:
         if isinstance(val, list):
             rendered = ", ".join(self._render_value(v) for v in val)
             return f"({rendered})"
+        if isinstance(val, dict):
+            nested = self._unwrap_filter_value(val)
+            if nested is not None and nested is not val:
+                return self._render_value(nested)
         if isinstance(val, (int, float)):
             return str(val)
         if val is None:
@@ -338,14 +345,53 @@ class QueryTranslater:
         for flt in filters:
             if not isinstance(flt, dict):
                 continue
+            raw_col, op, val = self._coerce_filter_fields(flt)
             normalized.append(
                 {
-                    "col": flt.get("col"),
-                    "op": flt.get("op"),
-                    "val": flt.get("val"),
+                    "col": raw_col,
+                    "op": op,
+                    "val": self._unwrap_filter_value(val),
                 }
             )
         return normalized
+
+    def _collect_filters(self, query: dict[str, Any], form_data: Any) -> list[Any]:
+        filters: list[Any] = []
+
+        def extend_list(value: Any) -> None:
+            if isinstance(value, list):
+                filters.extend(value)
+
+        def pull_from(obj: Any) -> None:
+            if not isinstance(obj, dict):
+                return
+            extend_list(obj.get("filters"))
+            extend_list(obj.get("extra_filters"))
+            extend_list(obj.get("adhoc_filters"))
+            extra_form = obj.get("extra_form_data")
+            if isinstance(extra_form, dict):
+                extend_list(extra_form.get("filters"))
+                extend_list(extra_form.get("extra_filters"))
+
+        if isinstance(query, dict):
+            pull_from(query)
+        pull_from(form_data)
+        return filters
+
+    def _coerce_filter_fields(self, flt: dict[str, Any]) -> tuple[Any, Any, Any]:
+        raw_col = flt.get("col") or flt.get("subject") or flt.get("column")
+        op = flt.get("op") or flt.get("operator")
+        val = flt.get("val")
+        if val is None:
+            val = flt.get("comparator")
+        return raw_col, op, val
+
+    def _unwrap_filter_value(self, val: Any) -> Any:
+        if isinstance(val, dict):
+            for key in ("value", "values", "comparator", "val"):
+                if key in val:
+                    return val.get(key)
+        return val
 
     def _extract_filter_col_name(self, raw: Any) -> str | None:
         if isinstance(raw, dict):
@@ -924,6 +970,21 @@ def _api_session_with_bearer(settings: Settings) -> requests.Session:
     return session
 
 
+def _ensure_csrf(session: requests.Session, base_url: str) -> None:
+    response = session.get(f"{base_url}/api/v1/security/csrf_token/", timeout=30)
+    response.raise_for_status()
+    token = response.json().get("result")
+    if not token:
+        raise RuntimeError("Superset CSRF token missing")
+    session.headers.update(
+        {
+            "X-CSRFToken": token,
+            "X-CSRF-Token": token,
+            "Referer": f"{base_url}/",
+        }
+    )
+
+
 def _fetch_dashboard_charts_endpoint(
     session: requests.Session,
     base_url: str,
@@ -959,6 +1020,62 @@ def _fetch_chart_detail(
         return payload["result"]
     return payload if isinstance(payload, dict) else None
 
+
+def _extract_chart_form_data(chart_detail: dict[str, Any]) -> dict[str, Any]:
+    form_data = chart_detail.get("form_data")
+    if isinstance(form_data, dict):
+        return form_data
+    params = chart_detail.get("params")
+    if isinstance(params, str):
+        try:
+            params = json.loads(params)
+        except json.JSONDecodeError:
+            params = {}
+    if isinstance(params, dict):
+        return params.get("form_data") or params
+    return {}
+
+
+def fetch_chart_data_from_log(
+    settings: Settings,
+    log_payload: dict[str, Any],
+    dashboard_id: int | None = None,
+) -> dict[str, Any]:
+    session = _api_session_with_bearer(settings)
+    base_url = _get_base_url(settings)
+    _ensure_csrf(session, base_url)
+
+    payload = dict(log_payload or {})
+    form_data = payload.get("form_data") if isinstance(payload, dict) else None
+    if isinstance(form_data, str):
+        try:
+            form_data = json.loads(form_data)
+        except json.JSONDecodeError:
+            form_data = None
+    request_body: dict[str, Any] = {
+        "datasource": payload.get("datasource"),
+        "queries": payload.get("queries"),
+        "result_format": payload.get("result_format"),
+        "result_type": payload.get("result_type"),
+        "force": payload.get("force", False),
+        "form_data": form_data,
+    }
+    if dashboard_id is not None:
+        request_body["dashboard_id"] = dashboard_id
+
+    response = session.post(
+        f"{base_url}/api/v1/chart/data",
+        json=request_body,
+        timeout=60,
+    )
+    if response.status_code >= 400:
+        raise RuntimeError(
+            f"Superset chart data error {response.status_code}: {response.text}"
+        )
+    data = []
+    for item in response.json().get("result", []):
+        data.append(item["data"])
+    return data
 
 def _expand_chart_ids(
     session: requests.Session,

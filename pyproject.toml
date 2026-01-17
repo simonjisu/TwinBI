@@ -40,6 +40,7 @@ dependencies = [
     "requests>=2.32.5",
     "streamlit-agraph>=0.0.45",
     "psycopg2-binary>=2.9.11",
+    "sqlglot[rs]>=28.6.0",
 ]
 
 

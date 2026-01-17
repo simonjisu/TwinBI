@@ -10,6 +10,10 @@ class ChatRequest(BaseModel):
     session_id: str
     user_id: str | None = None
     message: str
+    history: list[dict[str, str]] = Field(default_factory=list)
+    active_chart_id: int | None = None
+    active_chart_name: str | None = None
+    debug: bool = False
 
 
 class ChatResponse(BaseModel):
@@ -18,6 +22,7 @@ class ChatResponse(BaseModel):
     answer: str
     query_plan: dict[str, Any]
     data: list[dict[str, Any]]
+    debug: list[dict[str, Any]] | None = None
 
 
 class EventRequest(BaseModel):

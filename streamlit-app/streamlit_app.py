@@ -8,11 +8,9 @@ import streamlit.components.v1 as components
 import uuid
 import urllib.parse
 from pathlib import Path
-import html
 
 from superset_embed_component import superset_embed
 
-from fastapi_client import post_chat, post_event
 
 from streamlit_agraph import agraph, Node, Edge, Config
 
@@ -55,26 +53,6 @@ def _api_get_csrf(session: requests.Session) -> str:
     return r.json()["result"]
 
 
-def _emit_fastapi_event(
-    *,
-    session_id: str,
-    user_id: str,
-    event_type: str,
-    payload: dict,
-) -> None:
-    try:
-        post_event(
-            base_url=FASTAPI_INTERNAL_URL,
-            session_id=session_id,
-            user_id=user_id,
-            event_type=event_type,
-            payload=payload,
-        )
-    except Exception:
-        # Best-effort event logging; avoid breaking the UI.
-        return
-
-
 @st.cache_data(ttl=240)
 def get_guest_token(dashboard_uuid: str) -> str:
     sess, _access = _api_session_with_bearer()
@@ -113,6 +91,11 @@ def _load_graph_json(path: str) -> dict:
 NODE_FONT = {"color": "white", "size": 18, "strokeWidth": 2, "strokeColor": "rgba(0,0,0,0.55)"}
 MEASURE_FONT = {"color": "white", "size": 16, "strokeWidth": 2, "strokeColor": "rgba(0,0,0,0.55)"}
 ATTR_FONT = {"color": "white", "size": 15, "strokeWidth": 2, "strokeColor": "rgba(0,0,0,0.55)"}
+
+
+@st.cache_data
+def _load_html_template(name: str) -> str:
+    return (Path(__file__).parent / "javascripts" / name).read_text(encoding="utf-8")
 
 def render_schema_graph(path: str):
     data = _load_graph_json(path)
@@ -288,145 +271,18 @@ div[data-testid="stExpander"] summary p {
 
 # --- Sidebar Chat ---
 with st.sidebar:
-    st.title("Chat")
-
-    st.markdown(
-        """
-        <style>
-        /* Panel */
-        section[data-testid="stSidebar"] .chat-panel{
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 14px;
-            padding: 7px;
-            background: rgba(255,255,255,0.03);
-        }
-
-        /* CSS-only "stick-to-bottom" scroller */
-        section[data-testid="stSidebar"] .scroller{
-            overflow: auto;
-            height: 420px;              /* <-- controls where input sits */
-            display: flex;
-            flex-direction: column-reverse;
-            overflow-anchor: auto !important;
-        }
-
-        section[data-testid="stSidebar"] .scroller-content{
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            padding: 6px 0 12px 0;
-        }
-
-        /* Bubble + meta */
-        section[data-testid="stSidebar"] .meta{
-            display:flex; align-items:center;
-            margin: 0 2px -6px 2px;
-            opacity: 0.9;
-        }
-        section[data-testid="stSidebar"] .meta.user{ justify-content:flex-end; }
-        section[data-testid="stSidebar"] .meta.assistant{ justify-content:flex-start; }
-
-        section[data-testid="stSidebar"] .avatar{
-            width: 22px; height: 22px; border-radius: 999px;
-            display:inline-flex; align-items:center; justify-content:center;
-            font-size: 14px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.10);
-            transform: translateZ(0); /* iOS Safari repaint fix */
-        }
-
-        section[data-testid="stSidebar"] .bubble{
-            padding: 10px 12px;
-            border-radius: 16px;
-            max-width: 92%;
-            line-height: 1.35;
-            font-size: 0.95rem;
-            white-space: pre-wrap;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.25);
-        }
-        section[data-testid="stSidebar"] .bubble.user{
-            margin-left:auto;
-            background: rgba(0, 140, 255, 0.22);
-            border: 1px solid rgba(0, 140, 255, 0.35);
-        }
-        section[data-testid="stSidebar"] .bubble.assistant{
-            margin-right:auto;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # state (safe + minimal)
-    st.session_state.setdefault("msgs", [])
     st.session_state.setdefault("session_id", uuid.uuid4().hex)
-    st.session_state.setdefault("last_chat_result", None)
-    st.session_state.setdefault("last_chat_error", None)
-
-    # Slot so the chat box stays ABOVE the input visually,
-    # but we can still process input before rendering messages.
-    chat_box = st.empty()
-
-    # Input with the arrow inside the field
-    prompt = st.chat_input("Ask about what you see…")
-    if prompt and prompt.strip():
-        message = prompt.strip()
-        st.session_state.msgs.append(("user", message))
-        session_id = st.session_state["session_id"]
-        request_id = None
-        try:
-            result = post_chat(
-                base_url=FASTAPI_INTERNAL_URL,
-                session_id=session_id,
-                user_id=STREAMLIT_USER_ID,
-                message=message,
-            )
-            assistant_message = result.get(
-                "answer",
-                "FastAPI response missing 'answer'.",
-            )
-            request_id = result.get("request_id")
-            st.session_state["last_chat_result"] = result
-            st.session_state["last_chat_error"] = None
-            _emit_fastapi_event(
-                session_id=session_id,
-                user_id=STREAMLIT_USER_ID,
-                event_type="chat_message",
-                payload={
-                    "request_id": request_id,
-                    "message": message,
-                },
-            )
-        except Exception as exc:
-            assistant_message = f"FastAPI error: {exc}"
-            st.session_state["last_chat_error"] = str(exc)
-        st.session_state.msgs.append(("assistant", assistant_message))
-
-    # Build ALL chat HTML in one go (reliable DOM)
-    parts = []
-    for role, msg in st.session_state.msgs[-80:]:
-        if not msg or not msg.strip():
-            continue
-        role_cls = "user" if role == "user" else "assistant"
-        icon = "🧑" if role_cls == "user" else "🤖"   # swap to SVG if you want
-        safe = html.escape(msg)
-
-        parts.append(
-            f'<div class="meta {role_cls}"><span class="avatar">{icon}</span></div>'
-            f'<div class="bubble {role_cls}">{safe}</div>'
-        )
-
+    chat_container_id = f"chat-component-{uuid.uuid4().hex}"
+    dashboard_id_value = str(st.session_state.get("dashboard_id") or "")
     chat_html = (
-        '<div class="chat-panel">'
-        '<div class="scroller">'
-        '<div class="scroller-content">'
-        + "".join(parts) +
-        '</div></div></div>'
+        _load_html_template("chat.html")
+        .replace("{{CHAT_CONTAINER_ID}}", chat_container_id)
+        .replace("{{FASTAPI_PUBLIC_URL}}", FASTAPI_PUBLIC_URL)
+        .replace("{{SESSION_ID}}", st.session_state["session_id"])
+        .replace("{{USER_ID}}", STREAMLIT_USER_ID)
+        .replace("{{DASHBOARD_ID}}", dashboard_id_value)
     )
-
-    chat_box.markdown(chat_html, unsafe_allow_html=True)
+    components.html(chat_html, height=600)
 
     st.divider()
 
@@ -464,17 +320,23 @@ def get_embed_uuid_by_dashboard_id(dashboard_id: str) -> str:
     return r.json()["result"]["uuid"]
 
 with st.sidebar:
-    DASHBOARD_ID = st.text_input("Dashboard ID", value="12", help="Superset Dashboard Numeric ID")
-    DASHBOARD_UUID = get_dashboard_uuid_by_id(DASHBOARD_ID)
-    EMBED_UUID = get_embed_uuid_by_dashboard_id(DASHBOARD_ID)
+    DASHBOARD_ID = st.text_input(
+        "Dashboard ID",
+        value=st.session_state.get("dashboard_id", "12"),
+        help="Superset Dashboard Numeric ID",
+        key="dashboard_id",
+    )
+    DASHBOARD_UUID = get_dashboard_uuid_by_id(DASHBOARD_ID) if DASHBOARD_ID else ""
+    EMBED_UUID = get_embed_uuid_by_dashboard_id(DASHBOARD_ID) if DASHBOARD_ID else ""
     st.write("USERNAME:", SUPERSET_USERNAME)
     st.write("PASSWORD:", SUPERSET_PASSWORD)
     st.write("DASHBOARD_ID (api):", DASHBOARD_ID)
     st.write("DASHBOARD_UUID (api):", DASHBOARD_UUID)
     st.write("EMBED_UUID (api):", EMBED_UUID)
+    st.write("SESSION_ID:", st.session_state.get("session_id"))
     st.write("--------------------------------")
     
-token = get_guest_token(DASHBOARD_ID)
+token = get_guest_token(DASHBOARD_ID) if DASHBOARD_ID else ""
 if not token:
     st.error(f"Failed to get guest token for Superset dashboard. Maybe the UUID is not reachable? EMBED_UUID={bool(EMBED_UUID)} or DASHBOARD_UUID={bool(DASHBOARD_UUID)} is invalid or embedding is not enabled.")
     st.stop()
@@ -522,186 +384,40 @@ st.markdown("""
 with st.expander("Output", expanded=True):
 
     # Create tabs
-    tab1, tab2, tab3 = st.tabs(["Table", "SQL", "Logs"])
+    # tab1, tab2, tab3 = st.tabs(["Table", "SQL", "Logs"])
+    tab1, tab2 = st.tabs(["SQL", "Logs"])
+
+    # with tab1:
+    #     result = st.session_state.get("last_chat_result")
+    #     error = st.session_state.get("last_chat_error")
+    #     rows = result.get("data") if isinstance(result, dict) else None
+    #     if error:
+    #         st.error(f"FastAPI error: {error}")
+    #     elif rows:
+    #         st.dataframe(rows, use_container_width=True)
+    #     else:
+    #         st.info("No query results yet. Ask a question in the chat sidebar.")
 
     with tab1:
-        result = st.session_state.get("last_chat_result")
-        error = st.session_state.get("last_chat_error")
-        rows = result.get("data") if isinstance(result, dict) else None
-        if error:
-            st.error(f"FastAPI error: {error}")
-        elif rows:
-            st.dataframe(rows, use_container_width=True)
-        else:
-            st.info("No query results yet. Ask a question in the chat sidebar.")
-
-    with tab2:
-        st.subheader("Latest chart SQL")
         sql_params = {"limit": 100, "poll_interval_sec": 1.0}
         if DASHBOARD_ID:
             sql_params["dashboard_id"] = DASHBOARD_ID
         sql_query = urllib.parse.urlencode(sql_params)
         sql_stream_base = f"{FASTAPI_PUBLIC_URL}/superset/logs/stream?{sql_query}"
         charts_url = f"{FASTAPI_PUBLIC_URL}/superset/dashboards/{DASHBOARD_ID}/charts"
-        tab_map_url = f"{FASTAPI_PUBLIC_URL}/superset/dashboards/{DASHBOARD_ID}/tab-map"
         sql_container_id = f"superset-sql-stream-{uuid.uuid4().hex}"
         sql_storage_key = f"superset-sql-last-id-{DASHBOARD_ID or 'all'}"
 
-        components.html(
-            f"""
-            <div id="{sql_container_id}" style="font-family: sans-serif; color:#fff;">
-              <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-                <span style="font-weight:600;">Status:</span>
-                <span class="status" style="color:#2e7d32;">connecting</span>
-                <button class="resume" style="margin-left:auto; padding:4px 8px; background:#2a2a2a; color:#fff; border:1px solid #444; border-radius:4px; cursor:pointer;">
-                  Resume
-                </button>
-              </div>
-              <div class="active-tab" style="margin-bottom:8px; color:#cbd5f5;">
-                Active tab: <span class="active-tab-name">All</span>
-              </div>
-              <div class="panel panel-sql" style="max-height:520px; overflow:auto; border:1px solid #444; border-radius:6px; background:#1a1a1a;">
-                <table style="width:100%; border-collapse:collapse; font-size:13px; color:#fff;">
-                  <thead style="position:sticky; top:0; background:#2a2a2a;">
-                    <tr>
-                      <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">Chart</th>
-                      <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">Slice</th>
-                      <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">SQL</th>
-                    </tr>
-                  </thead>
-                  <tbody class="sql-body"></tbody>
-                </table>
-              </div>
-            </div>
-            <script>
-              const root = document.getElementById("{sql_container_id}");
-              const statusEl = root.querySelector(".status");
-              const resumeBtn = root.querySelector(".resume");
-              const sqlBody = root.querySelector(".sql-body");
-              const activeTabNameEl = root.querySelector(".active-tab-name");
-              const storageKey = "{sql_storage_key}";
-              const initialLastId = Number(localStorage.getItem(storageKey) || "0");
-              const streamUrl = "{sql_stream_base}" + "&last_id=" + initialLastId;
-              const chartsUrl = "{charts_url}";
-              const chartMap = new Map();
-              const tabMap = new Map();
-              const chartNames = new Map();
-              let activeTab = "All";
-              const idleMs = 20000;
-              let lastEventAt = Date.now();
-              let source = null;
-
-              function setStatus(text, color) {{
-                statusEl.textContent = text;
-                statusEl.style.color = color;
-              }}
-
-              function renderRows() {{
-                sqlBody.innerHTML = "";
-                for (const [sliceId, row] of chartMap.entries()) {{
-                  const tr = document.createElement("tr");
-                  tr.innerHTML = `
-                    <td style="padding:6px; border-bottom:1px solid #333;">${{row.name || ""}}</td>
-                    <td style="padding:6px; border-bottom:1px solid #333;">${{sliceId}}</td>
-                    <td style="padding:6px; border-bottom:1px solid #333; white-space:pre-wrap;">${{row.sql || "No SQL yet."}}</td>
-                  `;
-                  sqlBody.appendChild(tr);
-                }}
-              }}
-
-              async function loadCharts() {{
-                try {{
-                  const res = await fetch(chartsUrl);
-                  if (!res.ok) return;
-                  const data = await res.json();
-                  const charts = data && data.charts ? data.charts : [];
-                  charts.forEach((chart) => {{
-                    const sliceId = chart.slice_id || chart.chart_id;
-                    if (!sliceId) return;
-                    if (!chartNames.has(sliceId)) {{
-                      chartNames.set(sliceId, chart.name);
-                    }}
-                  }});
-                  renderRows();
-                }} catch (err) {{}}
-              }}
-
-              async function loadTabMap() {{
-                try {{
-                  const res = await fetch("{tab_map_url}");
-                  if (!res.ok) return;
-                  const data = await res.json();
-                  const mapping = data && data.tab_map ? data.tab_map : {{}};
-                  Object.entries(mapping).forEach(([chartId, tabName]) => {{
-                    tabMap.set(String(chartId), String(tabName));
-                  }});
-                }} catch (err) {{}}
-              }}
-
-              function closeStream() {{
-                if (source) {{
-                  source.close();
-                  source = null;
-                }}
-              }}
-
-              function openStream() {{
-                if (!window.EventSource) {{
-                  setStatus("EventSource not supported", "#c62828");
-                  return;
-                }}
-                closeStream();
-                setStatus("connecting", "#2e7d32");
-                source = new EventSource(streamUrl);
-                source.onmessage = (event) => {{
-                  try {{
-                    const data = JSON.parse(event.data);
-                    if (!data || !data.action) return;
-                    if (!String(data.action).startsWith("ChartDataRestApi")) return;
-                    if (!data.translated_sql || !data.slice_id) return;
-                    if (data.superset_log_id) {{
-                      localStorage.setItem(storageKey, String(data.superset_log_id));
-                    }}
-                    const knownName = chartNames.get(data.slice_id) || "Chart " + data.slice_id;
-                    const row = chartMap.get(data.slice_id) || {{ name: knownName, sql: "" }};
-                    row.sql = data.translated_sql;
-                    chartMap.set(data.slice_id, row);
-                    lastEventAt = Date.now();
-                    const tabName = tabMap.get(String(data.slice_id));
-                    if (tabName) {{
-                      activeTab = tabName;
-                      activeTabNameEl.textContent = activeTab;
-                    }}
-                    renderRows();
-                    setStatus("connected", "#2e7d32");
-                  }} catch (err) {{}}
-                }};
-                source.onerror = () => {{
-                  setStatus("disconnected", "#c62828");
-                }};
-              }}
-
-              loadCharts();
-              loadTabMap();
-              openStream();
-
-              const idleTimer = setInterval(() => {{
-                if (Date.now() - lastEventAt > idleMs) {{
-                  closeStream();
-                  setStatus("idle", "#f9a825");
-                }}
-              }}, 2000);
-
-              resumeBtn.addEventListener("click", () => {{
-                lastEventAt = Date.now();
-                openStream();
-              }});
-            </script>
-            """,
-            height=560,
+        sql_html = (
+            _load_html_template("tab1.html")
+            .replace("{{SQL_CONTAINER_ID}}", sql_container_id)
+            .replace("{{SQL_STORAGE_KEY}}", sql_storage_key)
+            .replace("{{SQL_STREAM_BASE}}", sql_stream_base)
+            .replace("{{CHARTS_URL}}", charts_url)
         )
+        components.html(sql_html, height=560)
 
-    with tab3:
+    with tab2:
         st.subheader("Superset logs")
         params = {"limit": 100, "poll_interval_sec": 1.0}
         if DASHBOARD_ID:
@@ -717,128 +433,38 @@ with st.expander("Output", expanded=True):
         container_id = f"superset-log-stream-{uuid.uuid4().hex}"
         dashboard_key = str(DASHBOARD_ID or "all")
 
-        components.html(
-            f"""
-            <div id="{container_id}" style="font-family: sans-serif; color:#fff;">
-              <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-                <span style="font-weight:600;">Status:</span>
-                <span class="status" style="color:#2e7d32;">connecting</span>
-              </div>
-              <div class="latest" style="padding:8px 10px; border:1px solid #444; border-radius:6px; margin-bottom:10px; background:#1f1f1f;">
-                <div style="font-weight:600; margin-bottom:4px;">Latest log</div>
-                <div class="latest-body" style="font-size:12px; color:#ddd;">No logs yet.</div>
-              </div>
-              <div style="max-height:520px; overflow:auto; border:1px solid #444; border-radius:6px; background:#1a1a1a;">
-                <table style="width:100%; border-collapse:collapse; font-size:13px; color:#fff;">
-                  <thead style="position:sticky; top:0; background:#2a2a2a;">
-                    <tr>
-                      <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">Time</th>
-                      <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">Action</th>
-                      <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">User</th>
-                      <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">Dashboard</th>
-                      <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">Slice</th>
-                    </tr>
-                  </thead>
-                  <tbody></tbody>
-                </table>
-              </div>
-            </div>
-            <script>
-              const root = document.getElementById("{container_id}");
-              const statusEl = root.querySelector(".status");
-              const tbody = root.querySelector("tbody");
-              const latestBody = root.querySelector(".latest-body");
-              const maxRows = 80;
-              const seen = new Set();
-              const rows = [];
-              const storageKey = "superset-log-last-id-{dashboard_key}";
-              const uiStorageKey = "ui-event-last-id-{dashboard_key}";
-              const initialLastId = Number(localStorage.getItem(storageKey) || "0");
-              const streamUrl = "{stream_base_url}" + "&last_id=" + initialLastId;
-              const initialUiLastId = Number(localStorage.getItem(uiStorageKey) || "0");
-              const uiStreamUrl = "{ui_stream_base_url}" + "&last_id=" + initialUiLastId;
-
-              function render() {{
-                tbody.innerHTML = "";
-                for (const row of rows) {{
-                  const ts = row.dttm || row.ts || "";
-                  const action = row.action || row.event_type || "";
-                  const dash = row.dashboard_id || (row.payload && row.payload.dashboard_id) || "";
-                  const slice =
-                    row.slice_id ||
-                    (row.payload && (row.payload.slice_id || row.payload.tab_id || row.payload.tab_name)) ||
-                    "";
-                  const tr = document.createElement("tr");
-                  tr.innerHTML = `
-                    <td style="padding:6px; border-bottom:1px solid #333;">${{ts}}</td>
-                    <td style="padding:6px; border-bottom:1px solid #333;">${{action}}</td>
-                    <td style="padding:6px; border-bottom:1px solid #333;">${{row.user_id || ""}}</td>
-                    <td style="padding:6px; border-bottom:1px solid #333;">${{dash}}</td>
-                    <td style="padding:6px; border-bottom:1px solid #333;">${{slice}}</td>
-                  `;
-                  tbody.appendChild(tr);
-                }}
-              }}
-
-              function addRow(row) {{
-                if (!row) return;
-                const rowId = row.superset_log_id || row.event_id;
-                if (!rowId) return;
-                const key = String(row.source || "superset") + ":" + String(rowId);
-                if (seen.has(key)) return;
-                seen.add(key);
-                rows.unshift(row);
-                const ts = row.dttm || row.ts || "";
-                const action = row.action || row.event_type || "";
-                const dash = row.dashboard_id || (row.payload && row.payload.dashboard_id) || "";
-                const slice =
-                  row.slice_id ||
-                  (row.payload && (row.payload.slice_id || row.payload.tab_id || row.payload.tab_name)) ||
-                  "";
-                latestBody.textContent =
-                  `[${{ts}}] ${{action}} (user=${{row.user_id || ""}}, ` +
-                  `dashboard=${{dash}}, slice=${{slice}})`;
-                if (rows.length > maxRows) rows.pop();
-                render();
-              }}
-
-              if (!!window.EventSource) {{
-                const source = new EventSource(streamUrl);
-                source.onmessage = (event) => {{
-                  try {{
-                    const data = JSON.parse(event.data);
-                    if (data && data.superset_log_id) {{
-                      localStorage.setItem(storageKey, String(data.superset_log_id));
-                    }}
-                    addRow(data);
-                    statusEl.textContent = "connected";
-                    statusEl.style.color = "#2e7d32";
-                  }} catch (err) {{}}
-                }};
-                source.onerror = () => {{
-                  statusEl.textContent = "disconnected";
-                  statusEl.style.color = "#c62828";
-                }};
-
-                const uiSource = new EventSource(uiStreamUrl);
-                uiSource.onmessage = (event) => {{
-                  try {{
-                    const data = JSON.parse(event.data);
-                    if (data && data.event_id) {{
-                      localStorage.setItem(uiStorageKey, String(data.event_id));
-                    }}
-                    addRow(data);
-                  }} catch (err) {{}}
-                }};
-                uiSource.onerror = () => {{
-                  statusEl.textContent = "disconnected";
-                  statusEl.style.color = "#c62828";
-                }};
-              }} else {{
-                statusEl.textContent = "EventSource not supported";
-                statusEl.style.color = "#c62828";
-              }}
-            </script>
-            """,
-            height=620,
+        logs_html = (
+            _load_html_template("tab2.html")
+            .replace("{{CONTAINER_ID}}", container_id)
+            .replace("{{API_BASE}}", FASTAPI_PUBLIC_URL)
+            .replace("{{STREAM_BASE_URL}}", stream_base_url)
+            .replace("{{UI_STREAM_BASE_URL}}", ui_stream_base_url)
+            .replace("{{DASHBOARD_KEY}}", dashboard_key)
         )
+        components.html(logs_html, height=620)
+
+        st.subheader("Chat logs")
+        debug_container_id = f"chat-debug-{uuid.uuid4().hex}"
+        debug_html = f"""
+        <div id="{debug_container_id}" style="font-family: sans-serif; color:#fff;">
+          <pre style="font-size:12px; color:#ddd; white-space:pre-wrap; margin:0; max-height:200px; overflow:auto;">
+Loading debug log...
+          </pre>
+        </div>
+        <script>
+          const root = document.getElementById("{debug_container_id}");
+          const pre = root.querySelector("pre");
+          const apiBase = "{FASTAPI_PUBLIC_URL}";
+          async function loadDebug() {{
+            try {{
+              const res = await fetch(`${{apiBase}}/chat/debug/latest`);
+              if (!res.ok) return;
+              const data = await res.json();
+              pre.textContent = JSON.stringify(data.debug || "No debug yet.", null, 2);
+            }} catch (err) {{}}
+          }}
+          loadDebug();
+          setInterval(loadDebug, 2000);
+        </script>
+        """
+        components.html(debug_html, height=220)

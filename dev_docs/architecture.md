@@ -109,16 +109,26 @@ To keep the system simple:
 
 ### 4.1 LLM interaction flow (chat → Cube → response)
 1. User types question in Streamlit
-2. Streamlit calls `POST /chat` on FastAPI with `{session_id, user_id, message}`
+2. Streamlit calls `POST /chat` on FastAPI with `{session_id, user_id, message, history}`
 3. FastAPI:
-   - returns a stub response (LLM/Cube integrations are pending)
+   - uses the OpenAI Agents SDK (`agents.Agent`) dashboard agent to answer the prompt
+   - prepends the active chart context when available (from Superset log stream)
+   - injects a chart context object (chart id/name + chart data summary) into the agent run
+   - dashboard agent tools:
+     - `get_active_chart_log` (reads latest log payload from DuckDB)
+     - `get_active_chart_data` (calls Superset chart data API using log payload)
+     - `get_chart_sql` (extracts SQL/query from the latest log payload)
+     - `get_chart_metadata` (fetches chart metadata from Superset dashboard)
+     - `list_dashboard_charts` (lists charts for the current or latest dashboard)
+     - `get_chart_data_by_id` (fetches chart data for a specific chart id)
+   - returns the agent response as `answer`
 4. FastAPI logs:
    - Streamlit chat payload (session_id, request_id, message, response, latency_ms)
 
 ### 4.2 Streamlit chat logging flow
 1. User submits chat in Streamlit
 2. Streamlit emits `POST /chat` with:
-   - `session_id`, `user_id`, `message`
+   - `session_id`, `user_id`, `message`, `history`, `active_chart_id`, `active_chart_name`
 3. FastAPI writes to DuckDB `streamlit_chat_logs`
 
 ### 4.3 Superset Action Log ingestion flow (polling)
@@ -148,7 +158,7 @@ Integration points:
 
 ### 5.2 FastAPI (Backend Orchestration + Logging)
 Responsibilities:
-- `/chat`: Streamlit chat logging + (future) LLM/Cube orchestration
+- `/chat`: Streamlit chat logging + multi-agent routing (normal vs dashboard)
 - `/events`: reserved (no persistence by default)
 - background: Superset log poller
 - background: DuckDB writer
@@ -194,6 +204,25 @@ Responsibilities:
 ### 6.1 FastAPI endpoints
 
 ### POST /chat
+Uses the OpenAI Agents SDK (`agents.Agent`) dashboard agent to respond. If unavailable, returns a fallback message.
+Injects active chart context (chart id/name + latest Superset log form_data/queries from DuckDB) when available.
+
+**Request (example)**
+
+```json
+{
+  "session_id": "s_123",
+  "user_id": "u_abc",
+  "message": "hi",
+  "history": [
+    {"role": "user", "content": "hello"},
+    {"role": "assistant", "content": "how can I help?"}
+  ],
+  "active_chart_id": 316,
+  "active_chart_name": "Sales by Product",
+  "debug": true
+}
+```
 
 **Response (example)**
 
@@ -207,6 +236,17 @@ Responsibilities:
     "dimensions": ["Product.category"],
     "time_range": ["2025-01-01", "2025-12-31"]
   },
+  "debug": [
+    {
+      "type": "context",
+      "active_chart_id": 316,
+      "active_chart_name": "Sales by Product",
+      "chart_log": {"action": "ChartDataRestApi.data", "slice_id": 316},
+      "chart_data": {"chart_data": "unavailable"}
+    },
+    {"type": "tool_call_item", "name": "get_active_chart_data"},
+    {"type": "tool_call_output_item", "output": {"chart_id": 316, "data": {"...": "..."}}}
+  ],
   "data": [
     {"category": "A", "amount": 12345},
     {"category": "B", "amount": 67890}
@@ -232,6 +272,42 @@ Responsibilities:
   }
 }
 ```
+
+### GET /superset/charts/{chart_id}/data
+Looks up the latest Superset log for `chart_id` in DuckDB, builds a chart payload
+from the log `json` (`datasource`, `queries`, `result_format`, `result_type`, `force`,
+optional `form_data`), then calls Superset `/api/v1/chart/data` and returns
+`result[0].data`. If Superset responds as a list of datasets, the API returns the
+first list as `data` and includes the full list in `raw`.
+
+### GET /chat/context/latest
+Returns the latest chart context stored during `/chat` processing (used by the UI
+to display context logs).
+
+### GET /chat/debug/latest
+Returns the most recent debug payload from `/chat` when `debug: true` is used.
+
+Response example:
+```json
+{
+  "debug": {
+    "session_id": "s_123",
+    "request_id": "r_456",
+    "items": [
+      {"type": "context", "active_chart_id": 316},
+      {"type": "tool_call_item", "name": "get_active_chart_data"}
+    ]
+  }
+}
+```
+
+### GET /chat/dialogue
+Returns the latest chat dialogue for a `session_id`, ordered by timestamp, with
+paired user/assistant messages.
+
+### GET /superset/charts/{chart_id}/log-context
+Returns the latest Superset log payload for the chart (from DuckDB), including
+`form_data` and `queries`.
 
 **Response**
 
@@ -542,6 +618,7 @@ Streams Superset action logs from DuckDB using Server-Sent Events (SSE).
 
 - When `action` is `ChartDataRestApi.data` or `ChartDataRestApi.json_dumps`, the stream payload includes `translated_sql`.
 - The stream payload also includes `translated_filters` (list of filter dicts) and `translated_where` (rendered WHERE clauses).
+- Filter extraction includes `filters`, `extra_filters`, `adhoc_filters`, and `extra_form_data` from both `form_data` and `queries`.
 - SQL translation uses dataset metadata (table name + columns) when available.
 - When dataset metadata is missing, SQL translation can infer table/column prefixes from Cube metadata (`CUBE_REST_URL` `/cubejs-api/v1/meta`) using `aliasMember` + cube joins.
 - SQL translation uses Cube join metadata (join sql) to render JOIN clauses when available, and falls back to `CUBE_CONF_PATH` schema/joins.
@@ -731,9 +808,10 @@ Checkpoint:
 
 ```
 User -> Streamlit: ask question
-Streamlit -> FastAPI (/chat): session_id, message
+Streamlit -> FastAPI (/chat): session_id, message, history
+FastAPI -> Agent: run LLM Agent
 FastAPI -> DuckDB: write streamlit_chat_logs
-FastAPI -> Streamlit: answer (stub)
+FastAPI -> Streamlit: answer
 ```
 
 ### 10.2 Superset action log ingestion

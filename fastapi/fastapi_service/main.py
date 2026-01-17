@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+import duckdb
 import asyncio
 import json
 import logging
@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 
 from fastapi_service import db
 from fastapi_service.config import Settings, load_settings
+from fastapi_service.agent import AgentRunner, AgentContext
 from fastapi_service.models import ChatRequest, ChatResponse, EventRequest, StatusResponse
 from fastapi_service.superset import (
     QueryTranslater,
@@ -24,12 +25,87 @@ from fastapi_service.superset import (
     fetch_dashboard_layout,
     extract_tab_map,
     lookup_user_id,
+    fetch_chart_data_from_log,
 )
 from fastapi_service.cube import fetch_cube_meta
 from fastapi_service.cube_conf import load_repo_schema
 from fastapi_service.writer import DuckDBWriter
 
 logger = logging.getLogger(__name__)
+
+
+def _summarize_chart_data(chart_data: Any | None) -> dict[str, Any]:
+    if isinstance(chart_data, list):
+        primary = chart_data[0] if chart_data else []
+        summary = chart_data[1] if len(chart_data) > 1 else []
+        if isinstance(primary, list):
+            out = {"rows": primary[:10], "row_count": len(primary)}
+            if isinstance(summary, list) and summary:
+                out["summary_rows"] = summary[:10]
+            return out
+        if isinstance(primary, dict):
+            return {"result": primary}
+        return {"raw": chart_data}
+
+    if not isinstance(chart_data, dict):
+        return {}
+    payload = chart_data.get("data") if isinstance(chart_data.get("data"), dict) else chart_data
+    results = payload.get("result") if isinstance(payload, dict) else None
+    if isinstance(results, list) and results:
+        result0 = results[0] if isinstance(results[0], dict) else {}
+        data = result0.get("data")
+        if isinstance(data, list):
+            return {"rows": data[:10], "row_count": len(data)}
+        return {"result": result0}
+    return {"raw": payload}
+
+
+def _fetch_latest_chart_log(
+    conn: duckdb.DuckDBPyConnection,
+    chart_id: int,
+) -> dict[str, Any] | None:
+    row = conn.execute(
+        """
+        SELECT superset_log_id, dttm, action, dashboard_id, slice_id, json
+        FROM superset_action_logs
+        WHERE slice_id = ? AND action IN ('ChartDataRestApi.data', 'ChartDataRestApi.json_dumps')
+        ORDER BY superset_log_id DESC
+        LIMIT 1
+        """,
+        [chart_id],
+    ).fetchone()
+    if not row:
+        return None
+    payload_json = row[5] or ""
+    try:
+        payload = json.loads(payload_json) if payload_json else {}
+    except json.JSONDecodeError:
+        payload = {}
+    return {
+        "superset_log_id": row[0],
+        "dttm": row[1].isoformat() if row[1] else None,
+        "action": row[2],
+        "dashboard_id": row[3],
+        "slice_id": row[4],
+        "payload": payload,
+    }
+
+
+def _summarize_chart_log(log: dict[str, Any] | None) -> dict[str, Any]:
+    if not log or not isinstance(log, dict):
+        return {}
+    payload = log.get("payload") or {}
+    form_data = payload.get("form_data") if isinstance(payload, dict) else None
+    queries = payload.get("queries") if isinstance(payload, dict) else None
+    datasource = payload.get("datasource") if isinstance(payload, dict) else None
+    return {
+        "superset_log_id": log.get("superset_log_id"),
+        "slice_id": log.get("slice_id"),
+        "dashboard_id": log.get("dashboard_id"),
+        "form_data": form_data,
+        "queries": queries,
+        "datasource": datasource,
+    }
 
 
 @asynccontextmanager
@@ -86,6 +162,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.state.settings = settings
+    app.state.agent_runner = AgentRunner()
+    app.state.last_chat_context = None
+    app.state.last_chat_debug = None
 
     def get_writer() -> DuckDBWriter:
         return app.state.writer
@@ -529,6 +608,64 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from exc
         return {"dashboard_id": dashboard_id, "tab_map": tab_map}
 
+    @app.get("/superset/charts/{chart_id}/data")
+    def superset_chart_data(
+        chart_id: int,
+        dashboard_id: int | None = None,
+        wait_sec: float = 5.0,
+        poll_interval_sec: float = 0.5,
+    ) -> dict[str, Any]:
+        settings = app.state.settings
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        deadline = time.monotonic() + max(wait_sec, 0.0)
+        log = None
+        while time.monotonic() <= deadline:
+            log = _fetch_latest_chart_log(app.state.conn, chart_id)
+            if log:
+                break
+            time.sleep(max(poll_interval_sec, 0.1))
+        if not log or not isinstance(log.get("payload"), dict):
+            raise HTTPException(status_code=404, detail="chart log not found")
+        try:
+            response = fetch_chart_data_from_log(
+                app.state.settings,
+                log["payload"],
+                dashboard_id=dashboard_id,
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+        data = None
+        if isinstance(response, list):
+            if response and isinstance(response[0], list):
+                data = response[0]
+            else:
+                data = response
+        elif isinstance(response, dict):
+            result = response.get("result")
+            if isinstance(result, list) and result and isinstance(result[0], dict):
+                data = result[0].get("data")
+        return {"chart_id": chart_id, "data": data, "raw": response}
+
+    @app.get("/superset/charts/{chart_id}/log-context")
+    def superset_chart_log_context(chart_id: int) -> dict[str, Any]:
+        conn = app.state.conn
+        log = _fetch_latest_chart_log(conn, chart_id)
+        if not log:
+            raise HTTPException(status_code=404, detail="chart log not found")
+        return {"chart_id": chart_id, "log": _summarize_chart_log(log)}
+
 
     @app.post("/chat", response_model=ChatResponse)
     async def chat(
@@ -543,10 +680,88 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "time_range": [],
         }
         data: list[dict[str, Any]] = []
-        answer = (
-            "FastAPI chat endpoint is up. "
-            "LLM and Cube integrations are pending configuration."
+        agent_runner = app.state.agent_runner
+        chart_context = None
+        chart_context_obj = None
+        debug_items: list[dict[str, Any]] = []
+        if payload.active_chart_id:
+            log = _fetch_latest_chart_log(app.state.conn, payload.active_chart_id)
+            chart_data = None
+            if log and isinstance(log.get("payload"), dict):
+                try:
+                    response = fetch_chart_data_from_log(
+                        app.state.settings,
+                        log["payload"],
+                    )
+                    chart_data = _summarize_chart_data(response)
+                except Exception as exc:
+                    chart_data = {"chart_data": "unavailable"}
+                    if payload.debug:
+                        chart_data["error"] = str(exc)
+            summary = _summarize_chart_log(log) if log else {"chart_log": "unavailable"}
+            chart_context = json.dumps(
+                {
+                    "active_chart_id": payload.active_chart_id,
+                    "active_chart_name": payload.active_chart_name,
+                    "chart_log": summary,
+                    "chart_data": chart_data,
+                },
+                ensure_ascii=False,
+            )
+            if payload.debug:
+                debug_items.append(
+                    {
+                        "type": "context",
+                        "active_chart_id": payload.active_chart_id,
+                        "active_chart_name": payload.active_chart_name,
+                        "chart_log": summary,
+                        "chart_data": chart_data,
+                    }
+                )
+            chart_context_obj = AgentContext(
+                settings=app.state.settings,
+                conn=app.state.conn,
+                chart_id=payload.active_chart_id,
+                chart_name=payload.active_chart_name,
+                chart_data=chart_data,
+            )
+            app.state.last_chat_context = {
+                "chart_id": payload.active_chart_id,
+                "chart_name": payload.active_chart_name,
+                "chart_data": chart_data,
+                "chart_log": summary,
+            }
+        else:
+            app.state.last_chat_context = None
+            chart_context_obj = AgentContext(
+                settings=app.state.settings,
+                conn=app.state.conn,
+            )
+        answer, agent_debug_items = await agent_runner.respond(
+            payload.message,
+            payload.history or [],
+            context=chart_context,
+            context_obj=chart_context_obj,
+            debug=payload.debug,
         )
+        if payload.debug and agent_debug_items:
+            debug_items.extend(agent_debug_items)
+        if payload.active_chart_id or payload.active_chart_name:
+            chart_name = payload.active_chart_name or "Unknown"
+            chart_id = payload.active_chart_id
+            if chart_id is not None:
+                prefix = f"You are watching the Chart {chart_name} (id={chart_id}). "
+            else:
+                prefix = f"You are watching the Chart {chart_name}. "
+            answer = f"{prefix}{answer}"
+        if payload.debug:
+            app.state.last_chat_debug = {
+                "session_id": payload.session_id,
+                "request_id": request_id,
+                "items": debug_items,
+            }
+        else:
+            app.state.last_chat_debug = None
 
         latency_ms = int((time.perf_counter() - start) * 1000)
         chat_payload = DuckDBWriter.build_streamlit_chat_payload(
@@ -565,7 +780,62 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             answer=answer,
             query_plan=plan,
             data=data,
+            debug=debug_items if payload.debug else None,
         )
+
+    @app.get("/chat/context/latest")
+    def chat_context_latest() -> dict[str, Any]:
+        ctx = app.state.last_chat_context
+        if not ctx:
+            return {"context": None}
+        return {"context": ctx}
+
+    @app.get("/chat/debug/latest")
+    def chat_debug_latest() -> dict[str, Any]:
+        dbg = app.state.last_chat_debug
+        if not dbg:
+            return {"debug": None}
+        return {"debug": dbg}
+
+    @app.get("/chat/dialogue")
+    def chat_dialogue(
+        session_id: str,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        if limit <= 0:
+            raise HTTPException(status_code=400, detail="limit must be > 0")
+        conn = app.state.conn
+        rows = conn.execute(
+            """
+            SELECT ts, user_id, message, response
+            FROM streamlit_chat_logs
+            WHERE session_id = ?
+            ORDER BY ts DESC
+            LIMIT ?
+            """,
+            [session_id, limit],
+        ).fetchall()
+        dialogue = []
+        for ts, user_id, message, response in rows:
+            if message:
+                dialogue.append(
+                    {
+                        "role": "user",
+                        "content": message,
+                        "ts": ts.isoformat() if ts else None,
+                        "user_id": user_id,
+                    }
+                )
+            if response:
+                dialogue.append(
+                    {
+                        "role": "assistant",
+                        "content": response,
+                        "ts": ts.isoformat() if ts else None,
+                        "user_id": user_id,
+                    }
+                )
+        return {"session_id": session_id, "dialogue": dialogue}
 
     @app.post("/events", response_model=StatusResponse)
     async def events(

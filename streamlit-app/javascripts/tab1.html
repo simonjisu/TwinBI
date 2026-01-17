@@ -1,0 +1,143 @@
+<div id="{{SQL_CONTAINER_ID}}" style="font-family: sans-serif; color:#fff;">
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css"
+  />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+    <span style="font-weight:600;">Status:</span>
+    <span class="status" style="color:#2e7d32;">connecting</span>
+    <button
+      class="resume"
+      style="margin-left:auto; padding:4px 8px; background:#2a2a2a; color:#fff; border:1px solid #444; border-radius:4px; cursor:pointer;"
+    >
+      Resume
+    </button>
+  </div>
+  <div
+    class="panel panel-sql"
+    style="max-height:520px; overflow:auto; border:1px solid #444; border-radius:6px; background:#1a1a1a;"
+  >
+    <div class="sql-list"></div>
+  </div>
+</div>
+<script>
+  const root = document.getElementById("{{SQL_CONTAINER_ID}}");
+  const statusEl = root.querySelector(".status");
+  const resumeBtn = root.querySelector(".resume");
+  const sqlList = root.querySelector(".sql-list");
+  const storageKey = "{{SQL_STORAGE_KEY}}";
+  const initialLastId = Number(localStorage.getItem(storageKey) || "0");
+  const streamUrl = "{{SQL_STREAM_BASE}}" + "&last_id=" + initialLastId;
+  const chartsUrl = "{{CHARTS_URL}}";
+  const chartMap = new Map();
+  const chartNames = new Map();
+  const idleMs = 20000;
+  let lastEventAt = Date.now();
+  let source = null;
+
+  function setStatus(text, color) {
+    statusEl.textContent = text;
+    statusEl.style.color = color;
+  }
+
+  function renderRows() {
+    sqlList.innerHTML = "";
+    for (const [sliceId, row] of chartMap.entries()) {
+      const block = document.createElement("div");
+      block.style = "padding:10px; border-bottom:1px solid #333;";
+
+      const title = document.createElement("div");
+      title.style = "font-weight:600; margin-bottom:6px;";
+      const name = row.name || "";
+      title.textContent = name
+        ? `Chart(id=${sliceId}): ${name}`
+        : `Chart(id=${sliceId})`;
+
+      const pre = document.createElement("pre");
+      pre.style =
+        "margin:0; padding:8px; background:#111; border:1px solid #333; border-radius:6px; overflow:auto; white-space:pre-wrap;";
+      const code = document.createElement("code");
+      code.className = "language-sql";
+      code.textContent = row.sql || "No SQL yet.";
+      pre.appendChild(code);
+
+      block.appendChild(title);
+      block.appendChild(pre);
+      sqlList.appendChild(block);
+    }
+    if (window.hljs) {
+      root.querySelectorAll("pre code").forEach((el) => hljs.highlightElement(el));
+    }
+  }
+
+  async function loadCharts() {
+    try {
+      const res = await fetch(chartsUrl);
+      if (!res.ok) return;
+      const data = await res.json();
+      const charts = data && data.charts ? data.charts : [];
+      charts.forEach((chart) => {
+        const sliceId = chart.slice_id || chart.chart_id;
+        if (!sliceId) return;
+        if (!chartNames.has(sliceId)) {
+          chartNames.set(sliceId, chart.name);
+        }
+      });
+      renderRows();
+    } catch (err) {}
+  }
+
+  function closeStream() {
+    if (source) {
+      source.close();
+      source = null;
+    }
+  }
+
+  function openStream() {
+    if (!window.EventSource) {
+      setStatus("EventSource not supported", "#c62828");
+      return;
+    }
+    closeStream();
+    setStatus("connecting", "#2e7d32");
+    source = new EventSource(streamUrl);
+    source.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (!data || !data.action) return;
+        if (!String(data.action).startsWith("ChartDataRestApi")) return;
+        if (!data.translated_sql || !data.slice_id) return;
+        if (data.superset_log_id) {
+          localStorage.setItem(storageKey, String(data.superset_log_id));
+        }
+        const knownName = chartNames.get(data.slice_id) || "Chart " + data.slice_id;
+        const row = chartMap.get(data.slice_id) || { name: knownName, sql: "" };
+        row.sql = data.translated_sql;
+        chartMap.set(data.slice_id, row);
+        lastEventAt = Date.now();
+        renderRows();
+        setStatus("connected", "#2e7d32");
+      } catch (err) {}
+    };
+    source.onerror = () => {
+      setStatus("disconnected", "#c62828");
+    };
+  }
+
+  loadCharts();
+  openStream();
+
+  const idleTimer = setInterval(() => {
+    if (Date.now() - lastEventAt > idleMs) {
+      closeStream();
+      setStatus("idle", "#f9a825");
+    }
+  }, 2000);
+
+  resumeBtn.addEventListener("click", () => {
+    lastEventAt = Date.now();
+    openStream();
+  });
+</script>
