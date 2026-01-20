@@ -1,0 +1,37 @@
+views:
+  - name: view_exec_qoq_units_growth
+    description: "Exec: QoQ unit sales growth by department & category"
+    cubes:
+      # anchor measures (fact)
+      - join_path: fact_sales
+        includes:
+          - total_receipts
+          - total_units_sold
+          - units_sold
+          - previous_units        # prior quarter units (time_shift)
+          - qoq_growth_rate       # (this - prev) / prev
+          # - growth_15_flag
+
+          # ops validation measures (needed for Ops tab)
+          - active_stores
+          - active_days
+          - sales_per_store       # optional but recommended
+          # - avg_sales_per_day   # optional alternative
+          # - total_transactions  # optional
+
+      # product dimensions (dept/category)
+      - join_path: fact_sales.dim_product
+        prefix: true
+        includes:
+          - department
+          - category
+          - product_name
+
+      # date dimensions (time + filters)
+      - join_path: fact_sales.dim_date
+        prefix: true
+        includes:
+          - date
+          - year
+          - quarter
+          - quarter_start

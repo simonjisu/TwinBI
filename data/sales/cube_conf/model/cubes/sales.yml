@@ -81,6 +81,9 @@ cubes:
         type: number
 
     dimensions:
+      - name: units_sold
+        sql: "units_sold"
+        type: number
       - name: sale_id
         sql: "sale_id"
         type: number
@@ -94,6 +97,9 @@ cubes:
       - name: date_key
         sql: "date_key"
         type: number
+      - name: growth_15_flag
+        type: number
+        sql: "CASE WHEN {qoq_growth_rate} >= 0.15 THEN 1 ELSE 0 END"
 
   - name: dim_date
     sql_table: main.dim_date
@@ -117,6 +123,9 @@ cubes:
       - name: week
         sql: "week"
         type: number
+      - name: quarter_start
+        sql: "DATE_TRUNC('quarter', {CUBE}.date)"
+        type: time
 
   - name: dim_store
     sql_table: main.dim_store
