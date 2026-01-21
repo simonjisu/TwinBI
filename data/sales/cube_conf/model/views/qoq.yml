@@ -7,9 +7,12 @@ views:
         includes:
           - total_receipts
           - total_units_sold
+          - average_unit_price
           - units_sold
           - previous_units        # prior quarter units (time_shift)
           - qoq_growth_rate       # (this - prev) / prev
+          - avg_sales_per_day
+          - revenue_per_unit
           # - growth_15_flag
 
           # ops validation measures (needed for Ops tab)
@@ -26,6 +29,9 @@ views:
           - department
           - category
           - product_name
+          - type
+          - marketing_group
+          - brand
 
       # date dimensions (time + filters)
       - join_path: fact_sales.dim_date
@@ -35,3 +41,14 @@ views:
           - year
           - quarter
           - quarter_start
+
+
+      - join_path: fact_sales.dim_store
+        prefix: true
+        includes:
+          - sales_district
+          - city
+          - state
+          - sales_manager
+
+      
