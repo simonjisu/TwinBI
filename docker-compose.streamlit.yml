@@ -9,6 +9,7 @@ services:
     volumes:
       - ./data:/app/cube_data:ro
       - ./streamlit-app:/app
+      - ./src:/app/src:ro
     working_dir: /app
     command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8501 --server.runOnSave true
     environment:

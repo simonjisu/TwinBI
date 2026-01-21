@@ -121,6 +121,10 @@ To keep the system simple:
      - `get_chart_metadata` (fetches chart metadata from Superset dashboard)
      - `list_dashboard_charts` (lists charts for the current or latest dashboard)
      - `get_chart_data_by_id` (fetches chart data for a specific chart id)
+     - `get_facts` (lists fact tables from the SchemaExplorer star schema)
+     - `get_schema_info` (returns schema nodes, measures, and FK links for a fact table)
+     - `search_attribute` (returns hierarchy paths + stats for a dimension attribute)
+     - `search_value_exists` (checks if a value exists for an attribute)
    - returns the agent response as `answer`
 4. FastAPI logs:
    - Streamlit chat payload (session_id, request_id, message, response, latency_ms)
@@ -149,6 +153,7 @@ Responsibilities:
 - Visualizations (Plotly, etc.)
 - Superset embedded dashboards (iframe)
 - Send chat to FastAPI
+- Schema graph sidebar (Plotly)
 
 Integration points:
 - `FASTAPI_INTERNAL_URL=http://api:8000` (recommended new env var)
@@ -159,7 +164,7 @@ Integration points:
 ### 5.2 FastAPI (Backend Orchestration + Logging)
 Responsibilities:
 - `/chat`: Streamlit chat logging + multi-agent routing (normal vs dashboard)
-- `/events`: reserved (no persistence by default)
+- `/events`: UI event ingestion (writes to DuckDB)
 - background: Superset log poller
 - background: DuckDB writer
 
@@ -272,6 +277,9 @@ Injects active chart context (chart id/name + latest Superset log form_data/quer
   }
 }
 ```
+
+### GET /events/stream
+Streams UI events from DuckDB (`ui_events`) via SSE.
 
 ### GET /superset/charts/{chart_id}/data
 Looks up the latest Superset log for `chart_id` in DuckDB, builds a chart payload
@@ -618,6 +626,9 @@ Streams Superset action logs from DuckDB using Server-Sent Events (SSE).
 
 - When `action` is `ChartDataRestApi.data` or `ChartDataRestApi.json_dumps`, the stream payload includes `translated_sql`.
 - The stream payload also includes `translated_filters` (list of filter dicts) and `translated_where` (rendered WHERE clauses).
+- `action` values of `log` with `event_name` (e.g., `drill_by_modal_opened`) are surfaced as `action_label` and `event_name` in stream payloads.
+- Drill-by apply events (`event_name: "further_drill_by"`) are labeled as `action_label: "drill_by"` and include a `drill_by` object (column, filters, depth).
+- Superset drill-to-details requests (`json.path == "/datasource/samples"`) are labeled as `action_label: "drill_to_details"` with `sample_filters` when available.
 - Filter extraction includes `filters`, `extra_filters`, `adhoc_filters`, and `extra_form_data` from both `form_data` and `queries`.
 - SQL translation uses dataset metadata (table name + columns) when available.
 - When dataset metadata is missing, SQL translation can infer table/column prefixes from Cube metadata (`CUBE_REST_URL` `/cubejs-api/v1/meta`) using `aliasMember` + cube joins.
@@ -876,6 +887,24 @@ Key columns:
 - Superset Action Log entries are mostly server-side endpoints (e.g., `DashboardRestApi.get`).
 - Interactive client events are often stored as `action='log'` with JSON payloads.
 - Embedded dashboards may emit `/superset/log/?explode=events` requests that batch UI events.
+
+**Drill-by logging (action log)**
+
+Drill-by actions are captured via Superset action logs (`action='log'`) and emitted
+by the Drill-by modal when users apply a drill-by selection. The payload is attached
+to the existing `further_drill_by` event.
+
+- Source: `superset/superset-frontend/src/components/Chart/DrillBy/DrillByModal.tsx`
+  appends drill-by metadata to `LOG_ACTIONS_FURTHER_DRILL_BY`.
+- Log payload fields (JSON):
+  - `event_name`: `further_drill_by`
+  - `slice_id`
+  - `drill_depth`
+  - `drill_column` / `drill_column_label`
+  - `drill_groupby_field`
+  - `drill_adhoc_filter_field`
+  - `drill_filters` (simple filter objects)
+- FastAPI decorates these into `action_label: "drill_by"` and `drill_by` in stream rows.
 
 ### 11.2 Proposed plan
 1) **Inventory actual actions**

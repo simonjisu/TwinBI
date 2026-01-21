@@ -28,6 +28,30 @@ def fetch_cube_meta(settings: Settings) -> dict[str, Any]:
     return payload
 
 
+def run_cube_query(
+    settings: Settings,
+    query: dict[str, Any] | list[dict[str, Any]],
+) -> dict[str, Any]:
+    base_url = settings.cube_rest_url
+    if not base_url:
+        raise ValueError("CUBE_REST_URL not configured")
+    base_url = base_url.rstrip("/")
+    if base_url.endswith("/cubejs-api/v1"):
+        url = f"{base_url}/load"
+    else:
+        url = f"{base_url}/cubejs-api/v1/load"
+    headers = {}
+    if settings.cube_api_token:
+        headers["Authorization"] = settings.cube_api_token
+    payload = {"query": query}
+    response = requests.post(url, headers=headers, json=payload, timeout=30)
+    response.raise_for_status()
+    data = response.json()
+    if not isinstance(data, dict):
+        raise RuntimeError("Cube query response is not a JSON object")
+    return data
+
+
 def summarize_schema(meta: Dict[str, Any]) -> Dict[str, Any]:
     """
     Input: {"cubes":[...]} 형태의 Cube meta JSON

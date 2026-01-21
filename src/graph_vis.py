@@ -5,8 +5,15 @@ from collections import defaultdict, deque
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Tuple
 
-from IPython.display import display
-import ipywidgets as W
+try:
+    from IPython.display import display
+except Exception:  # pragma: no cover - optional dependency
+    display = None
+
+try:
+    import ipywidgets as W
+except Exception:  # pragma: no cover - optional dependency
+    W = None
 
 import networkx as nx
 import plotly.graph_objects as go
@@ -54,10 +61,13 @@ _NODE_STYLES: dict[str, dict[str, object]] = {
 }
 
 _EDGE_STYLES: dict[str, dict[str, object]] = {
-    "schema": {"color": "#9e9e9e", "width": 1.6, "dash": "solid"},
-    "hierarchy": {"color": "#bdbdbd", "width": 1.2, "dash": "dot"},
+    "schema": {"color": "#6b7280", "width": 1.6, "dash": "solid"},
+    "hierarchy": {"color": "#4b5563", "width": 1.2, "dash": "dot"},
     "measure": {"color": "#74c476", "width": 1.4, "dash": "dot"},
 }
+
+_DEFAULT_BG_COLOR = "#262731"
+_DEFAULT_TEXT_COLOR = "#f9fafb"
 
 if nx is not None:
     _NETWORKX_LAYOUTS: dict[str, Callable[..., dict[str, tuple[float, float]]]] = {
@@ -662,9 +672,9 @@ def _build_plotly_traces(
                     "y": (y0 + y1) / 2,
                     "text": label,
                     "showarrow": False,
-                    "font": {"size": 14, "color": "#555"},
-                    "bgcolor": "rgba(255, 255, 255, 0.7)",
-                    "bordercolor": "rgba(200, 200, 200, 0.5)",
+                    "font": {"size": 14, "color": _DEFAULT_TEXT_COLOR},
+                    "bgcolor": "rgba(15, 23, 42, 0.6)",
+                    "bordercolor": "rgba(148, 163, 184, 0.4)",
                 }
             )
 
@@ -681,7 +691,9 @@ def _build_plotly_traces(
             )
         )
 
-    node_groups: dict[str, dict[str, list]] = defaultdict(lambda: {"x": [], "y": [], "text": [], "hover": []})
+    node_groups: dict[str, dict[str, list]] = defaultdict(
+        lambda: {"x": [], "y": [], "text": [], "hover": [], "ids": []}
+    )
     for node_id, data in nodes.items():
         if node_id not in positions:
             continue
@@ -709,6 +721,7 @@ def _build_plotly_traces(
         group["y"].append(y)
         group["text"].append(display_text)
         group["hover"].append("<br>".join(hover_lines))
+        group["ids"].append(node_id)
 
     node_traces: list[go.Scatter] = []
     marker_traces: list[go.Scatter] = []
@@ -734,6 +747,7 @@ def _build_plotly_traces(
                     marker=marker_style,
                     name=node_type.title(),
                     showlegend=False,
+                    customdata=coords["ids"],
                     meta={"node_trace": True, "node_type": node_type},
                 )
             )
@@ -746,10 +760,11 @@ def _build_plotly_traces(
                     mode="markers+text",
                     text=coords["text"],
                     textposition="top center",
-                    textfont=dict(color="#000000", size=font_size),
+                    textfont=dict(color=_DEFAULT_TEXT_COLOR, size=font_size),
                     hoverinfo="skip",
                     marker=legend_marker_style,
                     name=node_type.title(),
+                    customdata=coords["ids"],
                     meta={
                         "node_trace": True,
                         "node_type": node_type,
@@ -766,12 +781,13 @@ def _build_plotly_traces(
                     mode="markers+text",
                     text=coords["text"],
                     textposition="top center",
-                    textfont=dict(color="#000000", size=font_size),
+                    textfont=dict(color=_DEFAULT_TEXT_COLOR, size=font_size),
                     hoverinfo="text",
                     hovertext=coords["hover"],
                     marker=marker_style,
                     name=node_type.title(),
                     showlegend=True,
+                    customdata=coords["ids"],
                     meta={"node_trace": True, "node_type": node_type, "textposition": "top center"},
                 )
             )
@@ -784,7 +800,7 @@ def _build_plotly_traces(
     return combined_traces, annotations
 
 
-def _attach_legend_label_toggle(figure: go.FigureWidget) -> None:
+def _attach_legend_label_toggle(figure: Any) -> None:
     """Attach callbacks so legend clicks hide labels without removing nodes."""
     label_states: dict[str, dict[str, Any]] = {}
 
@@ -845,7 +861,7 @@ def make_plotly_figure(
     node_spacing: Mapping[str, float] | None = None,
     node_textfont_size: float | int | None = None,
     node_properties: Mapping[str, Mapping[str, object]] | None = None,
-) -> go.FigureWidget:
+) -> "go.Figure":
     if go is None:
         raise RuntimeError("Plotly is required to render graphs. Install the 'plotly' package first.")
 
@@ -909,12 +925,13 @@ def make_plotly_figure(
         text_font_size=font_default,
         text_font_size_map=font_size_map,
     )
-    figure: go.FigureWidget = go.FigureWidget(data=traces)
+    figure = go.Figure(data=traces)
     figure.update_layout(
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
+        plot_bgcolor=_DEFAULT_BG_COLOR,
+        paper_bgcolor=_DEFAULT_BG_COLOR,
+        font=dict(color=_DEFAULT_TEXT_COLOR),
         margin=dict(l=40, r=40, t=40, b=40),
         annotations=annotations,
     )
@@ -928,7 +945,13 @@ def make_plotly_figure(
     if width_px is not None:
         figure.update_layout(width=width_px)
 
-    if legend_toggles_labels and _SUPPORTS_TRACE_LEGEND_CALLBACKS:
+    FigureWidgetType = getattr(go, "FigureWidget", None)
+    if (
+        legend_toggles_labels
+        and _SUPPORTS_TRACE_LEGEND_CALLBACKS
+        and FigureWidgetType
+        and isinstance(figure, FigureWidgetType)
+    ):
         _attach_legend_label_toggle(figure)
 
     return figure

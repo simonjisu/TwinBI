@@ -28,6 +28,8 @@ services:
       - CORS_ORIGINS=http://localhost:8501
     volumes:
       - ./data/logs:/data
+      - ./data/sales:/app/data/sales:ro
+      - ./src:/app/src:ro
       - ./data/sales/cube_conf:/cube/conf:ro
     networks:
       - agent4olap_net

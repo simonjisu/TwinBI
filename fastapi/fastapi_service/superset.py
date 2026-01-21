@@ -59,6 +59,8 @@ class QueryTranslater:
         datasource = None
         if isinstance(payload, dict):
             datasource = payload.get("datasource") or query.get("datasource")
+        columns = query.get("columns") or []
+        metrics = query.get("metrics") or []
         dataset_id, _dtype = self._parse_datasource_id(datasource)
         dataset_schema = self._resolve_dataset_schema(dataset_id)
         table_name = self._render_datasource(datasource, dataset_schema)
@@ -78,8 +80,6 @@ class QueryTranslater:
         if conf_entry:
             dataset_columns = set(conf_entry.get("columns") or [])
 
-        columns = query.get("columns") or []
-        metrics = query.get("metrics") or []
         select_exprs = self._render_select(
             columns, metrics, base_alias, join_tables, dataset_columns
         )
@@ -1034,6 +1034,17 @@ def _extract_chart_form_data(chart_detail: dict[str, Any]) -> dict[str, Any]:
     if isinstance(params, dict):
         return params.get("form_data") or params
     return {}
+
+
+def fetch_chart_form_data(settings: Settings, chart_id: int) -> dict[str, Any]:
+    session = _api_session_with_bearer(settings)
+    base_url = _get_base_url(settings)
+    _ensure_csrf(session, base_url)
+
+    detail = _fetch_chart_detail(session, base_url, chart_id)
+    if not detail:
+        raise LookupError(f"chart {chart_id} not found")
+    return _extract_chart_form_data(detail)
 
 
 def fetch_chart_data_from_log(

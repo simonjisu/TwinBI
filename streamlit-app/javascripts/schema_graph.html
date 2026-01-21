@@ -1,0 +1,260 @@
+<div id="{{SCHEMA_CONTAINER_ID}}" class="schema-graph-root">
+  <style>
+    .schema-graph-root {
+      font-family: sans-serif;
+      color: #e5e7eb;
+    }
+    .schema-graph-title {
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    .schema-graph-panel {
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.5);
+      height: 620px;
+    }
+    .schema-graph-legend {
+      margin-top: 8px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.7);
+    }
+  </style>
+  <div class="schema-graph-title">Schema Graph</div>
+  <div class="schema-graph-panel"></div>
+  <div class="schema-graph-legend">
+    Fact (red) &nbsp;&nbsp; Dimension (blue) &nbsp;&nbsp; Attribute (orange) &nbsp;&nbsp; Measure (green) &nbsp;&nbsp; Highlight (red border)
+  </div>
+</div>
+<script src="https://unpkg.com/cytoscape@3.26.0/dist/cytoscape.min.js"></script>
+<script>
+  const root = document.getElementById("{{SCHEMA_CONTAINER_ID}}");
+  const panel = root.querySelector(".schema-graph-panel");
+  const apiBase = "{{FASTAPI_PUBLIC_URL}}";
+  const sessionId = "{{SESSION_ID}}";
+  const graphData = {{SCHEMA_JSON}};
+
+  function normalize(value) {
+    return String(value || "").trim().toLowerCase();
+  }
+
+  function unwrapGraph(data) {
+    if (data && !data.nodes && typeof data === "object") {
+      for (const key of Object.keys(data)) {
+        if (data[key] && data[key].nodes) {
+          return data[key];
+        }
+      }
+    }
+    return data || {};
+  }
+
+  const graph = unwrapGraph(graphData);
+  const factId = graph.fact || "fact_sales";
+
+  const elements = [];
+  const nodes = graph.nodes || [];
+  const edges = graph.edges || [];
+  const measures = graph.measures || [];
+
+  elements.push({
+    data: { id: factId, label: factId, kind: "fact", raw: factId }
+  });
+
+  nodes.forEach((node) => {
+    const nodeId = String(node.id || "");
+    const nodeType = String(node.type || "dimension").toLowerCase();
+    if (!nodeId || nodeId === factId) return;
+    if (nodeType === "dimension") {
+      elements.push({
+        data: { id: nodeId, label: nodeId, kind: "dimension", raw: nodeId }
+      });
+      const attrs = Array.isArray(node.attributes) ? node.attributes : [];
+      attrs.forEach((attr) => {
+        const attrId = `${nodeId}::${attr}`;
+        elements.push({
+          data: { id: attrId, label: String(attr), kind: "attribute", raw: String(attr) }
+        });
+        elements.push({
+          data: { id: `${nodeId}->${attrId}`, source: nodeId, target: attrId, kind: "attr_edge" }
+        });
+      });
+    }
+  });
+
+  measures.forEach((measure) => {
+    const mid = `${factId}::m::${measure}`;
+    elements.push({
+      data: { id: mid, label: String(measure), kind: "measure", raw: String(measure) }
+    });
+    elements.push({
+      data: { id: `${factId}->${mid}`, source: factId, target: mid, kind: "measure_edge" }
+    });
+  });
+
+  edges.forEach((edge) => {
+    const src = String(edge.source || "");
+    const tgt = String(edge.target || "");
+    if (!src || !tgt) return;
+    const fk = String(edge.fk_field || "");
+    const pk = String(edge.pk_field || "");
+    const label = fk || pk ? `${fk} → ${pk}` : "";
+    elements.push({
+      data: {
+        id: `${src}->${tgt}:${fk}:${pk}`,
+        source: src,
+        target: tgt,
+        label,
+        kind: "rel_edge"
+      }
+    });
+  });
+
+  const cy = cytoscape({
+    container: panel,
+    elements,
+    style: [
+      {
+        selector: "node",
+        style: {
+          "label": "data(label)",
+          "text-valign": "center",
+          "text-halign": "center",
+          "font-size": 11,
+          "text-wrap": "wrap",
+          "text-max-width": 110,
+          "border-width": 1,
+          "border-color": "rgba(255,255,255,0.25)",
+          "color": "#f9fafb"
+        }
+      },
+      {
+        selector: 'node[kind = "fact"]',
+        style: {
+          "shape": "round-rectangle",
+          "background-color": "#d9534f",
+          "width": 120,
+          "height": 40
+        }
+      },
+      {
+        selector: 'node[kind = "dimension"]',
+        style: {
+          "shape": "ellipse",
+          "background-color": "#7aa6d6",
+          "width": 42,
+          "height": 42
+        }
+      },
+      {
+        selector: 'node[kind = "attribute"]',
+        style: {
+          "shape": "round-rectangle",
+          "background-color": "#f0ad4e",
+          "width": 28,
+          "height": 28,
+          "font-size": 10
+        }
+      },
+      {
+        selector: 'node[kind = "measure"]',
+        style: {
+          "shape": "diamond",
+          "background-color": "#5cb85c",
+          "width": 30,
+          "height": 30,
+          "font-size": 10
+        }
+      },
+      {
+        selector: "edge[kind = 'rel_edge']",
+        style: {
+          "width": 2,
+          "curve-style": "bezier",
+          "target-arrow-shape": "triangle",
+          "arrow-scale": 0.8,
+          "line-color": "#7b8794",
+          "target-arrow-color": "#7b8794",
+          "label": "data(label)",
+          "font-size": 9,
+          "text-rotation": "autorotate",
+          "text-margin-y": -8,
+          "color": "#cbd5f5"
+        }
+      },
+      {
+        selector: "edge[kind = 'attr_edge']",
+        style: {
+          "width": 1,
+          "line-style": "dashed",
+          "line-color": "#9ca3af",
+          "target-arrow-shape": "triangle",
+          "arrow-scale": 0.6,
+          "target-arrow-color": "#9ca3af"
+        }
+      },
+      {
+        selector: "edge[kind = 'measure_edge']",
+        style: {
+          "width": 1,
+          "line-style": "dotted",
+          "line-color": "#5cb85c",
+          "target-arrow-shape": "triangle",
+          "arrow-scale": 0.6,
+          "target-arrow-color": "#5cb85c"
+        }
+      },
+      {
+        selector: "node.highlight",
+        style: {
+          "border-width": 3,
+          "border-color": "#ef4444",
+          "box-shadow": "0 0 12px rgba(239, 68, 68, 0.8)"
+        }
+      }
+    ],
+    layout: {
+      name: "breadthfirst",
+      roots: [factId],
+      directed: true,
+      spacingFactor: 1.4
+    },
+    minZoom: 0.2,
+    maxZoom: 2.5
+  });
+
+  function applyHighlight(columns) {
+    const targets = new Set((columns || []).map(normalize));
+    cy.nodes().forEach((node) => {
+      const kind = node.data("kind");
+      if (kind !== "attribute" && kind !== "measure") {
+        node.removeClass("highlight");
+        return;
+      }
+      const raw = normalize(node.data("raw"));
+      if (targets.has(raw)) {
+        node.addClass("highlight");
+      } else {
+        node.removeClass("highlight");
+      }
+    });
+  }
+
+  function startHighlightStream() {
+    if (!apiBase || !sessionId || !window.EventSource) return;
+    const lastId = (BigInt(Date.now()) * 1000000n).toString();
+    const url = `${apiBase.replace(/\/+$/, "")}/events/stream?session_id=${encodeURIComponent(sessionId)}&event_type=schema_highlight&limit=1&last_id=${lastId}`;
+    const source = new EventSource(url);
+    source.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data || "{}");
+        const payload = data.payload || {};
+        const columns = Array.isArray(payload.columns) ? payload.columns : [];
+        applyHighlight(columns);
+      } catch (err) {}
+    };
+  }
+
+  startHighlightStream();
+</script>

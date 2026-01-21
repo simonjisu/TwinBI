@@ -22,6 +22,8 @@ The FastAPI initial implementation has unit tests under `unittest/`.
 - `/superset/logs/latest` returns recent Superset logs from DuckDB.
 - `/superset/logs/latest_sql` returns 404 when no chart data logs exist.
 - `/superset/logs/stream` opens an SSE stream for Superset logs.
+- Superset `/datasource/samples` requests are labeled as `drill_to_details` in stream payloads.
+- Drill-by apply logs (`event_name: "further_drill_by"`) are labeled as `drill_by` and include a `drill_by` payload in stream rows.
 - `/events/stream` opens an SSE stream for UI events.
 - `/superset/datasets/{dataset_id}/schema` returns 400 when Superset config is missing.
 - `/cube/meta` returns 400 when Cube REST URL is missing.
@@ -225,6 +227,26 @@ with client.stream(
     self.assertEqual(stream.status_code, 200)
     content_type = stream.headers.get("content-type", "")
     self.assertTrue(content_type.startswith("text/event-stream"))
+```
+
+### Drill-by log decoration test (example)
+
+```python
+row = {
+    "action": "log",
+    "json": json.dumps(
+        {
+            "event_name": "further_drill_by",
+            "slice_id": 314,
+            "drill_depth": 2,
+            "drill_column": "dim_product_brand",
+            "drill_filters": [{"col": "dim_product_brand", "op": "IN", "val": ["Adidas"]}],
+        }
+    ),
+}
+decorated = _decorate_superset_log(row)
+self.assertEqual(decorated["action_label"], "drill_by")
+self.assertIn("drill_by", decorated)
 ```
 
 ### UI events stream endpoint test

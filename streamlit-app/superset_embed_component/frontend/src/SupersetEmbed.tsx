@@ -27,8 +27,8 @@ export default function SupersetEmbed(props: ComponentProps) {
 
   const requestedHeight = args.height ?? 900;
   const effectiveHeight = Math.max(
-    1000,
-    Math.min(requestedHeight, window.innerHeight - 120)
+    200,
+    requestedHeight
   );
 
   const uiConfig = useMemo(

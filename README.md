@@ -91,9 +91,9 @@ can read Log
 can write Log
 can get or create Dataset
 can write Dataset
-can warmup cache Dataset
-catalog access [Sales-DuckDB]
-
+can warm up cache Dataset
+can samples on Datasource
++ all roles related to [Sales-DuckDB]
 ```
 
 Now, we need to set the following variables in `docker-compose.streamlit.yml`:
@@ -219,3 +219,13 @@ The dashboard uuid can be found by running the `get_superset_uuid.sh` script:
 # [dashboard uuid]
 ```
 copy the DASHBOARD UUID and set it to `SUPERSET_DASHBOARD_UUID` in `docker-compose.streamlit.yml`
+
+# Tips for changing the streamlit_embed
+
+```bash
+cd streamlit-app/streamlit_embed_component/frontend
+npm install
+npm run build
+# Then try to rebuild the streamlit app docker
+docker-compose -f ./docker-compose.streamlit.yml up -d --build
+```

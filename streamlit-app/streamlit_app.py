@@ -7,9 +7,17 @@ import streamlit as st
 import streamlit.components.v1 as components
 import uuid
 import urllib.parse
+import sys
+from typing import Any
 from pathlib import Path
 
+_SRC_ROOT = Path(__file__).resolve().parent / "src"
+if _SRC_ROOT.exists():
+    sys.path.insert(0, str(_SRC_ROOT))
+
 from superset_embed_component import superset_embed
+from graph_vis import extract_fact_view, make_plotly_figure
+from schema_processor import hierarchy_from_json
 
 
 from streamlit_agraph import agraph, Node, Edge, Config
@@ -96,6 +104,51 @@ ATTR_FONT = {"color": "white", "size": 15, "strokeWidth": 2, "strokeColor": "rgb
 @st.cache_data
 def _load_html_template(name: str) -> str:
     return (Path(__file__).parent / "javascripts" / name).read_text(encoding="utf-8")
+
+@st.cache_data
+def _load_hierarchies(path: str) -> dict:
+    hierarchies: dict[str, Any] = {}
+    hierarchy_dir = Path(path)
+    if not hierarchy_dir.exists():
+        return hierarchies
+    for item in sorted(hierarchy_dir.glob("*.json")):
+        try:
+            tree = hierarchy_from_json(item)
+        except Exception:
+            continue
+        hierarchies[tree.table] = tree
+    return hierarchies
+
+def _unwrap_schema_graph(data: dict) -> dict:
+    if "nodes" in data:
+        return data
+    if isinstance(data, dict):
+        for value in data.values():
+            if isinstance(value, dict) and ("nodes" in value or "edges" in value):
+                return value
+    return data
+
+def _schema_nodes_edges(graph_data: dict, hierarchies: dict | None) -> tuple[list[dict], list[dict], str]:
+    graph = _unwrap_schema_graph(graph_data)
+    fact_id = str(graph.get("fact") or "fact_sales")
+    graph_dict = {fact_id: graph}
+    nodes, edges = extract_fact_view(graph_dict, fact_id, hierarchies=hierarchies, node_weights=None)
+    for node in nodes:
+        data = node["data"]
+        if "label" not in data:
+            data["label"] = data.get("name") or data["id"]
+    return nodes, edges, fact_id
+
+def render_schema_graph_html(path: str, api_base: str, session_id: str):
+    data = _load_graph_json(path)
+    html = (
+        _load_html_template("schema_graph.html")
+        .replace("{{SCHEMA_CONTAINER_ID}}", f"schema-graph-{uuid.uuid4().hex}")
+        .replace("{{FASTAPI_PUBLIC_URL}}", api_base)
+        .replace("{{SESSION_ID}}", session_id)
+        .replace("{{SCHEMA_JSON}}", json.dumps(data))
+    )
+    components.html(html, height=720)
 
 def render_schema_graph(path: str):
     data = _load_graph_json(path)
@@ -220,7 +273,7 @@ def render_schema_graph(path: str):
     # ---- Layout tuning ----
     cfg = Config(
         width="100%",
-        height=560,
+        height=1000,
         directed=False,
         physics=True,
         hierarchical=False,
@@ -286,9 +339,6 @@ with st.sidebar:
 
     st.divider()
 
-    with st.expander("Schema", expanded=False):
-        render_schema_graph("/app/cube_data/sales/sales-star-graph.json")
-
 # --- Main area: Dashboard ---
 st.markdown("""
     <style>
@@ -330,9 +380,9 @@ with st.sidebar:
     EMBED_UUID = get_embed_uuid_by_dashboard_id(DASHBOARD_ID) if DASHBOARD_ID else ""
     st.write("USERNAME:", SUPERSET_USERNAME)
     st.write("PASSWORD:", SUPERSET_PASSWORD)
-    st.write("DASHBOARD_ID (api):", DASHBOARD_ID)
-    st.write("DASHBOARD_UUID (api):", DASHBOARD_UUID)
-    st.write("EMBED_UUID (api):", EMBED_UUID)
+    st.write("DASHBOARD_ID:", DASHBOARD_ID)
+    st.write("DASHBOARD_UUID:", DASHBOARD_UUID)
+    st.write("EMBED_UUID:", EMBED_UUID)
     st.write("SESSION_ID:", st.session_state.get("session_id"))
     st.write("--------------------------------")
     
@@ -341,6 +391,7 @@ if not token:
     st.error(f"Failed to get guest token for Superset dashboard. Maybe the UUID is not reachable? EMBED_UUID={bool(EMBED_UUID)} or DASHBOARD_UUID={bool(DASHBOARD_UUID)} is invalid or embedding is not enabled.")
     st.stop()
 else:
+    dashboard_height = 650
     superset_embed(
         dashboard_id=EMBED_UUID,
         superset_domain=SUPERSET_PUBLIC_URL,
@@ -348,7 +399,7 @@ else:
         event_api_base=FASTAPI_PUBLIC_URL,
         session_id=st.session_state.get("session_id"),
         user_id=STREAMLIT_USER_ID,
-        height=1000,
+        height=dashboard_height,
         key="dash_2",
     )
 
@@ -385,7 +436,7 @@ with st.expander("Output", expanded=True):
 
     # Create tabs
     # tab1, tab2, tab3 = st.tabs(["Table", "SQL", "Logs"])
-    tab1, tab2 = st.tabs(["SQL", "Logs"])
+    tab1, tab2, tab3 = st.tabs(["SQL", "Schema", "Logs"])
 
     # with tab1:
     #     result = st.session_state.get("last_chat_result")
@@ -418,6 +469,29 @@ with st.expander("Output", expanded=True):
         components.html(sql_html, height=560)
 
     with tab2:
+        st.subheader("Schema graph")
+        graph_data = _load_graph_json("/app/cube_data/sales/sales-star-graph.json")
+        hierarchies = _load_hierarchies("/app/cube_data/sales/hierarchy")
+        nodes, edges, fact_id = _schema_nodes_edges(graph_data, hierarchies)
+        
+        fig = make_plotly_figure(
+            nodes,
+            edges,
+            layout="kamada_kawai",
+            root_id=fact_id,
+            height="1000px",
+            width="100%",
+            legend_toggles_labels=False,
+            node_opacity=1.0,
+            node_spacing={"measure": 1.2, "dimension": 1.1, "attribute": 0.8, "default": 0.9},
+            node_properties={"fontsize": {"fact": 16, "dimension": 14, "default": 14}},
+        )
+        st.plotly_chart(
+            fig,
+            use_container_width=True,
+        )
+
+    with tab3:
         st.subheader("Superset logs")
         params = {"limit": 100, "poll_interval_sec": 1.0}
         if DASHBOARD_ID:
@@ -443,28 +517,62 @@ with st.expander("Output", expanded=True):
         )
         components.html(logs_html, height=620)
 
-        st.subheader("Chat logs")
-        debug_container_id = f"chat-debug-{uuid.uuid4().hex}"
-        debug_html = f"""
-        <div id="{debug_container_id}" style="font-family: sans-serif; color:#fff;">
-          <pre style="font-size:12px; color:#ddd; white-space:pre-wrap; margin:0; max-height:200px; overflow:auto;">
-Loading debug log...
-          </pre>
-        </div>
-        <script>
-          const root = document.getElementById("{debug_container_id}");
-          const pre = root.querySelector("pre");
-          const apiBase = "{FASTAPI_PUBLIC_URL}";
-          async function loadDebug() {{
-            try {{
-              const res = await fetch(`${{apiBase}}/chat/debug/latest`);
-              if (!res.ok) return;
-              const data = await res.json();
-              pre.textContent = JSON.stringify(data.debug || "No debug yet.", null, 2);
-            }} catch (err) {{}}
-          }}
-          loadDebug();
-          setInterval(loadDebug, 2000);
-        </script>
-        """
-        components.html(debug_html, height=220)
+        # st.subheader("Last Activated Context")
+        # context_controls = st.columns([1, 1, 6])
+        # see_context = context_controls[0].button("See Context", key="see_context_btn")
+        # clear_context = context_controls[1].button("Clear Context", key="clear_context_btn")
+        # if clear_context:
+        #     try:
+        #         requests.delete(f"{FASTAPI_INTERNAL_URL}/chat/context", timeout=3)
+        #         st.session_state["context_cleared_notice"] = True
+        #     except Exception:
+        #         st.session_state["context_cleared_notice"] = False
+        # if see_context:
+        #     st.session_state["context_cleared_notice"] = False
+        #     try:
+        #         resp = requests.get(f"{FASTAPI_INTERNAL_URL}/chat/context/latest", timeout=3)
+        #         if resp.ok:
+        #             st.session_state["context_override"] = resp.json().get("context")
+        #     except Exception:
+        #         st.session_state["context_override"] = None
+        # context_payload = None
+        # try:
+        #     resp = requests.get(f"{FASTAPI_INTERNAL_URL}/chat/context/latest", timeout=3)
+        #     if resp.ok:
+        #         context_payload = resp.json().get("context")
+        # except Exception:
+        #     context_payload = None
+        # if st.session_state.get("context_override") is not None:
+        #     context_payload = st.session_state.get("context_override")
+        # if st.session_state.get("context_cleared_notice"):
+        #     st.caption("Context cleared.")
+        # if context_payload is None:
+        #     st.info("No context available yet.")
+        # else:
+        #     st.json(context_payload, expanded=False)
+
+#         st.subheader("Chat logs")
+#         debug_container_id = f"chat-debug-{uuid.uuid4().hex}"
+#         debug_html = f"""
+#         <div id="{debug_container_id}" style="font-family: sans-serif; color:#fff;">
+#           <pre style="font-size:12px; color:#ddd; white-space:pre-wrap; margin:0; max-height:500px; overflow:auto;">
+# Loading debug log...
+#           </pre>
+#         </div>
+#         <script>
+#           const root = document.getElementById("{debug_container_id}");
+#           const pre = root.querySelector("pre");
+#           const apiBase = "{FASTAPI_PUBLIC_URL}";
+#           async function loadDebug() {{
+#             try {{
+#               const res = await fetch(`${{apiBase}}/chat/debug/latest`);
+#               if (!res.ok) return;
+#               const data = await res.json();
+#               pre.textContent = JSON.stringify(data.debug || "No debug yet.", null, 2);
+#             }} catch (err) {{}}
+#           }}
+#           loadDebug();
+#           setInterval(loadDebug, 2000);
+#         </script>
+#         """
+#         components.html(debug_html, height=220)

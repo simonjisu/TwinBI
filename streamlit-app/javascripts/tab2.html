@@ -54,7 +54,7 @@
     tbody.innerHTML = "";
     for (const row of rows) {
       const ts = row.dttm || row.ts || "";
-      const action = row.action || row.event_type || "";
+      const action = row.action_label || row.action || row.event_type || "";
       const dash = row.dashboard_id || (row.payload && row.payload.dashboard_id) || "";
       const slice =
         row.slice_id ||
@@ -81,7 +81,7 @@
     seen.add(key);
     rows.unshift(row);
     const ts = row.dttm || row.ts || "";
-    const action = row.action || row.event_type || "";
+    const action = row.action_label || row.action || row.event_type || "";
     const dash = row.dashboard_id || (row.payload && row.payload.dashboard_id) || "";
     const slice =
       row.slice_id ||

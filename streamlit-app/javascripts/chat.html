@@ -7,6 +7,9 @@
       font-family: sans-serif;
       color: #fff;
       background: #262731;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
     .chat-header {
       position: sticky;
@@ -15,17 +18,18 @@
       background: #262731;
       padding: 6px 0 10px 0;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex: 0 0 auto;
     }
     .chat-title {
       font-weight: 700;
       margin-bottom: 6px;
-      font-size: 18px;
+      font-size: 20px;
       color: #ffffff;
     }
     .chat-input-row {
       display: flex;
       gap: 6px;
-      align-items: center;
+      align-items: flex-end;
     }
     .chat-input {
       flex: 1;
@@ -33,22 +37,39 @@
       background: #262731;
       color: #fff;
       border-radius: 10px;
-      padding: 8px 10px;
-      font-size: 14px;
+      padding: 10px 12px;
+      font-size: 16px;
+      line-height: 1.35;
+      resize: vertical;
+      min-height: 44px;
+      max-height: 240px;
+      overflow: auto;
     }
     .chat-send {
       border: 1px solid rgba(255, 255, 255, 0.12);
       background: #1f2937;
       color: #fff;
       border-radius: 10px;
-      padding: 8px 12px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .chat-clear {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #111827;
+      color: #cbd5f5;
+      border-radius: 10px;
+      padding: 10px 12px;
       cursor: pointer;
       font-size: 13px;
     }
     .chat-status {
       margin-top: 6px;
-      font-size: 12px;
+      font-size: 13px;
       color: #9ca3af;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
     .chat-panel {
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -56,13 +77,20 @@
       padding: 8px;
       background: #262731;
       margin-top: 10px;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
     }
     .scroller {
       overflow: auto;
-      height: 420px;
+      height: 100vh;
       display: flex;
       flex-direction: column-reverse;
       overflow-anchor: auto !important;
+      height: auto;         /* 기존 80vh 제거 */
+      flex: 1 1 auto;
+      min-height: 0;
     }
     .scroller-content {
       display: flex;
@@ -99,7 +127,7 @@
       border-radius: 16px;
       max-width: 92%;
       line-height: 1.35;
-      font-size: 0.95rem;
+      font-size: 1.02rem;
       white-space: pre-wrap;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
     }
@@ -113,12 +141,66 @@
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.12);
     }
+    .trace-details {
+      margin-top: 4px;
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.04);
+      padding: 4px 6px;
+    }
+    .trace-details summary {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #cbd5f5;
+      font-size: 13px;
+      user-select: none;
+      padding: 2px 0;            /* summary 자체 패딩 추가(작게) */
+      line-height: 1.2;
+    }
+    .trace-details summary::-webkit-details-marker { display: none; }
+
+    .trace-details .spinner {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #93c5fd; /* 파란색 */
+      animation: spin 0.8s linear infinite;
+    }
+
+    .trace-details[open] summary {
+      margin-bottom: 2px;
+    }
+    
+
+    .trace-list {
+      margin: 2px 0 0;
+      padding-left: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .trace-item {
+      font-size: 12px;
+      color: rgba(255,255,255,0.85);
+      line-height: 1.25;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .trace-ts {
+      color: rgba(255,255,255,0.45);
+      margin-right: 6px;
+    }
   </style>
   <div class="chat-header">
     <div class="chat-title">Chat</div>
     <div class="chat-input-row">
-      <input class="chat-input" type="text" placeholder="Ask about what you see..." />
+      <textarea class="chat-input" rows="1" placeholder="Ask about what you see..."></textarea>
       <button class="chat-send">Send</button>
+      <button class="chat-clear">Clear Chat</button>
     </div>
     <div class="chat-status">ready</div>
   </div>
@@ -132,14 +214,17 @@
   const root = document.getElementById("{{CHAT_CONTAINER_ID}}");
   const inputEl = root.querySelector(".chat-input");
   const sendBtn = root.querySelector(".chat-send");
+  const clearBtn = root.querySelector(".chat-clear");
   const statusEl = root.querySelector(".chat-status");
   const listEl = root.querySelector(".scroller-content");
 
   const apiBase = "{{FASTAPI_PUBLIC_URL}}";
   const sessionId = "{{SESSION_ID}}";
   const userId = "{{USER_ID}}";
-  const storageKey = `chat_messages_${sessionId}`;
   const dashboardId = "{{DASHBOARD_ID}}";
+  const storageKey = dashboardId
+    ? `chat_messages_${dashboardId}`
+    : "chat_messages_default";
   const chartStorageKey = `chat_active_chart_${sessionId}`;
   const logStorageKey = dashboardId
     ? `superset-log-last-id-${dashboardId}`
@@ -175,18 +260,178 @@
   function renderMessages(messages) {
     listEl.innerHTML = "";
     const recent = messages.slice(-80);
+
     for (const msg of recent) {
       const role = msg.role === "user" ? "user" : "assistant";
       const icon = role === "user" ? "🧑" : "🤖";
-      const safe = escapeHtml(msg.content || "");
+
       const meta = document.createElement("div");
       meta.className = `meta ${role}`;
       meta.innerHTML = `<span class="avatar">${icon}</span>`;
+
       const bubble = document.createElement("div");
       bubble.className = `bubble ${role}`;
-      bubble.innerHTML = safe;
+
+      if (role === "assistant") {
+        const safeText = escapeHtml(msg.content || "");
+        const events = Array.isArray(msg.events) ? msg.events : [];
+        const isLoading = !!msg.is_loading;
+
+        let traceHtml = "";
+        if (events.length) {
+          const summaryLabel = isLoading
+            ? `Reasoning Trace (${events.length})`
+            : `Reasoning Trace (${events.length})`;
+
+          const items = events
+            .map((e) => {
+              const ts = e.ts ? `<span class="trace-ts">${escapeHtml(e.ts)}</span>` : "";
+              return `<li class="trace-item">${ts}${escapeHtml(e.text || "")}</li>`;
+            })
+            .join("");
+
+          traceHtml = `
+            <details class="trace-details" ${isLoading ? "open" : ""}>
+              <summary>
+                ${isLoading ? `<span class="spinner"></span>` : ""}
+                <span>${escapeHtml(summaryLabel)}</span>
+              </summary>
+              <ol class="trace-list">${items}</ol>
+            </details>
+          `;
+        } else if (isLoading) {
+          traceHtml = `
+            <details class="trace-details" open>
+              <summary>
+                <span class="spinner"></span>
+                <span>Running...</span>
+              </summary>
+            </details>
+          `;
+        }
+
+        bubble.innerHTML = `${safeText || ""}${traceHtml}`;
+      } else {
+        bubble.innerHTML = escapeHtml(msg.content || "");
+      }
+
       listEl.appendChild(meta);
       listEl.appendChild(bubble);
+    }
+  }
+
+  function toText(value) {
+    if (value == null) return "";
+    if (typeof value === "string") return value;
+    try { return JSON.stringify(value); } catch { return String(value); }
+  }
+
+  function nowTs() {
+    const d = new Date();
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  }
+
+  function appendEventToLastAssistant(messages, payload) {
+    // 마지막 assistant 메시지 찾아서 events에 쌓기
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "assistant") {
+        if (!Array.isArray(messages[i].events)) messages[i].events = [];
+        messages[i].events.push({ ts: nowTs(), text: formatEventMessage(payload) });
+        return;
+      }
+    }
+  }
+
+
+  async function clearMessages() {
+    localStorage.removeItem(storageKey);
+    renderMessages([]);
+    setStatus("cleared");
+    try {
+      const url = new URL(`${apiBase}/chat/dialogue`);
+      url.searchParams.set("session_id", sessionId);
+      await fetch(url.toString(), { method: "DELETE" });
+    } catch (err) {}
+    try {
+      await fetch(`${apiBase}/chat/context`, { method: "DELETE" });
+    } catch (err) {}
+  }
+
+  function truncate(value, maxLen) {
+    const text = toText(value);
+    if (text.length <= maxLen) return text;
+    return `${text.slice(0, maxLen)}...`;
+  }
+
+  function formatEventMessage(payload) {
+    const type = payload.event;
+    if (type === "tool_called") {
+      const args = payload.arguments ? truncate(payload.arguments, 120) : "";
+      return `calling tool ${payload.tool || "unknown"} ${args}`.trim();
+    }
+    if (type === "tool_output") {
+      return `tool output received ${truncate(payload.output, 120)}`.trim();
+    }
+    if (type === "reasoning") {
+      return "reasoning in progress...";
+    }
+    if (type === "error") {
+      return `error ${truncate(payload.message, 160)}`.trim();
+    }
+    if (type === "message") {
+      return "streaming response...";
+    }
+    if (type === "final") {
+      return "final answer ready";
+    }
+    return `event ${type}`;
+  }
+
+  async function fetchContextLabel() {
+    if (activeChartId && chartMap.has(String(activeChartId))) {
+      return `Using activated charts (${chartMap.get(String(activeChartId))})\n`;
+    }
+    if (activeChartName) {
+      return `Using activated charts (${activeChartName})\n`;
+    }
+    if (activeChartId) {
+      return `Using activated charts (id=${activeChartId})\n`;
+    }
+    if (dashboardId) {
+      try {
+        const res = await fetch(
+          `${apiBase}/superset/charts/active?dashboard_id=${encodeURIComponent(dashboardId)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.chart_name) {
+            return `Using activated charts (${data.chart_name})\n`;
+          }
+          if (data && data.slice_id) {
+            return `Using activated charts (id=${data.slice_id})\n`;
+          }
+        }
+      } catch (err) {}
+    }
+    try {
+      const url = new URL(`${apiBase}/chat/context/latest`);
+      const res = await fetch(url.toString());
+      if (!res.ok) return "";
+      const data = await res.json();
+      if (!data || !data.context) {
+        return "No context available yet.\n";
+      }
+      const chartId = data.context.chart_id;
+      if (!chartId) {
+        return "No context available yet.\n";
+      }
+      const chartName = chartMap.get(String(chartId));
+      if (chartName) {
+        return `Using activated charts (${chartName})\n`;
+      }
+      return `Using activated charts (id=${chartId})\n`;
+    } catch (err) {
+      return "No context available yet.\n";
     }
   }
 
@@ -251,13 +496,17 @@
 
     const messages = loadMessages();
     messages.push({ role: "user", content: text });
+    messages.push({ role: "assistant", content: "", events: [], is_loading: true });
     saveMessages(messages);
     renderMessages(messages);
 
     setStatus("sending...");
     try {
-      const history = messages.slice(0, -1);
-      const response = await fetch(`${apiBase}/chat`, {
+      const history = messages.slice(0, -2).map((msg) => ({
+        role: String(msg.role || "user"),
+        content: String(msg.content || ""),
+      }));
+      const response = await fetch(`${apiBase}/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -270,30 +519,59 @@
           debug: true,
         }),
       });
-      if (!response.ok) {
+      if (!response.ok || !response.body) {
         throw new Error(`HTTP ${response.status}`);
       }
-      const data = await response.json();
-      const answer = data.answer || "No answer.";
-      messages.push({ role: "assistant", content: answer });
-      saveMessages(messages);
-      renderMessages(messages);
-      setStatus("ready");
 
-      if (data.request_id) {
-        fetch(`${apiBase}/events`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            session_id: sessionId,
-            user_id: userId,
-            event_type: "chat_message",
-            payload: { request_id: data.request_id, message: text },
-          }),
-        }).catch(() => {});
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let lastAnswer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+        for (const part of parts) {
+          const lines = part.split("\n").filter(Boolean);
+          const dataLines = lines
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice(5).trim())
+            .join("");
+          if (!dataLines) continue;
+          try {
+            const payload = JSON.parse(dataLines);
+            if (payload.event) {
+              if (payload.event !== "message") {
+                appendEventToLastAssistant(messages, payload);
+                if (payload.event !== "reasoning") {
+                  saveMessages(messages);
+                }
+                renderMessages(messages);
+              }
+            }
+            if (payload.event === "message") {
+              lastAnswer = payload.text || "";
+              messages[messages.length - 1].content = lastAnswer;
+              saveMessages(messages);
+              renderMessages(messages);
+            } else if (payload.event === "final") {
+              lastAnswer = payload.answer || lastAnswer || "No answer.";
+              const prefix = await fetchContextLabel();
+              messages[messages.length - 1].content = `${prefix}${lastAnswer}`;
+              messages[messages.length - 1].is_loading = false;
+              saveMessages(messages);
+              renderMessages(messages);
+              setStatus("ready");
+            }
+          } catch (err) {}
+        }
       }
     } catch (err) {
-      messages.push({ role: "assistant", content: `FastAPI error: ${err}` });
+      messages[messages.length - 1].content = `FastAPI error: ${err}`;
+      messages[messages.length - 1].is_loading = false;
       saveMessages(messages);
       renderMessages(messages);
       setStatus("error");
@@ -301,8 +579,18 @@
   }
 
   sendBtn.addEventListener("click", sendMessage);
+  clearBtn.addEventListener("click", clearMessages);
+  function autoResizeInput() {
+    inputEl.style.height = "auto";
+    inputEl.style.height = `${Math.min(inputEl.scrollHeight, 240)}px`;
+  }
+
+  inputEl.addEventListener("input", autoResizeInput);
+  autoResizeInput();
+
   inputEl.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
+    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
       sendMessage();
     }
   });
