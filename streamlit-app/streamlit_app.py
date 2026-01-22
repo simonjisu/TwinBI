@@ -346,8 +346,7 @@ st.markdown("""
     }
     </style>
     """, unsafe_allow_html=True)
-st.title("BI-Twin")
-
+st.title("TwinBI 🐝")
 
 def get_dashboard_uuid_by_id(dashboard_id: str) -> str:
     if not dashboard_id:
