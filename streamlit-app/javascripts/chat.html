@@ -387,15 +387,29 @@
     return `event ${type}`;
   }
 
+  function formatChartLabel(chartId, chartName) {
+    if (chartId && chartName) {
+      return `id=${chartId}, name=${chartName}`;
+    }
+    if (chartName) {
+      return `name=${chartName}`;
+    }
+    if (chartId) {
+      return `id=${chartId}`;
+    }
+    return "";
+  }
+
   async function fetchContextLabel() {
     if (activeChartId && chartMap.has(String(activeChartId))) {
-      return `Using activated charts (${chartMap.get(String(activeChartId))})\n`;
+      const chartName = chartMap.get(String(activeChartId));
+      return `Using activated charts (${formatChartLabel(activeChartId, chartName)})\n`;
     }
     if (activeChartName) {
-      return `Using activated charts (${activeChartName})\n`;
+      return `Using activated charts (${formatChartLabel(activeChartId, activeChartName)})\n`;
     }
     if (activeChartId) {
-      return `Using activated charts (id=${activeChartId})\n`;
+      return `Using activated charts (${formatChartLabel(activeChartId, null)})\n`;
     }
     if (dashboardId) {
       try {
@@ -405,10 +419,10 @@
         if (res.ok) {
           const data = await res.json();
           if (data && data.chart_name) {
-            return `Using activated charts (${data.chart_name})\n`;
+            return `Using activated charts (${formatChartLabel(data.slice_id, data.chart_name)})\n`;
           }
           if (data && data.slice_id) {
-            return `Using activated charts (id=${data.slice_id})\n`;
+            return `Using activated charts (${formatChartLabel(data.slice_id, null)})\n`;
           }
         }
       } catch (err) {}
@@ -427,9 +441,9 @@
       }
       const chartName = chartMap.get(String(chartId));
       if (chartName) {
-        return `Using activated charts (${chartName})\n`;
+        return `Using activated charts (${formatChartLabel(chartId, chartName)})\n`;
       }
-      return `Using activated charts (id=${chartId})\n`;
+      return `Using activated charts (${formatChartLabel(chartId, null)})\n`;
     } catch (err) {
       return "No context available yet.\n";
     }

@@ -335,9 +335,8 @@ with st.sidebar:
         .replace("{{USER_ID}}", STREAMLIT_USER_ID)
         .replace("{{DASHBOARD_ID}}", dashboard_id_value)
     )
-    components.html(chat_html, height=600)
+    components.html(chat_html, height=830)
 
-    st.divider()
 
 # --- Main area: Dashboard ---
 st.markdown("""
@@ -522,7 +521,7 @@ with st.expander("Output", expanded=True):
         # see_context = context_controls[0].button("See Context", key="see_context_btn")
         # clear_context = context_controls[1].button("Clear Context", key="clear_context_btn")
         # if clear_context:
-        #     try:
+        #     try:st.divider()
         #         requests.delete(f"{FASTAPI_INTERNAL_URL}/chat/context", timeout=3)
         #         st.session_state["context_cleared_notice"] = True
         #     except Exception:
