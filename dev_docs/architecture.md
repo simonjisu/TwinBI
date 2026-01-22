@@ -931,3 +931,40 @@ References:
 - Superset event logging docs: https://superset.apache.org/docs/configuration/event-logging/
 - HomeToGo logging analysis: https://engineering.hometogo.com/monitor-superset-usage-via-superset-c7f9fba79525?gi=294843d271e9
 ```
+
+---
+
+## 12. Component Relationship Summary (Request/Response View)
+
+This section describes how the core components exchange requests and outputs.
+
+### 12.1 LLM Agent ↔ FastAPI (REST API server)
+- Request: Streamlit sends `POST /chat` or `POST /chat/stream` to FastAPI.
+- Processing: FastAPI builds context, then invokes the LLM agent runner.
+- Output: FastAPI returns the agent response (final answer or stream events).
+
+### 12.2 LLM Agent ↔ BI Tool (Superset)
+- Request: The agent calls tools like `get_active_chart_data`, which cause FastAPI
+  to call Superset `/api/v1/chart/data` using the latest log payload.
+- Output: Superset returns chart data/metadata, which FastAPI returns to the agent.
+
+### 12.3 LLM Agent ↔ Schema Explorer
+- Request: The agent calls schema tools (`get_facts`, `get_schema_info`,
+  `search_attribute`, `search_value_exists`).
+- Output: Schema Explorer returns fact tables, dimensions, and attribute metadata
+  from the local schema configuration.
+
+### 12.4 FastAPI ↔ Database (DuckDB)
+- Request: FastAPI writes chat logs, UI events, and Superset action logs.
+- Output: DuckDB persists unified logs; FastAPI reads them for context and
+  `/superset/logs/*` endpoints.
+
+### 12.5 Superset ↔ DuckDB (indirect via FastAPI)
+- Request: FastAPI poller queries Superset metadata DB for action logs.
+- Output: Action log rows are written into DuckDB for unified analysis.
+
+### 12.6 Cube ↔ DuckDB (analytics storage)
+- Request: Cube receives SQL/REST queries (from Superset or FastAPI) and executes
+  them against its internal DuckDB database (the Cube-managed warehouse).
+- Output: Cube returns query results to the caller; the underlying DuckDB stores
+  the analytics tables and is not queried directly by Superset or FastAPI.

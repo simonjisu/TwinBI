@@ -463,11 +463,27 @@ if function_tool:
 
 class AgentRunner:
     def __init__(self) -> None:
-        self._router_agent = self._build_agents()
+        self._router_agent = None
+        self._init_lock = asyncio.Lock()
+        self._init_error: Exception | None = None
+        self._initialized = False
 
     @property
     def available(self) -> bool:
         return self._router_agent is not None
+
+    async def startup(self) -> None:
+        if self._initialized:
+            return
+        async with self._init_lock:
+            if self._initialized:
+                return
+            try:
+                self._router_agent = self._build_agents()
+            except Exception as exc:  # pragma: no cover - defensive init guard
+                self._router_agent = None
+                self._init_error = exc
+            self._initialized = True
 
     def _build_agents(self) -> Any:
         if Agent is None or ModelSettings is None:
@@ -507,6 +523,7 @@ class AgentRunner:
                 "[SYSTEM DATE] December 31st, 2024. "
                 "You answer questions about the current dashboard and charts. "
                 "Use the provided chart context when available. "
+                "When user asking non-dashboard related questions, respond accordingly. "
                 "When an active chart is available, fetch the active chart data and "
                 "call `list_dashboard_charts` to see which charts will be helpful "
                 "Then use `get_chart_data_by_id` to fetch data "
@@ -531,6 +548,7 @@ class AgentRunner:
         context_obj: Any | None = None,
         debug: bool = False,
     ) -> tuple[str, list[dict[str, Any]]]:
+        await self.startup()
         if not self._router_agent:
             return (
                 "Agent not available. "
@@ -562,6 +580,7 @@ class AgentRunner:
         context_obj: Any | None = None,
         debug: bool = False,
     ) -> AsyncIterator[dict[str, Any]]:
+        await self.startup()
         if not self._router_agent:
             yield {"event": "error", "message": "agent_not_available"}
             return

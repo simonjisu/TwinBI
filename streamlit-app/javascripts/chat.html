@@ -433,11 +433,11 @@
       if (!res.ok) return "";
       const data = await res.json();
       if (!data || !data.context) {
-        return "No context available yet.\n";
+        return "";
       }
       const chartId = data.context.chart_id;
       if (!chartId) {
-        return "No context available yet.\n";
+        return "";
       }
       const chartName = chartMap.get(String(chartId));
       if (chartName) {
@@ -445,7 +445,7 @@
       }
       return `Using activated charts (${formatChartLabel(chartId, null)})\n`;
     } catch (err) {
-      return "No context available yet.\n";
+      return "";
     }
   }
 

@@ -96,6 +96,62 @@ def _fetch_latest_active_chart(
     conn: duckdb.DuckDBPyConnection,
     dashboard_id: int | None = None,
 ) -> dict[str, Any] | None:
+    def has_active_filters(payload: Any) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        form_data = payload.get("form_data") or payload.get("from_data") or {}
+        if not isinstance(form_data, dict):
+            return False
+        filters = form_data.get("filters")
+        if not isinstance(filters, list) or not filters:
+            return False
+        for entry in filters:
+            if not isinstance(entry, dict):
+                continue
+            val = entry.get("val")
+            if isinstance(val, str):
+                if val.strip() and val.strip().lower() != "no filter":
+                    return True
+                continue
+            if isinstance(val, list):
+                if any(
+                    isinstance(item, str) and item.strip() and item.strip().lower() != "no filter"
+                    for item in val
+                ):
+                    return True
+                continue
+            if val not in (None, "", []):
+                return True
+        return False
+
+    latest_row = conn.execute(
+        """
+        SELECT superset_log_id, dttm, action, dashboard_id, slice_id, json
+        FROM superset_action_logs
+        ORDER BY superset_log_id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    if latest_row:
+        latest_action = latest_row[2]
+        if latest_action == "DashboardRestApi.get":
+            return None
+        if latest_action in ("ChartDataRestApi.data", "ChartDataRestApi.json_dumps"):
+            payload_json = latest_row[5] or ""
+            try:
+                payload = json.loads(payload_json) if payload_json else {}
+            except json.JSONDecodeError:
+                payload = {}
+            if not has_active_filters(payload):
+                return None
+            return {
+                "superset_log_id": latest_row[0],
+                "dttm": latest_row[1].isoformat() if latest_row[1] else None,
+                "action": latest_row[2],
+                "dashboard_id": latest_row[3],
+                "slice_id": latest_row[4],
+            }
+
     filters = ["slice_id IS NOT NULL"]
     params: list[Any] = []
     if dashboard_id is not None:
@@ -785,6 +841,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
         data: list[dict[str, Any]] = []
         agent_runner = app.state.agent_runner
+        await agent_runner.startup()
         chart_context = None
         chart_context_obj = None
         debug_items: list[dict[str, Any]] = []
@@ -895,6 +952,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> StreamingResponse:
         request_id = uuid.uuid4().hex
         agent_runner = app.state.agent_runner
+        await agent_runner.startup()
         chart_context = None
         chart_context_obj = None
         conn = app.state.conn
