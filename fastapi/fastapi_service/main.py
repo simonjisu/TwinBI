@@ -8,30 +8,68 @@ import uuid
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
+from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Body, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from fastapi_service import db
 from fastapi_service.config import Settings, load_settings
 from fastapi_service.agent import AgentRunner, AgentContext
-from fastapi_service.models import ChatRequest, ChatResponse, EventRequest, StatusResponse
+from fastapi_service.models import (
+    ChatRequest,
+    ChatResponse,
+    EventRequest,
+    StatusResponse,
+)
 from fastapi_service.superset import (
     QueryTranslater,
     SupersetPoller,
     fetch_dashboard_charts,
     fetch_dataset_schema,
+    fetch_dataset_data,
     fetch_dashboard_layout,
     extract_tab_map,
     lookup_user_id,
     fetch_chart_data_from_log,
+    fetch_chart_detail,
+    fetch_chart_form_data,
+    fetch_chart_queries,
 )
 from fastapi_service.cube import fetch_cube_meta
 from fastapi_service.cube_conf import load_repo_schema
 from fastapi_service.writer import DuckDBWriter
 
 logger = logging.getLogger(__name__)
+_CHART_DESC_PATH = Path(__file__).resolve().parents[1] / "chart_desc.json"
+
+
+def _load_chart_descriptions(dashboard_id: int) -> dict[str, str]:
+    try:
+        payload = json.loads(_CHART_DESC_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    payload_dashboard_id = payload.get("dashboard_id")
+    if payload_dashboard_id is not None and int(payload_dashboard_id) != int(dashboard_id):
+        return {}
+    charts = payload.get("charts")
+    if not isinstance(charts, list):
+        return {}
+    desc_map: dict[str, str] = {}
+    for chart in charts:
+        if not isinstance(chart, dict):
+            continue
+        chart_id = chart.get("chart_id")
+        description = chart.get("description")
+        if chart_id is None or not description:
+            continue
+        desc_map[str(chart_id)] = str(description)
+    return desc_map
 
 
 
@@ -553,6 +591,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from exc
         return schema
 
+    @app.post("/superset/datasets/{dataset_id}/query")
+    def superset_dataset_query(
+        dataset_id: int, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        settings = app.state.settings
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        try:
+            return fetch_dataset_data(
+                settings,
+                dataset_id,
+                payload,
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+
     @app.get("/cube/meta")
     def cube_meta() -> dict[str, Any]:
         settings = app.state.settings
@@ -711,6 +776,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=502,
                 detail=f"Superset API error: {exc}",
             ) from exc
+        desc_map = _load_chart_descriptions(dashboard_id)
+        if desc_map:
+            for chart in charts:
+                chart_id = chart.get("chart_id") or chart.get("slice_id")
+                description = desc_map.get(str(chart_id)) if chart_id is not None else None
+                chart["description"] = description
+        else:
+            for chart in charts:
+                chart["description"] = None
         return {"dashboard_id": dashboard_id, "charts": charts}
 
     @app.get("/superset/dashboards/{dashboard_id}/tab-map")
@@ -793,6 +867,83 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not log:
             raise HTTPException(status_code=404, detail="chart log not found")
         return {"chart_id": chart_id, "log": _summarize_chart_log(log)}
+
+    @app.get("/superset/charts/{chart_id}/detail")
+    def superset_chart_detail(chart_id: int) -> dict[str, Any]:
+        settings = app.state.settings
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        try:
+            return fetch_chart_detail(settings, chart_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+
+    @app.get("/superset/charts/{chart_id}/form-data")
+    def superset_chart_form_data(chart_id: int) -> dict[str, Any]:
+        settings = app.state.settings
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        try:
+            return fetch_chart_form_data(settings, chart_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+
+    @app.get("/superset/charts/{chart_id}/queries")
+    def superset_chart_queries(chart_id: int) -> dict[str, Any]:
+        settings = app.state.settings
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        try:
+            result = fetch_chart_queries(settings, chart_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+        if result.get("queries") is None:
+            log = _fetch_latest_chart_log(app.state.conn, chart_id)
+            payload = log.get("payload") if isinstance(log, dict) else None
+            if isinstance(payload, dict):
+                result["queries"] = payload.get("queries")
+                if result.get("form_data") is None:
+                    result["form_data"] = payload.get("form_data")
+        return result
 
     @app.get("/superset/charts/active")
     def superset_active_chart(
@@ -900,12 +1051,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 settings=app.state.settings,
                 conn=conn,
             )
-        answer, agent_debug_items = await agent_runner.respond(
+        answer, agent_debug_items, raw_output = await agent_runner.respond(
             payload.message,
             payload.history or [],
             context=chart_context,
             context_obj=chart_context_obj,
-            debug=payload.debug,
+            debug=True,
         )
         if payload.debug and agent_debug_items:
             debug_items.extend(agent_debug_items)
@@ -933,6 +1084,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             user_id=payload.user_id,
             message=payload.message,
             response=answer,
+            response_raw=raw_output,
+            response_events=_extract_response_events(agent_debug_items),
             latency_ms=latency_ms,
         )
         await writer.enqueue_streamlit_chat_log(chat_payload)
@@ -1000,6 +1153,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         async def event_generator() -> Any:
             final_answer = None
+            final_raw = None
+            response_events: list[dict[str, Any]] = []
             async for event in agent_runner.respond_stream(
                 payload.message,
                 payload.history or [],
@@ -1009,6 +1164,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ):
                 if event.get("event") == "final":
                     final_answer = event.get("answer")
+                    final_raw = event.get("raw")
+                if event.get("event") in ("tool_called", "tool_output"):
+                    response_events.append(event)
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
             if final_answer is None:
@@ -1020,6 +1178,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 user_id=payload.user_id,
                 message=payload.message,
                 response=final_answer,
+                response_raw=final_raw,
+                response_events=response_events,
                 latency_ms=0,
             )
             await writer.enqueue_streamlit_chat_log(chat_payload)
@@ -1065,7 +1225,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         conn = app.state.conn
         rows = conn.execute(
             """
-            SELECT ts, user_id, message, response
+            SELECT ts, user_id, message, response, response_raw, response_events
             FROM streamlit_chat_logs
             WHERE session_id = ?
             ORDER BY ts DESC
@@ -1074,7 +1234,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             [session_id, limit],
         ).fetchall()
         dialogue = []
-        for ts, user_id, message, response in rows:
+        for ts, user_id, message, response, response_raw, response_events in rows:
             if message:
                 dialogue.append(
                     {
@@ -1084,16 +1244,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         "user_id": user_id,
                     }
                 )
+            if response_events:
+                try:
+                    events = json.loads(response_events)
+                except json.JSONDecodeError:
+                    events = []
+                if isinstance(events, list):
+                    for event in events:
+                        dialogue.append(
+                            {
+                                "role": "assistant",
+                                "type": "event",
+                                "event": event,
+                                "content": "",
+                                "ts": ts.isoformat() if ts else None,
+                                "user_id": user_id,
+                            }
+                        )
             if response:
-                dialogue.append(
-                    {
-                        "role": "assistant",
-                        "content": response,
-                        "ts": ts.isoformat() if ts else None,
-                        "user_id": user_id,
-                    }
-                )
+                item = {
+                    "role": "assistant",
+                    "content": response,
+                    "ts": ts.isoformat() if ts else None,
+                    "user_id": user_id,
+                }
+                if response_raw:
+                    item["content_raw"] = response_raw
+                dialogue.append(item)
         return {"session_id": session_id, "dialogue": dialogue}
+
+    def _extract_response_events(
+        items: list[dict[str, Any]] | None,
+    ) -> list[dict[str, Any]]:
+        if not items:
+            return []
+        response_events = []
+        for item in items:
+            item_type = item.get("type")
+            if item_type in ("tool_call_item", "tool_call_output_item"):
+                response_events.append(item)
+        return response_events
 
     @app.delete("/chat/dialogue")
     def clear_chat_dialogue(

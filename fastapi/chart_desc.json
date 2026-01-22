@@ -1,0 +1,45 @@
+{
+  "dashboard_id": 12,
+  "charts": [
+    {
+      "chart_id": 702,
+      "description": "Active Stores by Quarter"
+    },
+    {
+      "chart_id": 703,
+      "description": "Coverage-Growth quadrant by department"
+    },
+    {
+      "chart_id": 704,
+      "description": "Average Daily Sales by State"
+    },
+    {
+      "chart_id": 705,
+      "description": "Unit price distribution"
+    },
+    {
+      "chart_id": 706,
+      "description": "Type vs. brand value map"
+    },
+    {
+      "chart_id": 707,
+      "description": "Top categories by revenue share"
+    },
+    {
+      "chart_id": 660,
+      "description": "Units sold by quarter"
+    },
+    {
+      "chart_id": 661,
+      "description": "Department QoQ Growth. The sum of previous_units means the total units sold in the previous quarter."
+    },
+    {
+      "chart_id": 662,
+      "description": "Category Scatter (Growth vs. Scale). Scale means the total units sold."
+    },
+    {
+      "chart_id": 663,
+      "description": "Average QoQ growth"
+    }
+  ]
+}

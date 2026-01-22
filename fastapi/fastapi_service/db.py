@@ -45,10 +45,20 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
             user_id VARCHAR,
             message VARCHAR,
             response VARCHAR,
+            response_raw VARCHAR,
+            response_events VARCHAR,
             latency_ms BIGINT
         )
         """
     )
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN response_raw VARCHAR")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN response_events VARCHAR")
+    except duckdb.CatalogException:
+        pass
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS superset_action_logs (
@@ -129,9 +139,9 @@ def insert_streamlit_chat_log(
     conn.execute(
         """
         INSERT INTO streamlit_chat_logs (
-            ts, session_id, request_id, user_id, message, response, latency_ms
+            ts, session_id, request_id, user_id, message, response, response_raw, response_events, latency_ms
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             payload["ts"],
@@ -140,6 +150,8 @@ def insert_streamlit_chat_log(
             payload.get("user_id"),
             payload.get("message"),
             payload.get("response"),
+            payload.get("response_raw"),
+            payload.get("response_events"),
             payload.get("latency_ms"),
         ],
     )

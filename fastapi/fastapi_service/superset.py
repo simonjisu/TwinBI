@@ -661,6 +661,56 @@ def fetch_dataset_schema(settings: Settings, dataset_id: int) -> dict[str, Any]:
     }
 
 
+def fetch_dataset_data(
+    settings: Settings,
+    dataset_id: int,
+    query: dict[str, Any],
+) -> dict[str, Any]:
+    session = _api_session_with_bearer(settings)
+    base_url = _get_base_url(settings)
+    _ensure_csrf(session, base_url)
+
+    request_body = dict(query or {})
+    datasource = request_body.get("datasource")
+    if not datasource:
+        request_body["datasource"] = {"id": dataset_id, "type": "table"}
+    elif isinstance(datasource, dict):
+        datasource = dict(datasource)
+        datasource.setdefault("id", dataset_id)
+        datasource.setdefault("type", "table")
+        request_body["datasource"] = datasource
+
+    if not request_body.get("queries"):
+        request_body["queries"] = [
+            {
+                "columns": request_body.get("columns") or [],
+                "metrics": request_body.get("metrics") or [],
+                "filters": request_body.get("filters") or [],
+                "orderby": request_body.get("orderby") or [],
+                "row_limit": request_body.get("row_limit"),
+                "extras": request_body.get("extras") or {},
+            }
+        ]
+
+    request_body.setdefault("result_format", "json")
+    request_body.setdefault("result_type", "full")
+
+    response = session.post(
+        f"{base_url}/api/v1/chart/data",
+        json=request_body,
+        timeout=60,
+    )
+    if response.status_code >= 400:
+        raise RuntimeError(
+            f"Superset chart data error {response.status_code}: {response.text}"
+        )
+    payload = response.json()
+    data = []
+    for item in payload.get("result", []):
+        data.append(item.get("data"))
+    return {"data": data, "raw": payload}
+
+
 def fetch_dashboard_layout(settings: Settings, dashboard_id: int) -> dict[str, Any]:
     session = _api_session_with_bearer(settings)
     base_url = _get_base_url(settings)
@@ -1021,6 +1071,62 @@ def _fetch_chart_detail(
     return payload if isinstance(payload, dict) else None
 
 
+def fetch_chart_detail(settings: Settings, chart_id: int) -> dict[str, Any]:
+    session = _api_session_with_bearer(settings)
+    base_url = _get_base_url(settings)
+    detail = _fetch_chart_detail(session, base_url, chart_id)
+    if not detail:
+        raise LookupError(f"chart {chart_id} not found")
+    return {
+        "chart_id": chart_id,
+        "datasource_id": detail.get("datasource_id"),
+        "datasource_type": detail.get("datasource_type"),
+        "name": detail.get("slice_name") or detail.get("name"),
+    }
+
+
+def fetch_chart_form_data(settings: Settings, chart_id: int) -> dict[str, Any]:
+    session = _api_session_with_bearer(settings)
+    base_url = _get_base_url(settings)
+    detail = _fetch_chart_detail(session, base_url, chart_id)
+    if not detail:
+        raise LookupError(f"chart {chart_id} not found")
+    form_data = detail.get("form_data")
+    if form_data is None:
+        params = detail.get("params")
+        if isinstance(params, str) and params:
+            try:
+                form_data = json.loads(params)
+            except json.JSONDecodeError:
+                form_data = None
+    return {"chart_id": chart_id, "form_data": form_data}
+
+
+def fetch_chart_queries(settings: Settings, chart_id: int) -> dict[str, Any]:
+    session = _api_session_with_bearer(settings)
+    base_url = _get_base_url(settings)
+    detail = _fetch_chart_detail(session, base_url, chart_id)
+    if not detail:
+        raise LookupError(f"chart {chart_id} not found")
+    queries = None
+    form_data = detail.get("form_data")
+    if form_data is None:
+        params = detail.get("params")
+        if isinstance(params, str) and params:
+            try:
+                form_data = json.loads(params)
+            except json.JSONDecodeError:
+                form_data = None
+    if isinstance(form_data, dict):
+        if isinstance(form_data.get("queries"), list):
+            queries = form_data.get("queries")
+    query_context = detail.get("query_context")
+    if queries is None and isinstance(query_context, dict):
+        if isinstance(query_context.get("queries"), list):
+            queries = query_context.get("queries")
+    return {"chart_id": chart_id, "queries": queries, "form_data": form_data}
+
+
 def _extract_chart_form_data(chart_detail: dict[str, Any]) -> dict[str, Any]:
     form_data = chart_detail.get("form_data")
     if isinstance(form_data, dict):
@@ -1151,4 +1257,17 @@ def fetch_dashboard_charts(settings: Settings, dashboard_id: int) -> list[dict[s
         charts = _expand_chart_ids(session, base_url, chart_ids)
     if isinstance(charts, dict) and isinstance(charts.get("result"), list):
         charts = charts["result"]
-    return _normalize_charts(charts or [])
+    normalized = _normalize_charts(charts or [])
+    for chart in normalized:
+        if chart.get("datasource_id") and chart.get("datasource_type"):
+            continue
+        chart_id = chart.get("slice_id") or chart.get("chart_id")
+        if not chart_id:
+            continue
+        detail = _fetch_chart_detail(session, base_url, int(chart_id))
+        if not detail:
+            continue
+        chart["datasource_id"] = detail.get("datasource_id")
+        chart["datasource_type"] = detail.get("datasource_type")
+        chart["name"] = chart.get("name") or detail.get("slice_name") or detail.get("name")
+    return normalized

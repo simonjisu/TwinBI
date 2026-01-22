@@ -13,6 +13,10 @@ from pydantic import BaseModel, Field
 from fastapi_service.superset import (
     fetch_chart_data_from_log,
     fetch_dashboard_charts,
+    fetch_dataset_data,
+    fetch_dataset_schema,
+    fetch_chart_form_data,
+    fetch_chart_queries,
 )
 from fastapi_service.cube import fetch_cube_meta, run_cube_query
 from fastapi_service.cube_conf import load_repo_schema
@@ -20,6 +24,237 @@ from fastapi_service.cube_conf import load_repo_schema
 # proj_path = Path(__file__).resolve().parent.parent
 # sys.path.append(str(proj_path))
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_DOCS_ROOT = _PROJECT_ROOT / "fastapi" / "docs"
+_DOC_FALLBACKS: dict[str, str] = {
+    "dashboard_tools.md": """Dashboard Agent Tools
+
+Overview
+These tools help the agent inspect Superset dashboards and charts and fetch
+data for the active chart. Use them when a user asks about the current dashboard,
+available charts, or chart results.
+
+Tools
+- get_active_chart_log
+  Returns the latest Superset log payload for the active chart from DuckDB.
+  Output: {"chart_id": int, "payload": dict | null} or {"error": "..."}
+
+- get_active_chart_data
+  Fetches chart data using the latest log payload for the active chart.
+  Output: {"chart_id": int, "data": dict} or {"error": "..."}
+
+- get_chart_sql
+  Returns the latest SQL/query for the active chart from DuckDB logs.
+  Output: {"chart_id": int, "sql": str | null} or {"error": "..."}
+
+- get_chart_metadata
+  Fetches chart metadata for the active chart via Superset API.
+  Output: {"chart_id": int, "metadata": dict | null} or {"error": "..."}
+
+- list_dashboard_charts
+  Lists charts for the configured or most recent dashboard.
+  Output: {"dashboard_id": int, "charts": [..]} or {"error": "..."}
+
+- get_superset_dataset_schema
+  Returns Superset dataset schema metadata for a dataset id.
+  Input: dataset_id (int)
+  Output: {"id": int, "table_name": str, "schema": str | null, "columns": [..]} or {"error": "..."}
+
+- query_superset_dataset
+  Queries Superset dataset data with filters via /api/v1/chart/data.
+  Input: dataset_id (int), query_json (str; JSON object)
+  Output: {"data": [...], "raw": {...}} or {"error": "..."}
+
+- get_chart_data_by_id
+  Fetches chart data for a specific chart id using the latest log payload.
+  Input: chart_id (int)
+  Output: {"chart_id": int, "data": dict} or {"error": "..."}
+
+- get_chart_form_data
+  Returns chart form_data (parsed from chart params when needed).
+  Input: chart_id (int)
+  Output: {"chart_id": int, "form_data": dict | null} or {"error": "..."}
+
+Documentation tools
+- read_dashboard_tools_doc
+  Loads this dashboard tools document.
+- read_schema_explorer_doc
+  Loads the schema explorer tools document.
+- read_cube_tools_doc
+  Loads the Cube tools document.
+
+Typical usage patterns
+- "What charts are on this dashboard?" -> list_dashboard_charts
+- "What is this chart based on?" -> get_chart_sql or get_chart_metadata
+- "Show the data behind this chart" -> get_active_chart_data
+- "Query a dataset with filters" -> query_superset_dataset(query_json)
+
+Notes
+- These tools require Superset credentials and DuckDB logs configured in FastAPI.
+- If there is no active chart context, use list_dashboard_charts and then
+  get_chart_data_by_id as needed.
+- list_dashboard_charts returns datasource_id and datasource_type; datasource_id
+  is the Superset dataset id and can be used with get_superset_dataset_schema
+  and query_superset_dataset.
+- Hint: if you need the chart's query structure (columns/metrics/filters) before
+  issuing a dataset query, call get_chart_form_data and reuse its form_data to
+  build the query payload.
+
+Superset dataset query flow (recommended)
+1) list_dashboard_charts -> find chart_id and datasource_id (dataset id)
+2) get_chart_form_data(chart_id) -> read form_data (columns/metrics/filters)
+3) query_superset_dataset(dataset_id, query_json) -> send ChartDataRestApi.data payload
+
+Example query_json (extras.where with CAST)
+```json
+{
+  "datasource": {
+    "id": 28,
+    "type": "table"
+  },
+  "queries": [
+    {
+      "columns": ["dim_product_department"],
+      "metrics": [
+        {
+          "aggregate": "SUM",
+          "column": { "column_name": "previous_units" },
+          "label": "SUM(previous_units)"
+        },
+        {
+          "aggregate": "SUM",
+          "column": { "column_name": "total_units_sold" },
+          "label": "SUM(total_units_sold)"
+        },
+        {
+          "aggregate": "MAX",
+          "column": { "column_name": "qoq_growth_rate" },
+          "label": "MAX(qoq_growth_rate)"
+        }
+      ],
+      "filters": [],
+      "extras": {
+        "where": "dim_date_quarter_start >= CAST('2024-07-01 00:00:00' AS TIMESTAMP)",
+        "having": ""
+      },
+      "orderby": [],
+      "row_limit": 10000
+    }
+  ],
+  "result_format": "json",
+  "result_type": "full"
+}
+```
+
+Superset dataset query input schema (query_json)
+```json
+{
+  "columns": [
+    "string"
+  ],
+  "metrics": [
+    "string"
+  ],
+  "filters": [
+    {
+      "additionalProp1": {}
+    }
+  ],
+  "orderby": [
+    "string"
+  ],
+  "row_limit": 0,
+  "extras": {
+    "additionalProp1": {}
+  },
+  "result_format": "table",
+  "result_type": "full",
+  "queries": [
+    {
+      "additionalProp1": {}
+    }
+  ]
+}
+```
+""",
+    "schema_explorer.md": """Schema Explorer Tools
+
+Overview
+These tools expose the SchemaExplorer graph for the star schema. Use them when
+the user asks about fact tables, dimensions, measures, attributes, or whether
+an attribute value exists.
+
+Tools
+- get_facts
+  Returns the list of fact tables.
+  Output: ["fact_sales", ...] or {"error": "..."}
+
+- get_schema_info
+  Returns schema nodes for a fact table.
+  Input: fact_table (str)
+  Output: list of nodes with:
+  - name, type ("fact" or "dimension")
+  - attributes (for dimensions)
+  - measures and fks (for the fact table)
+
+- search_attribute
+  Searches hierarchy paths that lead to the attribute.
+  Input: fact_table (str), attribute_name (str)
+  Output: list of results with:
+  - dimension, attribute
+  - path: steps from dimension to attribute
+  - stats: count, distinct_count, min/max, dtype, unique_values metadata
+
+- search_value_exists
+  Checks whether an attribute value exists.
+  Input: fact_table (str), attribute_name (str), value (str)
+  Output: true/false or {"error": "..."}
+
+Typical usage patterns
+- "What fact tables exist?" -> get_facts
+- "What dimensions are in fact_sales?" -> get_schema_info("fact_sales")
+- "Where is the year attribute?" -> search_attribute("fact_sales", "year")
+- "Does year=2024 exist?" -> search_value_exists("fact_sales", "year", "2024")
+
+Notes
+- The explorer is configured to use the star schema under ./data/sales.
+- Attribute lookup is case-insensitive for labels; use short attribute names.
+""",
+    "cube_tools.md": """Cube Tools
+
+Overview
+These tools use Cube's REST API and repository config to list cubes/views,
+inspect schema, and query data. Use them when the user asks for data directly
+from Cube or needs Cube member names.
+
+Tools
+- list_cube_tables
+  Lists cubes and views from Cube config (preferred) and Cube meta.
+  Output: [{"name": "...", "type": "cube|view"}] or {"error": "..."}
+
+- get_cube_schema
+  Returns schema for a cube or view.
+  Input: table_name (str)
+  Output (config-based): {"name": "...", "type": "cube|view", "columns": [...], "sql_table": "...", "joined": {...}}
+  Output (meta-based cube): {"name": "...", "type": "cube", "measures": [...], "dimensions": [...], "segments": [...]}
+
+- query_cube
+  Executes a Cube query via /cubejs-api/v1/load.
+  Input: query_json (str) - JSON string for a Cube query object or list.
+  Output: raw Cube response payload or {"error": "..."}
+
+Example query_json
+{"measures":["sales.total_sales"],"dimensions":["sales.brand"],"limit":10}
+
+Typical usage patterns
+- "What cubes/views are available?" -> list_cube_tables
+- "What fields exist in sales?" -> get_cube_schema("sales")
+- "Run a Cube query for total sales by brand" -> query_cube(query_json)
+
+Notes
+- Requires CUBE_REST_URL for live queries and CUBE_CONF_PATH for repo schema.
+- The query_json must be valid JSON.
+""",
+}
 _SRC_ROOT = _PROJECT_ROOT / "src"
 if _SRC_ROOT.exists():
     sys.path.insert(0, str(_SRC_ROOT))
@@ -76,9 +311,27 @@ def _get_active_settings() -> tuple[Any | None, dict[str, Any] | None]:
 
 
 def _read_doc_file(path: Path) -> str | dict[str, Any]:
+    if not path.is_absolute() and not path.exists():
+        fallback_paths = [
+            _DOCS_ROOT / path.name,
+            _PROJECT_ROOT / "docs" / path.name,
+            _PROJECT_ROOT / "fastapi_service" / "docs" / path.name,
+            _PROJECT_ROOT.parent / path,
+        ]
+        for base in (Path(__file__).resolve(), Path.cwd()):
+            for parent in [base, *base.parents]:
+                fallback_paths.append(parent / "fastapi" / "docs" / path.name)
+                fallback_paths.append(parent / "docs" / path.name)
+        for candidate in fallback_paths:
+            if candidate.exists():
+                path = candidate
+                break
     try:
         return path.read_text(encoding="utf-8")
     except FileNotFoundError:
+        fallback = _DOC_FALLBACKS.get(path.name)
+        if fallback:
+            return fallback
         return {"error": f"doc not found: {path}"}
     except Exception as exc:
         return {"error": f"failed to read doc: {exc}"}
@@ -306,6 +559,93 @@ if function_tool:
         return _read_doc_file(Path("fastapi/docs/cube_tools.md"))
 
     @function_tool
+    def get_chart_form_data(chart_id: int) -> dict[str, Any]:
+        """
+        Return Superset chart form_data (parsed from chart params when needed).
+
+        Input:
+        - chart_id: Superset slice id (chart id).
+
+        Output:
+        - {"chart_id": int, "form_data": dict | null}
+        - {"error": "..."} on missing settings or Superset API issues.
+        """
+        settings, error = _get_active_settings()
+        if error:
+            return error
+        try:
+            return fetch_chart_form_data(settings, chart_id)
+        except Exception as exc:
+            return {"error": f"superset chart form_data fetch failed: {exc}"}
+
+    @function_tool
+    def get_chart_queries(chart_id: int) -> dict[str, Any]:
+        """
+        Return Superset chart query_context queries for a chart id.
+
+        Input:
+        - chart_id: Superset slice id (chart id).
+
+        Output:
+        - {"chart_id": int, "queries": list | null, "form_data": dict | null}
+        - {"error": "..."} on missing settings or Superset API issues.
+        """
+        settings, error = _get_active_settings()
+        if error:
+            return error
+        try:
+            return fetch_chart_queries(settings, chart_id)
+        except Exception as exc:
+            return {"error": f"superset chart queries fetch failed: {exc}"}
+
+    @function_tool
+    def get_superset_dataset_schema(dataset_id: int) -> dict[str, Any]:
+        """
+        Return Superset dataset schema metadata for a dataset id.
+
+        Output:
+        - {"id": int, "table_name": str, "schema": str | null, "columns": [..]}
+        - {"error": "..."} on missing settings or Superset API issues.
+        """
+        settings, error = _get_active_settings()
+        if error:
+            return error
+        try:
+            return fetch_dataset_schema(settings, dataset_id)
+        except Exception as exc:
+            return {"error": f"superset dataset schema fetch failed: {exc}"}
+
+    @function_tool
+    def query_superset_dataset(
+        dataset_id: int,
+        query_json: str,
+    ) -> dict[str, Any]:
+        """
+        Query Superset dataset data with filters via /api/v1/chart/data.
+
+        Input:
+        - dataset_id: Superset dataset id.
+        - query_json: JSON string like {"columns": [...], "metrics": [...], "filters": [...], "row_limit": 1000, ...}
+
+        Output:
+        - {"data": [...], "raw": {...}}
+        - {"error": "..."} on missing settings or Superset API issues.
+        """
+        settings, error = _get_active_settings()
+        if error:
+            return error
+        try:
+            query = json.loads(query_json)
+        except json.JSONDecodeError as exc:
+            return {"error": f"query_json is not valid JSON: {exc}"}
+        if not isinstance(query, dict):
+            return {"error": "query_json must be a JSON object"}
+        try:
+            return fetch_dataset_data(settings, dataset_id, query)
+        except Exception as exc:
+            return {"error": f"superset dataset query failed: {exc}"}
+
+    @function_tool
     def list_cube_tables() -> list[dict[str, Any]] | dict[str, Any]:
         """
         List cubes and views available from Cube configuration or meta.
@@ -467,6 +807,7 @@ class AgentRunner:
         self._init_lock = asyncio.Lock()
         self._init_error: Exception | None = None
         self._initialized = False
+        self._dashboard_tools_doc: str | None = None
 
     @property
     def available(self) -> bool:
@@ -480,6 +821,7 @@ class AgentRunner:
                 return
             try:
                 self._router_agent = self._build_agents()
+                self._dashboard_tools_doc = self._load_dashboard_tools_doc()
             except Exception as exc:  # pragma: no cover - defensive init guard
                 self._router_agent = None
                 self._init_error = exc
@@ -508,6 +850,9 @@ class AgentRunner:
                 read_dashboard_tools_doc,
                 read_schema_explorer_doc,
                 read_cube_tools_doc,
+                get_chart_queries,
+                get_superset_dataset_schema,
+                query_superset_dataset,
                 list_cube_tables,
                 get_cube_schema,
                 query_cube,
@@ -535,7 +880,12 @@ class AgentRunner:
                 "a natural-language request to schema fields. "
                 "Use the Cube tools to list cubes/views, inspect Cube schema, or "
                 "run Cube queries when the user asks for data directly from Cube. "
-                "You may read documentation via tools; "
+                "When querying Superset datasets, first call get_chart_queries "
+                "to obtain queries/form_data for the chart, then use "
+                "query_superset_dataset with the appropriate filters. "
+                "Before using specialized tools, read the relevant documentation "
+                "via read_dashboard_tools_doc, read_schema_explorer_doc, or "
+                "read_cube_tools_doc to confirm input/output expectations at least once. "
                 "Return a JSON object with an 'answer' field containing the response."
             ),
         )
@@ -547,15 +897,15 @@ class AgentRunner:
         context: str | None = None,
         context_obj: Any | None = None,
         debug: bool = False,
-    ) -> tuple[str, list[dict[str, Any]]]:
+    ) -> tuple[str, list[dict[str, Any]], str | None]:
         await self.startup()
         if not self._router_agent:
             return (
                 "Agent not available. "
                 "Install the OpenAI agents package and set OPENAI_API_KEY."
-            ), [{"type": "error", "message": "agent_not_available"}] if debug else []
+            ), [{"type": "error", "message": "agent_not_available"}] if debug else [], None
 
-        prompt = self._format_prompt(message, history, context=context)
+        prompt = self._format_prompt(message, history, context=self._inject_docs(context))
         debug_items: list[dict[str, Any]] = []
         try:
             global _ACTIVE_CONTEXT
@@ -564,13 +914,14 @@ class AgentRunner:
         except Exception as exc:
             if debug:
                 debug_items.append({"type": "error", "message": str(exc)})
-            return "Agent call failed. Check API credentials and logs.", debug_items
+            return "Agent call failed. Check API credentials and logs.", debug_items, None
         finally:
             _ACTIVE_CONTEXT = None
         answer = self._extract_answer(result)
+        raw_output = self._extract_raw_output(result)
         if debug:
             debug_items.extend(self._extract_debug_items(result))
-        return answer, debug_items
+        return answer, debug_items, raw_output
 
     async def respond_stream(
         self,
@@ -585,7 +936,7 @@ class AgentRunner:
             yield {"event": "error", "message": "agent_not_available"}
             return
 
-        prompt = self._format_prompt(message, history, context=context)
+        prompt = self._format_prompt(message, history, context=self._inject_docs(context))
         last_text = ""
         try:
             global _ACTIVE_CONTEXT
@@ -627,8 +978,9 @@ class AgentRunner:
             _ACTIVE_CONTEXT = None
 
         final_text = getattr(stream, "final_output", None) or last_text
-        answer = self._parse_json_answer(final_text) if isinstance(final_text, str) else str(final_text)
-        yield {"event": "final", "answer": answer}
+        raw_text = final_text if isinstance(final_text, str) else str(final_text)
+        answer = self._parse_json_answer(raw_text)
+        yield {"event": "final", "answer": answer, "raw": raw_text}
 
     def _format_prompt(
         self,
@@ -652,6 +1004,20 @@ class AgentRunner:
         ):
             lines.append(f"user: {message}")
         return "\n".join(lines)
+
+    def _load_dashboard_tools_doc(self) -> str | None:
+        doc = _read_doc_file(Path("fastapi/docs/dashboard_tools.md"))
+        if isinstance(doc, str):
+            return doc
+        return None
+
+    def _inject_docs(self, context: str | None) -> str | None:
+        if not self._dashboard_tools_doc:
+            return context
+        prefix = f"[DOC] dashboard_tools.md\n{self._dashboard_tools_doc}\n"
+        if context:
+            return prefix + context
+        return prefix
 
     async def _run_agent(self, agent: Any, prompt: str, context_obj: Any | None) -> Any:
         if Runner is None:
@@ -692,6 +1058,20 @@ class AgentRunner:
             if isinstance(answer, str) and answer.strip():
                 return answer
         return text
+
+    def _extract_raw_output(self, result: Any) -> str | None:
+        if isinstance(result, str):
+            return result
+        for attr in ("final_output", "output_text", "output"):
+            value = getattr(result, attr, None)
+            if isinstance(value, str) and value.strip():
+                return value
+        if isinstance(result, dict):
+            try:
+                return json.dumps(result)
+            except TypeError:
+                return str(result)
+        return str(result) if result is not None else None
 
     def _extract_debug_items(self, result: Any) -> list[dict[str, Any]]:
         items = []

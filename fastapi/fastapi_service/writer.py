@@ -99,6 +99,8 @@ class DuckDBWriter:
         user_id: str | None,
         message: str,
         response: str,
+        response_raw: str | None = None,
+        response_events: list[dict[str, Any]] | None = None,
         latency_ms: int,
     ) -> dict[str, Any]:
         return {
@@ -108,6 +110,10 @@ class DuckDBWriter:
             "user_id": user_id,
             "message": message,
             "response": response,
+            "response_raw": response_raw,
+            "response_events": json.dumps(response_events, ensure_ascii=False)
+            if response_events
+            else None,
             "latency_ms": latency_ms,
         }
 

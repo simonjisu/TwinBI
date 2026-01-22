@@ -377,11 +377,11 @@ with st.sidebar:
     )
     DASHBOARD_UUID = get_dashboard_uuid_by_id(DASHBOARD_ID) if DASHBOARD_ID else ""
     EMBED_UUID = get_embed_uuid_by_dashboard_id(DASHBOARD_ID) if DASHBOARD_ID else ""
-    st.write("USERNAME:", SUPERSET_USERNAME)
-    st.write("PASSWORD:", SUPERSET_PASSWORD)
-    st.write("DASHBOARD_ID:", DASHBOARD_ID)
-    st.write("DASHBOARD_UUID:", DASHBOARD_UUID)
-    st.write("EMBED_UUID:", EMBED_UUID)
+    # st.write("USERNAME:", SUPERSET_USERNAME)
+    # st.write("PASSWORD:", SUPERSET_PASSWORD)
+    # st.write("DASHBOARD_ID:", DASHBOARD_ID)
+    # st.write("DASHBOARD_UUID:", DASHBOARD_UUID)
+    # st.write("EMBED_UUID:", EMBED_UUID)
     st.write("SESSION_ID:", st.session_state.get("session_id"))
     st.write("--------------------------------")
     

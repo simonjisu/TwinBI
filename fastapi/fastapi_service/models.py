@@ -35,3 +35,15 @@ class EventRequest(BaseModel):
 
 class StatusResponse(BaseModel):
     status: str
+
+
+class SupersetDatasetQuery(BaseModel):
+    columns: list[Any] = Field(default_factory=list)
+    metrics: list[Any] = Field(default_factory=list)
+    filters: list[dict[str, Any]] = Field(default_factory=list)
+    orderby: list[Any] = Field(default_factory=list)
+    row_limit: int | None = None
+    extras: dict[str, Any] | None = None
+    result_format: str | None = None
+    result_type: str | None = None
+    queries: list[dict[str, Any]] | None = None
