@@ -346,7 +346,7 @@ st.markdown("""
     }
     </style>
     """, unsafe_allow_html=True)
-st.title("Agent4OLAP")
+st.title("BI-Twin")
 
 
 def get_dashboard_uuid_by_id(dashboard_id: str) -> str:
