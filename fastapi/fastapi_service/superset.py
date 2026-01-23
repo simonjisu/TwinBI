@@ -18,6 +18,152 @@ from fastapi_service.writer import DuckDBWriter
 
 logger = logging.getLogger(__name__)
 
+def make_adhoc_metric(
+    column_name: str,
+    aggregate: str,
+    label: str | None = None,
+) -> dict[str, Any]:
+    """
+    Superset /api/v1/chart/data adhoc metric generator.
+    """
+    agg = aggregate.upper().strip()
+    if not label:
+        label = f"{agg}({column_name})"
+    return {
+        "expressionType": "SIMPLE",
+        "aggregate": agg,
+        "column": {"column_name": column_name},
+        "label": label,
+    }
+
+
+def _normalize_metrics(metrics: Any) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    if not isinstance(metrics, list):
+        return normalized
+    for metric in metrics:
+        if not isinstance(metric, dict):
+            continue
+        aggregate = metric.get("aggregate")
+        column = metric.get("column")
+        column_name = column.get("column_name") if isinstance(column, dict) else None
+        if aggregate and column_name:
+            normalized.append(
+                make_adhoc_metric(
+                    column_name,
+                    str(aggregate),
+                    label=metric.get("label"),
+                )
+            )
+        elif metric.get("expressionType") == "SIMPLE":
+            normalized.append(metric)
+    return normalized
+
+
+def _normalize_query_metrics(query: dict[str, Any]) -> None:
+    metrics = query.get("metrics")
+    normalized = _normalize_metrics(metrics)
+    if normalized:
+        query["metrics"] = normalized
+
+
+def _render_orderby_expr(expr: Any) -> str | None:
+    if isinstance(expr, str):
+        return expr
+    if isinstance(expr, dict):
+        label = expr.get("label")
+        if isinstance(label, str) and label:
+            return label
+        col = expr.get("column")
+        if isinstance(col, dict):
+            col_name = col.get("column_name")
+            if isinstance(col_name, str) and col_name:
+                return col_name
+        sql_expr = expr.get("sqlExpression")
+        if isinstance(sql_expr, str) and sql_expr:
+            return sql_expr
+    return None
+
+
+def _normalize_orderby(orderby: Any) -> list[list[Any]]:
+    if not isinstance(orderby, list):
+        return []
+    normalized: list[list[Any]] = []
+    for item in orderby:
+        if not isinstance(item, (list, tuple)) or not item:
+            continue
+        expr = _render_orderby_expr(item[0])
+        if not expr:
+            continue
+        direction = bool(item[1]) if len(item) > 1 else False
+        normalized.append([expr, direction])
+    return normalized
+
+
+def normalize_chart_queries_result(result: dict[str, Any]) -> dict[str, Any]:
+    output = dict(result)
+    drop_query_keys = {
+        "annotation_layers",
+        "url_params",
+        "custom_params",
+        "custom_form_data",
+    }
+    drop_form_data_keys = {
+        "truncate_metric",
+        "show_empty_columns",
+        "comparison_type",
+        "annotation_layers",
+        "forecastPeriods",
+        "forecastInterval",
+        "orientation",
+        "x_axis_title_margin",
+        "y_axis_title_margin",
+        "y_axis_title_position",
+        "sort_series_type",
+        "color_scheme",
+        "time_shift_color",
+        "only_total",
+        "show_legend",
+        "legendType",
+        "legendOrientation",
+        "x_axis_time_format",
+        "xAxisLabelInterval",
+        "y_axis_format",
+        "y_axis_bounds",
+        "truncateXAxis",
+        "rich_tooltip",
+        "showTooltipTotal",
+        "tooltipTimeFormat",
+        "extra_form_data",
+    }
+    form_data = output.get("form_data")
+    if isinstance(form_data, dict):
+        normalized_form = dict(form_data)
+        normalized_metrics = _normalize_metrics(normalized_form.get("metrics"))
+        if normalized_metrics:
+            normalized_form["metrics"] = normalized_metrics
+        for key in drop_form_data_keys:
+            normalized_form.pop(key, None)
+        output["form_data"] = normalized_form
+    queries = output.get("queries")
+    if isinstance(queries, list):
+        normalized_queries: list[Any] = []
+        for query in queries:
+            if isinstance(query, dict):
+                normalized_query = dict(query)
+                _normalize_query_metrics(normalized_query)
+                if "orderby" in normalized_query:
+                    normalized_query["orderby"] = _normalize_orderby(
+                        normalized_query.get("orderby")
+                    )
+                for key in drop_query_keys:
+                    normalized_query.pop(key, None)
+                normalized_queries.append(normalized_query)
+            else:
+                normalized_queries.append(query)
+        output["queries"] = normalized_queries
+    return output
+
 
 class QueryTranslater:
     SUPPORTED_ACTIONS = {
@@ -663,7 +809,6 @@ def fetch_dataset_schema(settings: Settings, dataset_id: int) -> dict[str, Any]:
 
 def fetch_dataset_data(
     settings: Settings,
-    dataset_id: int,
     query: dict[str, Any],
 ) -> dict[str, Any]:
     session = _api_session_with_bearer(settings)
@@ -673,10 +818,11 @@ def fetch_dataset_data(
     request_body = dict(query or {})
     datasource = request_body.get("datasource")
     if not datasource:
-        request_body["datasource"] = {"id": dataset_id, "type": "table"}
-    elif isinstance(datasource, dict):
+        raise ValueError("datasource.id is required")
+    if isinstance(datasource, dict):
         datasource = dict(datasource)
-        datasource.setdefault("id", dataset_id)
+        if "id" not in datasource:
+            raise ValueError("datasource.id is required")
         datasource.setdefault("type", "table")
         request_body["datasource"] = datasource
 
@@ -1120,11 +1266,20 @@ def fetch_chart_queries(settings: Settings, chart_id: int) -> dict[str, Any]:
     if isinstance(form_data, dict):
         if isinstance(form_data.get("queries"), list):
             queries = form_data.get("queries")
+        if isinstance(form_data.get("metrics"), list):
+            form_data = dict(form_data)
+            form_data["metrics"] = _normalize_metrics(form_data.get("metrics"))
     query_context = detail.get("query_context")
     if queries is None and isinstance(query_context, dict):
         if isinstance(query_context.get("queries"), list):
             queries = query_context.get("queries")
-    return {"chart_id": chart_id, "queries": queries, "form_data": form_data}
+    if isinstance(queries, list):
+        for query in queries:
+            if isinstance(query, dict):
+                _normalize_query_metrics(query)
+    return normalize_chart_queries_result(
+        {"chart_id": chart_id, "queries": queries, "form_data": form_data}
+    )
 
 
 def _extract_chart_form_data(chart_detail: dict[str, Any]) -> dict[str, Any]:

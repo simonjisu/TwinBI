@@ -18,7 +18,7 @@ Tools
   Returns the latest SQL/query for the active chart from DuckDB logs.
   Output: {"chart_id": int, "sql": str | null} or {"error": "..."}
 
-- get_chart_metadata
+- get_activated_chart_metadata
   Fetches chart metadata for the active chart via Superset API.
   Output: {"chart_id": int, "metadata": dict | null} or {"error": "..."}
 
@@ -35,6 +35,50 @@ Tools
   Queries Superset dataset data with filters via /api/v1/chart/data.
   Input: dataset_id (int), query_json (str; JSON object, ChartDataRestApi.data payload)
   Output: {"data": [...], "raw": {...}} or {"error": "..."}
+
+Example (query_superset_dataset)
+query_json:
+```json
+{
+  "datasource": {
+    "id": 28,
+    "type": "table"
+  },
+  "queries": [
+    {
+      "columns": ["dim_product_department"],
+      "metrics": [
+        {
+          "expressionType": "SIMPLE",
+          "aggregate": "SUM",
+          "column": { "column_name": "total_units_sold" },
+          "label": "SUM(total_units_sold)"
+        }
+      ],
+      "filters": [
+        { "col": "dim_date_quarter_start", "op": ">=", "val": "2024-07-01 00:00:00" }
+      ],
+      "row_limit": 1000
+    }
+  ],
+  "result_format": "json",
+  "result_type": "full"
+}
+```
+
+Helper (adhoc metric)
+```python
+def make_adhoc_metric(column_name, aggregate, label=None):
+    agg = aggregate.upper().strip()
+    if not label:
+        label = f"{agg}({column_name})"
+    return {
+        "expressionType": "SIMPLE",
+        "aggregate": agg,
+        "column": {"column_name": column_name},
+        "label": label,
+    }
+```
 
 - get_chart_data_by_id
   Fetches chart data for a specific chart id using the latest log payload.
@@ -56,7 +100,7 @@ Documentation tools
 
 Typical usage patterns
 - "What charts are on this dashboard?" -> list_dashboard_charts
-- "What is this chart based on?" -> get_chart_sql or get_chart_metadata
+- "What is this chart based on?" -> get_chart_sql or get_activated_chart_metadata
 - "Show the data behind this chart" -> get_active_chart_data
 - "Query a dataset with filters" -> query_superset_dataset(query_json)
 
@@ -77,16 +121,17 @@ Superset dataset query flow (recommended)
 3) query_superset_dataset(dataset_id, query_json) -> send ChartDataRestApi.data payload
 
 Notes for /superset/datasets/{dataset_id}/query
+Notes for /superset/datasets/query
 - The endpoint mirrors Superset's /api/v1/chart/data payload.
-- If datasource is omitted, the server injects {"id": dataset_id, "type": "table"}.
+- datasource.id is required; it is the Superset dataset id.
 
-Example query_json (extras.where with CAST)
+Example query_json
 ```json
 {
   "datasource": { "id": 28, "type": "table" },
   "queries": [
     {
-      "columns": ["dim_product_department"],
+      "columns": ["dim_product_department", "dim_product_category"],
       "metrics": [
         {
           "expressionType": "SIMPLE",
@@ -119,7 +164,6 @@ Example query_json (extras.where with CAST)
   "result_format": "json",
   "result_type": "full"
 }
-
 ```
 
 Superset dataset query input schema (query_json)

@@ -46,7 +46,7 @@ Tools
   Returns the latest SQL/query for the active chart from DuckDB logs.
   Output: {"chart_id": int, "sql": str | null} or {"error": "..."}
 
-- get_chart_metadata
+- get_activated_chart_metadata
   Fetches chart metadata for the active chart via Superset API.
   Output: {"chart_id": int, "metadata": dict | null} or {"error": "..."}
 
@@ -84,7 +84,7 @@ Documentation tools
 
 Typical usage patterns
 - "What charts are on this dashboard?" -> list_dashboard_charts
-- "What is this chart based on?" -> get_chart_sql or get_chart_metadata
+- "What is this chart based on?" -> get_chart_sql or get_activated_chart_metadata
 - "Show the data behind this chart" -> get_active_chart_data
 - "Query a dataset with filters" -> query_superset_dataset(query_json)
 
@@ -471,7 +471,7 @@ if function_tool:
         return {"chart_id": context.chart_id, "sql": payload.get("sql") or payload.get("query")}
 
     @function_tool
-    def get_chart_metadata() -> dict[str, Any]:
+    def get_activated_chart_metadata() -> dict[str, Any]:
         """
         Return chart metadata for the active chart via Superset API.
 
@@ -617,15 +617,15 @@ if function_tool:
 
     @function_tool
     def query_superset_dataset(
-        dataset_id: int,
         query_json: str,
     ) -> dict[str, Any]:
         """
         Query Superset dataset data with filters via /api/v1/chart/data.
 
         Input:
-        - dataset_id: Superset dataset id.
-        - query_json: JSON string like {"columns": [...], "metrics": [...], "filters": [...], "row_limit": 1000, ...}
+        - query_json: JSON string for ChartDataRestApi.data payload. Typically includes:
+          datasource, queries (columns/metrics/filters/extras/orderby/row_limit),
+          result_format, result_type.
 
         Output:
         - {"data": [...], "raw": {...}}
@@ -641,7 +641,7 @@ if function_tool:
         if not isinstance(query, dict):
             return {"error": "query_json must be a JSON object"}
         try:
-            return fetch_dataset_data(settings, dataset_id, query)
+            return fetch_dataset_data(settings, query)
         except Exception as exc:
             return {"error": f"superset dataset query failed: {exc}"}
 
@@ -801,6 +801,49 @@ if function_tool:
             return error
         return explorer.search_value(fact_table, attribute_name, value)
 
+EXAMPLE = """
+Example query_json
+** For metrics: use the `aggregate(column_name)` format for labels **
+```json
+{
+  "datasource": { "id": 28, "type": "table" },
+  "queries": [
+    {
+      "columns": ["dim_product_department", "dim_product_category"],
+      "metrics": [
+        {
+          "expressionType": "SIMPLE",
+          "aggregate": "SUM",
+          "column": { "column_name": "previous_units" },
+          "label": "SUM(previous_units)"
+        },
+        {
+          "expressionType": "SIMPLE",
+          "aggregate": "SUM",
+          "column": { "column_name": "total_units_sold" },
+          "label": "SUM(total_units_sold)"
+        },
+        {
+          "expressionType": "SIMPLE",
+          "aggregate": "MAX",
+          "column": { "column_name": "qoq_growth_rate" },
+          "label": "MAX(qoq_growth_rate)"
+        }
+      ],
+      "filters": [],
+      "extras": {
+        "where": "dim_date_quarter_start >= CAST('2024-07-01 00:00:00' AS TIMESTAMP)",
+        "having": ""
+      },
+      "orderby": [["MAX(qoq_growth_rate)", true]],
+      "row_limit": 10000
+    }
+  ],
+  "result_format": "json",
+  "result_type": "full"
+}
+"""
+
 class AgentRunner:
     def __init__(self) -> None:
         self._router_agent = None
@@ -834,7 +877,7 @@ class AgentRunner:
         model_settings = ModelSettings(
             reasoning={"effort": "medium"},
             verbosity="low",
-            max_turns=50,
+            max_turns=100,
             response_format={"type": "json_object", "schema": Answer.model_json_schema()},
         )
         return Agent(
@@ -844,7 +887,7 @@ class AgentRunner:
                 get_active_chart_log,
                 get_active_chart_data,
                 get_chart_sql,
-                get_chart_metadata,
+                get_activated_chart_metadata,
                 list_dashboard_charts,
                 get_chart_data_by_id,
                 read_dashboard_tools_doc,
@@ -880,12 +923,13 @@ class AgentRunner:
                 "a natural-language request to schema fields. "
                 "Use the Cube tools to list cubes/views, inspect Cube schema, or "
                 "run Cube queries when the user asks for data directly from Cube. "
-                "When querying Superset datasets, first call get_chart_queries "
-                "to obtain queries/form_data for the chart, then use "
-                "query_superset_dataset with the appropriate filters. "
+                "When querying Superset datasets, **MUST** call get_chart_queries with the chart_id "
+                "to obtain queries/form_data, then use query_superset_dataset. "
+                f"add filters (row filtering), extras (WHERE clause), and columns (groupby). {EXAMPLE}"
                 "Before using specialized tools, read the relevant documentation "
                 "via read_dashboard_tools_doc, read_schema_explorer_doc, or "
                 "read_cube_tools_doc to confirm input/output expectations at least once. "
+                "When user is asking comparison questions between charts, you might need to query multiple times to the dataset or charts."
                 "Return a JSON object with an 'answer' field containing the response."
             ),
         )
@@ -905,7 +949,11 @@ class AgentRunner:
                 "Install the OpenAI agents package and set OPENAI_API_KEY."
             ), [{"type": "error", "message": "agent_not_available"}] if debug else [], None
 
-        prompt = self._format_prompt(message, history, context=self._inject_docs(context))
+        prompt = self._build_input_messages(
+            message,
+            history,
+            context=self._inject_docs(context),
+        )
         debug_items: list[dict[str, Any]] = []
         try:
             global _ACTIVE_CONTEXT
@@ -936,7 +984,11 @@ class AgentRunner:
             yield {"event": "error", "message": "agent_not_available"}
             return
 
-        prompt = self._format_prompt(message, history, context=self._inject_docs(context))
+        prompt = self._build_input_messages(
+            message,
+            history,
+            context=self._inject_docs(context),
+        )
         last_text = ""
         try:
             global _ACTIVE_CONTEXT
@@ -982,28 +1034,28 @@ class AgentRunner:
         answer = self._parse_json_answer(raw_text)
         yield {"event": "final", "answer": answer, "raw": raw_text}
 
-    def _format_prompt(
+    def _build_input_messages(
         self,
         message: str,
         history: list[dict[str, str]],
         context: str | None = None,
-    ) -> str:
-        lines = []
+    ) -> list[dict[str, str]]:
+        messages: list[dict[str, str]] = []
         if context:
-            lines.append("context: " + context)
+            messages.append({"role": "system", "content": context})
         for item in history[-20:]:
             role = (item.get("role") or "").strip()
             content = (item.get("content") or "").strip()
-            if not role or not content:
+            if role not in {"user", "assistant"} or not content:
                 continue
-            lines.append(f"{role}: {content}")
+            messages.append({"role": role, "content": content})
         if not (
             history
             and (history[-1].get("role") or "").strip() == "user"
             and (history[-1].get("content") or "").strip() == message.strip()
         ):
-            lines.append(f"user: {message}")
-        return "\n".join(lines)
+            messages.append({"role": "user", "content": message})
+        return messages
 
     def _load_dashboard_tools_doc(self) -> str | None:
         doc = _read_doc_file(Path("fastapi/docs/dashboard_tools.md"))

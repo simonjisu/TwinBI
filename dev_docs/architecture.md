@@ -118,7 +118,7 @@ To keep the system simple:
      - `get_active_chart_log` (reads latest log payload from DuckDB)
      - `get_active_chart_data` (calls Superset chart data API using log payload)
      - `get_chart_sql` (extracts SQL/query from the latest log payload)
-     - `get_chart_metadata` (fetches chart metadata from Superset dashboard)
+     - `get_activated_chart_metadata` (fetches chart metadata from Superset dashboard)
      - `list_dashboard_charts` (lists charts for the current or latest dashboard)
      - `get_chart_data_by_id` (fetches chart data for a specific chart id)
      - `get_facts` (lists fact tables from the SchemaExplorer star schema)

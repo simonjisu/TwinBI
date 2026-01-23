@@ -382,7 +382,7 @@ with st.sidebar:
     # st.write("DASHBOARD_UUID:", DASHBOARD_UUID)
     # st.write("EMBED_UUID:", EMBED_UUID)
     st.write("SESSION_ID:", st.session_state.get("session_id"))
-    st.write("--------------------------------")
+    # st.write("--------------------------------")
     
 token = get_guest_token(DASHBOARD_ID) if DASHBOARD_ID else ""
 if not token:
@@ -464,7 +464,7 @@ with st.expander("Output", expanded=True):
             .replace("{{SQL_STREAM_BASE}}", sql_stream_base)
             .replace("{{CHARTS_URL}}", charts_url)
         )
-        components.html(sql_html, height=560)
+        components.html(sql_html, height=560) # 560
 
     with tab2:
         st.subheader("Schema graph")

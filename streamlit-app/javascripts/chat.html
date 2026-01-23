@@ -516,10 +516,11 @@
 
     setStatus("sending...");
     try {
-      const history = messages.slice(0, -2).map((msg) => ({
+      const localHistory = messages.slice(0, -2).map((msg) => ({
         role: String(msg.role || "user"),
         content: String(msg.content || ""),
       }));
+      const history = localHistory.slice(-20);
       const response = await fetch(`${apiBase}/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -527,7 +528,7 @@
           session_id: sessionId,
           user_id: userId,
           message: text,
-          history: history.slice(-20),
+          history: history,
           active_chart_id: activeChartId,
           active_chart_name: activeChartName,
           debug: true,

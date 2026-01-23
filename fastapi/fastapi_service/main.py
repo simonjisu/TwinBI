@@ -36,6 +36,7 @@ from fastapi_service.superset import (
     fetch_chart_detail,
     fetch_chart_form_data,
     fetch_chart_queries,
+    normalize_chart_queries_result,
 )
 from fastapi_service.cube import fetch_cube_meta
 from fastapi_service.cube_conf import load_repo_schema
@@ -232,6 +233,30 @@ def _summarize_chart_log(log: dict[str, Any] | None) -> dict[str, Any]:
         "queries": queries,
         "datasource": datasource,
     }
+
+
+def _load_dialogue_history(
+    conn: duckdb.DuckDBPyConnection,
+    session_id: str,
+    limit: int,
+) -> list[dict[str, str]]:
+    rows = conn.execute(
+        """
+        SELECT ts, message, response
+        FROM streamlit_chat_logs
+        WHERE session_id = ?
+        ORDER BY ts DESC
+        LIMIT ?
+        """,
+        [session_id, limit],
+    ).fetchall()
+    history: list[dict[str, str]] = []
+    for _ts, message, response in reversed(rows):
+        if message:
+            history.append({"role": "user", "content": message})
+        if response:
+            history.append({"role": "assistant", "content": response})
+    return history
 
 
 def _decorate_superset_log(row: dict[str, Any]) -> dict[str, Any]:
@@ -591,10 +616,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from exc
         return schema
 
-    @app.post("/superset/datasets/{dataset_id}/query")
-    def superset_dataset_query(
-        dataset_id: int, payload: dict[str, Any] = Body(...)
-    ) -> dict[str, Any]:
+    @app.post("/superset/datasets/query")
+    def superset_dataset_query(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         settings = app.state.settings
         if not settings.superset_username or not settings.superset_password:
             raise HTTPException(
@@ -609,7 +632,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             return fetch_dataset_data(
                 settings,
-                dataset_id,
                 payload,
             )
         except Exception as exc:
@@ -943,7 +965,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 result["queries"] = payload.get("queries")
                 if result.get("form_data") is None:
                     result["form_data"] = payload.get("form_data")
-        return result
+        return normalize_chart_queries_result(result)
 
     @app.get("/superset/charts/active")
     def superset_active_chart(
@@ -1053,7 +1075,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         answer, agent_debug_items, raw_output = await agent_runner.respond(
             payload.message,
-            payload.history or [],
+            _load_dialogue_history(conn, payload.session_id, 20),
             context=chart_context,
             context_obj=chart_context_obj,
             debug=True,
@@ -1157,7 +1179,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             response_events: list[dict[str, Any]] = []
             async for event in agent_runner.respond_stream(
                 payload.message,
-                payload.history or [],
+                _load_dialogue_history(conn, payload.session_id, 20),
                 context=chart_context,
                 context_obj=chart_context_obj,
                 debug=payload.debug,
@@ -1234,7 +1256,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             [session_id, limit],
         ).fetchall()
         dialogue = []
-        for ts, user_id, message, response, response_raw, response_events in rows:
+        for ts, user_id, message, response, response_raw, response_events in reversed(rows):
             if message:
                 dialogue.append(
                     {

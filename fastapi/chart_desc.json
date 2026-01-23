@@ -27,15 +27,15 @@
     },
     {
       "chart_id": 660,
-      "description": "Units sold by quarter"
+      "description": "Sum of the units sold by quarter"
     },
     {
       "chart_id": 661,
-      "description": "Department QoQ Growth. The sum of previous_units means the total units sold in the previous quarter."
+      "description": "QoQ Growth group by departments. It shows the sum of previous_units(the total units sold in the previous quarter), sum of total_units_sold(the total units sold in the current quarter), and maximum of qoq_growth_rate."
     },
     {
       "chart_id": 662,
-      "description": "Category Scatter (Growth vs. Scale). Scale means the total units sold."
+      "description": "Scatter plot by each product category (Growth vs. Scale). Scale means the total units sold."
     },
     {
       "chart_id": 663,
