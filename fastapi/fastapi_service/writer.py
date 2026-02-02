@@ -61,7 +61,9 @@ class DuckDBWriter:
                 item["event"].set()
                 continue
             if item_type == "ui_event":
-                db.insert_ui_event(self._conn, item["payload"])
+                payload = item["payload"]
+                superset_log = self.build_superset_ui_payload(payload)
+                db.insert_superset_action_log(self._conn, superset_log)
                 continue
             if item_type == "streamlit_chat":
                 db.insert_streamlit_chat_log(self._conn, item["payload"])
@@ -89,6 +91,52 @@ class DuckDBWriter:
             "user_id": user_id,
             "event_type": event_type,
             "payload_json": json.dumps(payload, ensure_ascii=True),
+        }
+
+    def build_superset_ui_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        event_payload = payload.get("payload_json")
+        try:
+            parsed_payload = json.loads(event_payload) if event_payload else {}
+        except json.JSONDecodeError:
+            parsed_payload = {}
+
+        user_id = payload.get("user_id")
+        numeric_user_id = None
+        if isinstance(user_id, int):
+            numeric_user_id = user_id
+        elif isinstance(user_id, str) and user_id.isdigit():
+            numeric_user_id = int(user_id)
+
+        dashboard_id = parsed_payload.get("dashboard_id") or parsed_payload.get("dashboardId")
+        slice_id = (
+            parsed_payload.get("slice_id")
+            or parsed_payload.get("sliceId")
+            or parsed_payload.get("chart_id")
+            or parsed_payload.get("chartId")
+        )
+
+        json_payload = json.dumps(
+            {
+                "source": "ui",
+                "session_id": payload.get("session_id"),
+                "user_id": user_id,
+                "event_type": payload.get("event_type"),
+                "payload": parsed_payload,
+            },
+            ensure_ascii=False,
+        )
+
+        return {
+            "superset_log_id": db.get_next_superset_log_id(self._conn),
+            "dttm": payload.get("ts"),
+            "action": payload.get("event_type"),
+            "user_id": numeric_user_id,
+            "dashboard_id": dashboard_id,
+            "slice_id": slice_id,
+            "duration_ms": None,
+            "referrer": parsed_payload.get("referrer"),
+            "json": json_payload,
+            "ingested_at": datetime.now(timezone.utc),
         }
 
     @staticmethod

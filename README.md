@@ -23,9 +23,9 @@ $ docker network create agent4olap_net
 ```bash
 $ uv venv
 $ source .venv/bin/activate
-(Agent4OLAP) $ uv sync
-(Agent4OLAP) $ echo -e "UID=$UID\nGID=$GID\nCUBEJS_TESSERACT_SQL_PLANNER=true" > .env
-(Agent4OLAP) $ uv run src/create_db_data.py --type sales --rows 5000 --db_path "data/sales/database/sales.db"
+(TwinBI) $ uv sync
+(TwinBI) $ echo -e "UID=$UID\nGID=$GID\nCUBEJS_TESSERACT_SQL_PLANNER=true" > .env
+(TwinBI) $ uv run src/create_db_data.py --type sales --rows 5000 --db_path "data/sales/database/sales.db"
 ```
 
 ### Setup - Applications
@@ -33,10 +33,10 @@ $ source .venv/bin/activate
 Clone and setup Superset:
 
 ```bash
-(Agent4OLAP) $ git clone --depth=1 https://github.com/apache/superset.git superset
-(Agent4OLAP) $ cd superset && git fetch --tags --depth=1
-(Agent4OLAP) superset $ git checkout 6.0.0
-(Agent4OLAP) superset $ set TAG=6.0.0-dev
+(TwinBI) $ git clone --depth=1 https://github.com/apache/superset.git superset
+(TwinBI) $ cd superset && git fetch --tags --depth=1
+(TwinBI) superset $ git checkout 6.0.0
+(TwinBI) superset $ set TAG=6.0.0-dev
 ```
 
 Modify `superset_config.py`:
@@ -60,19 +60,19 @@ OVERRIDE_HTTP_HEADERS = {
 Start superset:
 
 ```bash
-(Agent4OLAP) superset $ cp ../docker-compose.superset.yml ./docker-compose.superset.yml
-(Agent4OLAP) superset $ docker-compose -f ./docker-compose.superset.yml up -d
+(TwinBI) superset $ cp ../docker-compose.superset.yml ./docker-compose.superset.yml
+(TwinBI) superset $ docker-compose -f ./docker-compose.superset.yml up -d
 ```
 
 Create the sales.db database in superset:
 
 ```bash
-(Agent4OLAP) $ uv run src/create_db_data.py --type sales --rows 5000 --db_path "data/sales/database/sales.db"
-(Agent4OLAP) $ docker-compose -f ./docker-compose.sales.yml -d --build
+(TwinBI) $ uv run src/create_db_data.py --type sales --rows 5000 --db_path "data/sales/database/sales.db"
+(TwinBI) $ docker-compose -f ./docker-compose.sales.yml -d --build
 
 # Create Cube schema graphs
-(Agent4OLAP) $ uv run src/schema_processor.py --create_graphs
-(Agent4OLAP) $ uv run src/hierarchy_duckdb.py --db_type sales
+(TwinBI) $ uv run src/schema_processor.py --create_graphs
+(TwinBI) $ uv run src/hierarchy_duckdb.py --db_type sales
 ```
 
 In the superset web UI (`http://localhost:8088`), create a new database connection to connect to the sales DB created above. 
@@ -115,16 +115,43 @@ OPENAI_API_KEY=your_openai_api_key
 Run the FastAPI backend:
 
 ```bash
-(Agent4OLAP) $ docker-compose -f ./docker-compose.fastapi.yml up -d --build
+(TwinBI) $ docker-compose -f ./docker-compose.fastapi.yml up -d --build
 ```
 
 Finally, run the streamlit app:
 
 ```bash
-(Agent4OLAP) $ docker-compose -f ./docker-compose.streamlit.yml up -d --build
+(TwinBI) $ docker-compose -f ./docker-compose.streamlit.yml up -d --build
 ```
 
 ```bash
 # Run in one line
 docker compose -f docker-compose.sales.yml -f docker-compose.streamlit.yml -f docker-compose.fastapi.yml up -d --build
 ```
+
+## How to?
+
+### Apply superset-frontend changes
+
+```bash
+# build frontend assets
+(TwinBI) superset/superset-frontend $ cd superset/superset-frontend
+(TwinBI) superset/superset-frontend $ npm ci
+(TwinBI) superset/superset-frontend $ npm run build
+
+# then rebuild the Docker image and restart
+(TwinBI) superset $ cd ..
+(TwinBI) superset $ docker compose -f docker-compose.superset.yml up -d --build
+```
+
+### Reset logs in superset
+
+```bash
+docker exec -it superset_db psql -U superset -d superset
+```
+
+```sql
+-- check the table is `logs` with \dt
+TRUNCATE TABLE logs RESTART IDENTITY;
+```
+

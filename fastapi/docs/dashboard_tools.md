@@ -18,9 +18,9 @@ Tools
   Returns the latest SQL/query for the active chart from DuckDB logs.
   Output: {"chart_id": int, "sql": str | null} or {"error": "..."}
 
-- get_activated_chart_metadata
-  Fetches chart metadata for the active chart via Superset API.
-  Output: {"chart_id": int, "metadata": dict | null} or {"error": "..."}
+- get_active_tab_charts
+  Returns charts for the active tab (last tab click or default tab).
+  Output: {"dashboard_id": int, "active_tab": {...}, "active_charts": [...], "last_ui_event": {...}}
 
 - list_dashboard_charts
   Lists charts for the configured or most recent dashboard.
@@ -95,12 +95,12 @@ Documentation tools
   Loads this dashboard tools document.
 - read_schema_explorer_doc
   Loads the schema explorer tools document.
-- read_cube_tools_doc
-  Loads the Cube tools document.
+- read_semantic_tools_doc
+  Loads the semantic tools document.
 
 Typical usage patterns
 - "What charts are on this dashboard?" -> list_dashboard_charts
-- "What is this chart based on?" -> get_chart_sql or get_activated_chart_metadata
+- "What is this chart based on?" -> get_chart_sql
 - "Show the data behind this chart" -> get_active_chart_data
 - "Query a dataset with filters" -> query_superset_dataset(query_json)
 

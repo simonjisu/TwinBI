@@ -27,8 +27,18 @@
   const resumeBtn = root.querySelector(".resume");
   const sqlList = root.querySelector(".sql-list");
   const storageKey = "{{SQL_STORAGE_KEY}}";
-  const initialLastId = Number(localStorage.getItem(storageKey) || "0");
-  const streamUrl = "{{SQL_STREAM_BASE}}" + "&last_id=" + initialLastId;
+  const logStorageKey = "{{LOG_STORAGE_KEY}}";
+  const initialToken = localStorage.getItem(storageKey) || "0";
+  const logToken = localStorage.getItem(logStorageKey) || "0";
+  let initialId = Number(initialToken) || 0;
+  const logId = Number(logToken) || 0;
+  if (logId > 0 && (initialId === 0 || logId < initialId)) {
+    initialId = logId;
+  }
+  const streamUrl =
+    "{{SQL_STREAM_BASE}}" +
+    "&last_id=" +
+    initialId;
   const chartsUrl = "{{CHARTS_URL}}";
   const chartMap = new Map();
   const chartNames = new Map();
@@ -103,18 +113,26 @@
     closeStream();
     setStatus("connecting", "#2e7d32");
     source = new EventSource(streamUrl);
+    setStatus("connected", "#2e7d32");
+    source.onopen = () => {
+      setStatus("connected", "#2e7d32");
+    };
     source.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         if (!data || !data.action) return;
         if (!String(data.action).startsWith("ChartDataRestApi")) return;
-        if (!data.translated_sql || !data.slice_id) return;
-        if (data.superset_log_id) {
-          localStorage.setItem(storageKey, String(data.superset_log_id));
+        if (!data.slice_id) return;
+        const translatedSql =
+          data.translated_sql ||
+          (data.translated && data.translated.sql) ||
+          "";
+        if (event.lastEventId) {
+          localStorage.setItem(storageKey, String(event.lastEventId));
         }
         const knownName = chartNames.get(data.slice_id) || "Chart " + data.slice_id;
         const row = chartMap.get(data.slice_id) || { name: knownName, sql: "" };
-        row.sql = data.translated_sql;
+        row.sql = translatedSql || "No SQL yet.";
         chartMap.set(data.slice_id, row);
         lastEventAt = Date.now();
         renderRows();

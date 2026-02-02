@@ -39,7 +39,7 @@ def load_settings() -> Settings:
     superset_log_dashboard_id = os.getenv("SUPERSET_LOG_DASHBOARD_ID")
     superset_log_user_id = os.getenv("SUPERSET_LOG_USER_ID")
     return Settings(
-        duckdb_path=os.getenv("DUCKDB_PATH", "data/events.duckdb"),
+        duckdb_path=os.getenv("DUCKDB_PATH"),
         superset_meta_db_uri=os.getenv("SUPERSET_META_DB_URI"),
         superset_poll_interval_sec=poll_interval,
         superset_batch_size=batch_size,

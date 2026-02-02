@@ -22,22 +22,6 @@ def connect(path: str, read_only: bool = False) -> duckdb.DuckDBPyConnection:
 def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute(
         """
-        CREATE TABLE IF NOT EXISTS ui_events (
-            event_id BIGINT,
-            ts TIMESTAMP,
-            session_id VARCHAR,
-            user_id VARCHAR,
-            event_type VARCHAR,
-            payload_json VARCHAR
-        )
-        """
-    )
-    try:
-        conn.execute("ALTER TABLE ui_events ADD COLUMN event_id BIGINT")
-    except duckdb.CatalogException:
-        pass
-    conn.execute(
-        """
         CREATE TABLE IF NOT EXISTS streamlit_chat_logs (
             ts TIMESTAMP,
             session_id VARCHAR,
@@ -114,23 +98,8 @@ def get_max_superset_log_id(conn: duckdb.DuckDBPyConnection) -> int:
     return int(result[0]) if result else 0
 
 
-def insert_ui_event(conn: duckdb.DuckDBPyConnection, payload: dict[str, Any]) -> None:
-    conn.execute(
-        """
-        INSERT INTO ui_events (
-            event_id, ts, session_id, user_id, event_type, payload_json
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        [
-            payload.get("event_id"),
-            payload["ts"],
-            payload.get("session_id"),
-            payload.get("user_id"),
-            payload.get("event_type"),
-            payload.get("payload_json"),
-        ],
-    )
+def get_next_superset_log_id(conn: duckdb.DuckDBPyConnection) -> int:
+    return get_max_superset_log_id(conn) + 1
 
 
 def insert_streamlit_chat_log(

@@ -448,19 +448,26 @@ with st.expander("Output", expanded=True):
     #         st.info("No query results yet. Ask a question in the chat sidebar.")
 
     with tab1:
-        sql_params = {"limit": 100, "poll_interval_sec": 1.0}
+        sql_params = {
+            "limit": 50,
+            "poll_interval_sec": 1.0,
+            "source": "superset",
+            "action": "ChartDataRestApi.data",
+        }
         if DASHBOARD_ID:
             sql_params["dashboard_id"] = DASHBOARD_ID
         sql_query = urllib.parse.urlencode(sql_params)
-        sql_stream_base = f"{FASTAPI_PUBLIC_URL}/superset/logs/stream?{sql_query}"
+        sql_stream_base = f"{FASTAPI_PUBLIC_URL}/events/stream?{sql_query}"
         charts_url = f"{FASTAPI_PUBLIC_URL}/superset/dashboards/{DASHBOARD_ID}/charts"
         sql_container_id = f"superset-sql-stream-{uuid.uuid4().hex}"
         sql_storage_key = f"superset-sql-last-id-{DASHBOARD_ID or 'all'}"
+        log_storage_key = f"superset-log-last-id-{DASHBOARD_ID or 'all'}"
 
         sql_html = (
             _load_html_template("tab1.html")
             .replace("{{SQL_CONTAINER_ID}}", sql_container_id)
             .replace("{{SQL_STORAGE_KEY}}", sql_storage_key)
+            .replace("{{LOG_STORAGE_KEY}}", log_storage_key)
             .replace("{{SQL_STREAM_BASE}}", sql_stream_base)
             .replace("{{CHARTS_URL}}", charts_url)
         )
@@ -490,27 +497,41 @@ with st.expander("Output", expanded=True):
         )
 
     with tab3:
-        st.subheader("Superset logs")
-        params = {"limit": 100, "poll_interval_sec": 1.0}
+        st.subheader("Logs")
+        filter_cols = st.columns([1.2, 1.2, 1.2])
+        source_filter = filter_cols[0].selectbox(
+            "Source",
+            options=["superset"],
+            index=0,
+            key="log_source_filter",
+        )
+        superset_user_id = filter_cols[1].text_input(
+            "Superset user_id",
+            value=st.session_state.get("superset_user_id_filter", ""),
+            key="superset_user_id_filter",
+        )
+        action_filter = filter_cols[2].text_input(
+            "Action",
+            value=st.session_state.get("action_filter", ""),
+            key="action_filter",
+        )
+        params = {"limit": 50, "poll_interval_sec": 1.0, "source": source_filter}
         if DASHBOARD_ID:
             params["dashboard_id"] = DASHBOARD_ID
+        if superset_user_id.isdigit():
+            params["user_id"] = int(superset_user_id)
+        if action_filter:
+            params["action"] = action_filter
         query = urllib.parse.urlencode(params)
-        stream_base_url = f"{FASTAPI_PUBLIC_URL}/superset/logs/stream?{query}"
-        ui_params = {"limit": 100, "poll_interval_sec": 1.0}
-        session_id = st.session_state.get("session_id")
-        if session_id:
-            ui_params["session_id"] = session_id
-        ui_query = urllib.parse.urlencode(ui_params)
-        ui_stream_base_url = f"{FASTAPI_PUBLIC_URL}/events/stream?{ui_query}"
+        stream_base_url = f"{FASTAPI_PUBLIC_URL}/events/stream?{query}"
         container_id = f"superset-log-stream-{uuid.uuid4().hex}"
         dashboard_key = str(DASHBOARD_ID or "all")
 
         logs_html = (
-            _load_html_template("tab2.html")
+            _load_html_template("tab3.html")
             .replace("{{CONTAINER_ID}}", container_id)
             .replace("{{API_BASE}}", FASTAPI_PUBLIC_URL)
             .replace("{{STREAM_BASE_URL}}", stream_base_url)
-            .replace("{{UI_STREAM_BASE_URL}}", ui_stream_base_url)
             .replace("{{DASHBOARD_KEY}}", dashboard_key)
         )
         components.html(logs_html, height=620)

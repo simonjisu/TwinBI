@@ -13,13 +13,23 @@ from pydantic import BaseModel, Field
 from fastapi_service.superset import (
     fetch_chart_data_from_log,
     fetch_dashboard_charts,
+    fetch_dashboard_default_tab,
     fetch_dataset_data,
     fetch_dataset_schema,
     fetch_chart_form_data,
     fetch_chart_queries,
 )
-from fastapi_service.cube import fetch_cube_meta, run_cube_query
+from fastapi_service.semantic import fetch_cube_meta, run_cube_query
 from fastapi_service.cube_conf import load_repo_schema
+from fastapi_service.models import ViewSpec, SupersetDatasetSyncRequest
+from fastapi_service.semantic import (
+    create_cube_view as semantic_create_view,
+    sync_superset_dataset as semantic_sync_dataset,
+    log_create_view,
+    log_dataset_sync,
+    log_unified_event,
+)
+from fastapi_service import prompts
 # import sys
 # proj_path = Path(__file__).resolve().parent.parent
 # sys.path.append(str(proj_path))
@@ -46,9 +56,9 @@ Tools
   Returns the latest SQL/query for the active chart from DuckDB logs.
   Output: {"chart_id": int, "sql": str | null} or {"error": "..."}
 
-- get_activated_chart_metadata
-  Fetches chart metadata for the active chart via Superset API.
-  Output: {"chart_id": int, "metadata": dict | null} or {"error": "..."}
+- get_active_tab_charts
+  Returns charts for the active tab (last tab click or default tab).
+  Output: {"dashboard_id": int, "active_tab": {...}, "active_charts": [...], "last_ui_event": {...}}
 
 - list_dashboard_charts
   Lists charts for the configured or most recent dashboard.
@@ -79,12 +89,12 @@ Documentation tools
   Loads this dashboard tools document.
 - read_schema_explorer_doc
   Loads the schema explorer tools document.
-- read_cube_tools_doc
-  Loads the Cube tools document.
+- read_semantic_tools_doc
+  Loads the semantic tools document.
 
 Typical usage patterns
 - "What charts are on this dashboard?" -> list_dashboard_charts
-- "What is this chart based on?" -> get_chart_sql or get_activated_chart_metadata
+- "What is this chart based on?" -> get_chart_sql
 - "Show the data behind this chart" -> get_active_chart_data
 - "Query a dataset with filters" -> query_superset_dataset(query_json)
 
@@ -219,12 +229,12 @@ Notes
 - The explorer is configured to use the star schema under ./data/sales.
 - Attribute lookup is case-insensitive for labels; use short attribute names.
 """,
-    "cube_tools.md": """Cube Tools
+    "semantic_tools.md": """Semantic Tools
 
 Overview
-These tools use Cube's REST API and repository config to list cubes/views,
-inspect schema, and query data. Use them when the user asks for data directly
-from Cube or needs Cube member names.
+These tools use the semantic layer (Cube REST API + repo config) to list cubes/views,
+inspect schema, create views, and query data. Use them when the user asks for data
+directly from Cube or needs Cube member names.
 
 Tools
 - list_cube_tables
@@ -242,6 +252,18 @@ Tools
   Input: query_json (str) - JSON string for a Cube query object or list.
   Output: raw Cube response payload or {"error": "..."}
 
+- create_cube_view
+  Creates or updates a semantic view in Cube config.
+  Input: view_json (str) - JSON string matching ViewSpec.
+
+- sync_superset_dataset
+  Creates or refreshes a Superset dataset for a view/table.
+  Input: request_json (str) - JSON string matching SupersetDatasetSyncRequest.
+
+- create_view_and_sync
+  Convenience wrapper: create a view then sync a Superset dataset.
+  Input: view_json (str) - ViewSpec JSON (must include superset_sync fields).
+
 Example query_json
 {"measures":["sales.total_sales"],"dimensions":["sales.brand"],"limit":10}
 
@@ -249,6 +271,7 @@ Typical usage patterns
 - "What cubes/views are available?" -> list_cube_tables
 - "What fields exist in sales?" -> get_cube_schema("sales")
 - "Run a Cube query for total sales by brand" -> query_cube(query_json)
+- "Create a new semantic view" -> create_cube_view(view_json) then sync_superset_dataset(request_json)
 
 Notes
 - Requires CUBE_REST_URL for live queries and CUBE_CONF_PATH for repo schema.
@@ -282,7 +305,7 @@ else:
     _IMPORT_ERROR = None
 
 class Answer(BaseModel):
-    answer: dict[str, Any] = Field(..., description="Final answer.")
+    answer: str = Field(..., description="Final answer.")
 
 
 @dataclass
@@ -292,6 +315,8 @@ class AgentContext:
     chart_id: int | None = None
     chart_name: str | None = None
     chart_data: dict[str, Any] | None = None
+    trace_logs: list[dict[str, Any]] | None = None
+    active_chart: dict[str, Any] | None = None
 
 
 _ACTIVE_CONTEXT: AgentContext | None = None
@@ -372,6 +397,82 @@ def _fetch_latest_dashboard_id(conn: duckdb.DuckDBPyConnection) -> int | None:
     if not row:
         return None
     return row[0]
+
+
+def _fetch_latest_active_chart(
+    conn: duckdb.DuckDBPyConnection,
+    dashboard_id: int | None = None,
+) -> dict[str, Any] | None:
+    row = conn.execute(
+        """
+        SELECT superset_log_id, dttm, action, dashboard_id, slice_id, json
+        FROM superset_action_logs
+        WHERE slice_id IS NOT NULL
+        ORDER BY superset_log_id DESC
+        LIMIT 1
+        """
+    ).fetchone()
+    if not row:
+        return None
+    payload = None
+    raw_json = row[5]
+    if isinstance(raw_json, str) and raw_json:
+        try:
+            payload = json.loads(raw_json)
+        except json.JSONDecodeError:
+            payload = None
+    result = {
+        "superset_log_id": row[0],
+        "dttm": row[1].isoformat() if row[1] else None,
+        "action": row[2],
+        "dashboard_id": row[3],
+        "slice_id": row[4],
+        "payload": payload,
+    }
+    if dashboard_id is None or str(row[3]) == str(dashboard_id):
+        return result
+    return None
+
+
+def _fetch_latest_ui_event(
+    conn: duckdb.DuckDBPyConnection,
+    dashboard_id: int | None = None,
+) -> dict[str, Any] | None:
+    ui_actions = ("superset_tab_click", "legend_toggle", "chart_click", "schema_highlight")
+    params: list[Any] = list(ui_actions)
+    filters = [f"action IN ({','.join(['?'] * len(ui_actions))})"]
+    if dashboard_id is not None:
+        filters.append("dashboard_id = ?")
+        params.append(dashboard_id)
+    where_clause = " AND ".join(filters)
+    row = conn.execute(
+        f"""
+        SELECT superset_log_id, dttm, action, user_id, dashboard_id, slice_id, json
+        FROM superset_action_logs
+        WHERE {where_clause}
+        ORDER BY superset_log_id DESC
+        LIMIT 1
+        """,
+        params,
+    ).fetchone()
+    if not row:
+        return None
+    payload = None
+    raw_json = row[6]
+    if isinstance(raw_json, str) and raw_json:
+        try:
+            payload = json.loads(raw_json)
+        except json.JSONDecodeError:
+            payload = None
+    return {
+        "superset_log_id": row[0],
+        "dttm": row[1].isoformat() if row[1] else None,
+        "action": row[2],
+        "user_id": row[3],
+        "dashboard_id": row[4],
+        "slice_id": row[5],
+        "payload": payload.get("payload") if isinstance(payload, dict) else None,
+    }
 
 
 if function_tool:
@@ -471,33 +572,6 @@ if function_tool:
         return {"chart_id": context.chart_id, "sql": payload.get("sql") or payload.get("query")}
 
     @function_tool
-    def get_activated_chart_metadata() -> dict[str, Any]:
-        """
-        Return chart metadata for the active chart via Superset API.
-
-        Input:
-        - Uses the active context set by the API handler (chart id + settings).
-
-        Output:
-        - {"chart_id": int, "metadata": dict | null}
-        - {"error": "..."} if dashboard id is missing or chart not found.
-        """
-        context = _get_active_context()
-        if context is None:
-            return {"error": "active context not set"}
-        if not context.chart_id:
-            return {"error": "active chart id not set"}
-        payload = _fetch_latest_chart_log_payload(context.conn, context.chart_id)
-        dashboard_id = payload.get("dashboard_id") if isinstance(payload, dict) else None
-        if not dashboard_id:
-            return {"error": "dashboard id not found in log payload"}
-        charts = fetch_dashboard_charts(context.settings, int(dashboard_id))
-        for chart in charts:
-            if str(chart.get("slice_id")) == str(context.chart_id):
-                return {"chart_id": context.chart_id, "metadata": chart}
-        return {"chart_id": context.chart_id, "metadata": None}
-
-    @function_tool
     def list_dashboard_charts() -> dict[str, Any]:
         """
         List charts for the most relevant dashboard.
@@ -521,6 +595,75 @@ if function_tool:
             return {"error": "dashboard id not available"}
         charts = fetch_dashboard_charts(context.settings, int(dashboard_id))
         return {"dashboard_id": int(dashboard_id), "charts": charts}
+
+    @function_tool
+    def get_active_tab_charts() -> dict[str, Any]:
+        """
+        Return charts for the active tab (from latest tab click or default tab).
+
+        Output:
+        - {"dashboard_id": int, "active_tab": {...}, "active_charts": [...], "last_ui_event": {...}}
+        - {"error": "..."} on missing dashboard id.
+        """
+        context = _get_active_context()
+        if context is None:
+            return {"error": "active context not set"}
+        dashboard_id = context.settings.superset_log_dashboard_id
+        if not dashboard_id:
+            dashboard_id = _fetch_latest_dashboard_id(context.conn)
+        if not dashboard_id:
+            return {"error": "dashboard id not available"}
+
+        charts = fetch_dashboard_charts(context.settings, int(dashboard_id))
+        ui_event = _fetch_latest_ui_event(context.conn, dashboard_id=int(dashboard_id))
+        log = _fetch_latest_active_chart(context.conn, dashboard_id=int(dashboard_id))
+
+        active_tab = None
+        if ui_event and ui_event.get("action") == "superset_tab_click":
+            payload = ui_event.get("payload") or {}
+            if isinstance(payload, dict) and isinstance(payload.get("payload"), dict):
+                payload = payload.get("payload") or {}
+            active_tab = {
+                "id": payload.get("tab_id") or payload.get("tabId"),
+                "name": payload.get("tab_name") or payload.get("tabName"),
+            }
+        if active_tab is None and log and log.get("slice_id"):
+            for chart in charts:
+                if str(chart.get("slice_id")) == str(log.get("slice_id")):
+                    active_tab = chart.get("tab")
+                    break
+        if active_tab is None:
+            try:
+                active_tab = fetch_dashboard_default_tab(
+                    context.settings, int(dashboard_id)
+                )
+            except Exception:
+                active_tab = None
+
+        def _tab_matches(chart_tab: Any, target_tab: dict[str, Any]) -> bool:
+            if not target_tab or not chart_tab:
+                return False
+            if isinstance(chart_tab, dict):
+                if target_tab.get("id") is not None and chart_tab.get("id") is not None:
+                    return str(chart_tab.get("id")) == str(target_tab.get("id"))
+                if target_tab.get("name") and chart_tab.get("name"):
+                    return str(chart_tab.get("name")) == str(target_tab.get("name"))
+            return False
+
+        active_charts: list[dict[str, Any]] = []
+        if active_tab:
+            active_charts = [
+                chart
+                for chart in charts
+                if _tab_matches(chart.get("tab"), active_tab)
+            ]
+
+        return {
+            "dashboard_id": int(dashboard_id),
+            "active_tab": active_tab,
+            "active_charts": active_charts,
+            "last_ui_event": ui_event,
+        }
 
     @function_tool
     def get_chart_data_by_id(chart_id: int) -> dict[str, Any]:
@@ -554,9 +697,9 @@ if function_tool:
         return _read_doc_file(Path("fastapi/docs/schema_explorer.md"))
 
     @function_tool
-    def read_cube_tools_doc() -> str | dict[str, Any]:
-        """Return the Cube tools documentation markdown."""
-        return _read_doc_file(Path("fastapi/docs/cube_tools.md"))
+    def read_semantic_tools_doc() -> str | dict[str, Any]:
+        """Return the semantic tools documentation markdown."""
+        return _read_doc_file(Path("fastapi/docs/semantic_tools.md"))
 
     @function_tool
     def get_chart_form_data(chart_id: int) -> dict[str, Any]:
@@ -644,6 +787,112 @@ if function_tool:
             return fetch_dataset_data(settings, query)
         except Exception as exc:
             return {"error": f"superset dataset query failed: {exc}"}
+
+    @function_tool
+    def create_cube_view(view_json: str) -> dict[str, Any]:
+        """
+        Create a semantic view in Cube config using a ViewSpec JSON payload.
+
+        Input:
+        - view_json: JSON string that matches ViewSpec.
+
+        Output:
+        - {"status": "created|updated", "view_name": "...", "view_file": "...",
+           "cube_reload_status": "ok|skipped|error", "physical_name": "...", "warnings": [...]}
+        - {"error": "..."} on validation or config issues.
+        """
+        settings, error = _get_active_settings()
+        if error:
+            return error
+        try:
+            payload = json.loads(view_json)
+        except json.JSONDecodeError as exc:
+            return {"error": f"view_json is not valid JSON: {exc}"}
+        try:
+            view_spec = ViewSpec.model_validate(payload)
+        except Exception as exc:
+            return {"error": f"view spec invalid: {exc}"}
+        try:
+            result = semantic_create_view(settings, view_spec)
+        except Exception as exc:
+            context = _get_active_context()
+            if context and context.conn:
+                log_unified_event(
+                    context.conn,
+                    "semantic_view_create_failed",
+                    {"view_name": view_spec.view_name, "error": str(exc)},
+                )
+            return {"error": f"create view failed: {exc}"}
+        context = _get_active_context()
+        if context and context.conn:
+            log_create_view(context.conn, view_spec, result)
+        return result.model_dump()
+
+    @function_tool
+    def sync_superset_dataset(request_json: str) -> dict[str, Any]:
+        """
+        Create or refresh a Superset dataset for a table/view.
+
+        Input:
+        - request_json: JSON string matching SupersetDatasetSyncRequest.
+
+        Output:
+        - {"status": "created|updated", "dataset_id": int|None, "created": bool,
+           "updated": bool, "warnings": [...]}
+        - {"error": "..."} on validation or Superset API issues.
+        """
+        settings, error = _get_active_settings()
+        if error:
+            return error
+        try:
+            payload = json.loads(request_json)
+        except json.JSONDecodeError as exc:
+            return {"error": f"request_json is not valid JSON: {exc}"}
+        try:
+            request = SupersetDatasetSyncRequest.model_validate(payload)
+        except Exception as exc:
+            return {"error": f"sync request invalid: {exc}"}
+        try:
+            result = semantic_sync_dataset(settings, request)
+        except Exception as exc:
+            context = _get_active_context()
+            if context and context.conn:
+                log_unified_event(
+                    context.conn,
+                    "superset_dataset_sync_failed",
+                    {"table_name": request.table_name, "error": str(exc)},
+                )
+            return {"error": f"superset dataset sync failed: {exc}"}
+        context = _get_active_context()
+        if context and context.conn:
+            log_dataset_sync(context.conn, request, result)
+        return result.model_dump()
+
+    @function_tool
+    def create_view_and_sync(view_json: str) -> dict[str, Any]:
+        """
+        Convenience: create a Cube view then sync Superset dataset.
+
+        Input:
+        - view_json: ViewSpec JSON string (must include superset_sync fields or call sync separately).
+
+        Output:
+        - {"view_result": {...}, "superset_result": {...|None}}
+        - {"error": "..."} on failures.
+        """
+        try:
+            payload = json.loads(view_json)
+        except json.JSONDecodeError as exc:
+            return {"error": f"view_json is not valid JSON: {exc}"}
+        view_spec = ViewSpec.model_validate(payload)
+        view_result = create_cube_view(json.dumps(payload))
+        if "error" in view_result:
+            return {"error": view_result["error"]}
+        superset_sync = payload.get("superset_sync")
+        if not superset_sync:
+            return {"view_result": view_result, "superset_result": None}
+        superset_result = sync_superset_dataset(json.dumps(superset_sync))
+        return {"view_result": view_result, "superset_result": superset_result}
 
     @function_tool
     def list_cube_tables() -> list[dict[str, Any]] | dict[str, Any]:
@@ -846,7 +1095,15 @@ Example query_json
 
 class AgentRunner:
     def __init__(self) -> None:
-        self._router_agent = None
+        self._orchestrator_agent = None
+        self._chart_context_agent = None
+        self._schema_mapping_agent = None
+        self._data_query_agent = None
+        self._semantic_view_builder_agent = None
+        self._answer_composer_agent = None
+        self._documentation_agent = None
+        self._summary_agent = None
+        self._lookahead_agent = None
         self._init_lock = asyncio.Lock()
         self._init_error: Exception | None = None
         self._initialized = False
@@ -854,7 +1111,7 @@ class AgentRunner:
 
     @property
     def available(self) -> bool:
-        return self._router_agent is not None
+        return self._orchestrator_agent is not None
 
     async def startup(self) -> None:
         if self._initialized:
@@ -863,16 +1120,43 @@ class AgentRunner:
             if self._initialized:
                 return
             try:
-                self._router_agent = self._build_agents()
+                agents = self._build_agents()
+                self._orchestrator_agent = agents.get("orchestrator")
+                self._chart_context_agent = agents.get("chart_context")
+                self._schema_mapping_agent = agents.get("schema_mapping")
+                self._data_query_agent = agents.get("data_query")
+                self._semantic_view_builder_agent = agents.get("semantic_view_builder")
+                self._answer_composer_agent = agents.get("answer_composer")
+                self._documentation_agent = agents.get("documentation")
+                self._summary_agent = agents.get("summary")
+                self._lookahead_agent = agents.get("lookahead")
                 self._dashboard_tools_doc = self._load_dashboard_tools_doc()
             except Exception as exc:  # pragma: no cover - defensive init guard
-                self._router_agent = None
+                self._orchestrator_agent = None
+                self._chart_context_agent = None
+                self._schema_mapping_agent = None
+                self._data_query_agent = None
+                self._semantic_view_builder_agent = None
+                self._answer_composer_agent = None
+                self._documentation_agent = None
+                self._summary_agent = None
+                self._lookahead_agent = None
                 self._init_error = exc
             self._initialized = True
 
-    def _build_agents(self) -> Any:
+    def _build_agents(self) -> dict[str, Any]:
         if Agent is None or ModelSettings is None:
-            return None
+            return {
+                "orchestrator": None,
+                "chart_context": None,
+                "schema_mapping": None,
+                "data_query": None,
+                "semantic_view_builder": None,
+                "answer_composer": None,
+                "documentation": None,
+                "summary": None,
+                "lookahead": None,
+            }
 
         model_settings = ModelSettings(
             reasoning={"effort": "medium"},
@@ -880,58 +1164,234 @@ class AgentRunner:
             max_turns=100,
             response_format={"type": "json_object", "schema": Answer.model_json_schema()},
         )
-        return Agent(
-            name="Dashboard Agent",
+        summary_agent = Agent(
+            name="Summary Agent",
+            model=os.getenv("AGENT_MODEL", "gpt-5-nano"),
+            tools=[],
+            model_settings=model_settings,
+            instructions=prompts.SUMMARY_AGENT,
+        )
+
+        lookahead_agent = Agent(
+            name="LookAhead Agent",
+            model=os.getenv("AGENT_MODEL", "gpt-5-nano"),
+            tools=[],
+            model_settings=model_settings,
+            instructions=prompts.LOOKAHEAD_AGENT,
+        )
+
+        chart_context_agent = Agent(
+            name="Chart Context Agent",
             model=os.getenv("AGENT_MODEL", "gpt-5-nano"),
             tools=[
                 get_active_chart_log,
-                get_active_chart_data,
                 get_chart_sql,
-                get_activated_chart_metadata,
+                get_active_tab_charts,
                 list_dashboard_charts,
-                get_chart_data_by_id,
-                read_dashboard_tools_doc,
-                read_schema_explorer_doc,
-                read_cube_tools_doc,
-                get_chart_queries,
-                get_superset_dataset_schema,
-                query_superset_dataset,
-                list_cube_tables,
-                get_cube_schema,
-                query_cube,
-                get_facts,
-                get_schema_info,
-                search_attribute,
-                search_value_exists,
             ]
             if function_tool
             else [],
             model_settings=model_settings,
-            instructions=(
-                "[SYSTEM DATE] December 31st, 2024. "
-                "You answer questions about the current dashboard and charts. "
-                "Use the provided chart context when available. "
-                "When user asking non-dashboard related questions, respond accordingly. "
-                "When an active chart is available, fetch the active chart data and "
-                "call `list_dashboard_charts` to see which charts will be helpful "
-                "Then use `get_chart_data_by_id` to fetch data "
-                "to explore the chart to give better answers "
-                "If no active chart is available, explore dashboards by listing charts "
-                "and fetching relevant chart data as needed. "
-                "Use the schema explorer tools when the user asks about available "
-                "tables, measures, dimensions, or values; or when you need to map "
-                "a natural-language request to schema fields. "
-                "Use the Cube tools to list cubes/views, inspect Cube schema, or "
-                "run Cube queries when the user asks for data directly from Cube. "
-                "When querying Superset datasets, **MUST** call get_chart_queries with the chart_id "
-                "to obtain queries/form_data, then use query_superset_dataset. "
-                f"add filters (row filtering), extras (WHERE clause), and columns (groupby). {EXAMPLE}"
-                "Before using specialized tools, read the relevant documentation "
-                "via read_dashboard_tools_doc, read_schema_explorer_doc, or "
-                "read_cube_tools_doc to confirm input/output expectations at least once. "
-                "When user is asking comparison questions between charts, you might need to query multiple times to the dataset or charts."
-                "Return a JSON object with an 'answer' field containing the response."
-            ),
+            instructions=prompts.CHART_CONTEXT_AGENT,
+        )
+
+        schema_mapping_agent = Agent(
+            name="Schema Mapping Agent",
+            model=os.getenv("AGENT_MODEL", "gpt-5-nano"),
+            tools=[
+                get_facts,
+                get_schema_info,
+                search_attribute,
+                search_value_exists,
+                list_cube_tables,
+                get_cube_schema,
+            ]
+            if function_tool
+            else [],
+            model_settings=model_settings,
+            instructions=prompts.SCHEMA_MAPPING_AGENT,
+        )
+
+        data_query_agent = Agent(
+            name="Data Query Agent",
+            model=os.getenv("AGENT_MODEL", "gpt-5-nano"),
+            tools=[
+                get_chart_queries,
+                query_superset_dataset,
+                query_cube,
+                get_superset_dataset_schema,
+                get_active_chart_data,
+                get_chart_data_by_id,
+            ]
+            if function_tool
+            else [],
+            model_settings=model_settings,
+            instructions=prompts.DATA_QUERY_AGENT,
+        )
+
+        semantic_view_builder_agent = Agent(
+            name="Semantic View Builder Agent",
+            model=os.getenv("AGENT_MODEL", "gpt-5-nano"),
+            tools=[
+                list_cube_tables,
+                get_cube_schema,
+                create_cube_view,
+                sync_superset_dataset,
+                create_view_and_sync,
+            ]
+            if function_tool
+            else [],
+            model_settings=model_settings,
+            instructions=prompts.SEMANTIC_VIEW_BUILDER_AGENT,
+        )
+
+        answer_composer_agent = Agent(
+            name="Answer Composer Agent",
+            model=os.getenv("AGENT_MODEL", "gpt-5-nano"),
+            tools=[],
+            model_settings=model_settings,
+            instructions=prompts.ANSWER_COMPOSER_AGENT,
+        )
+
+        documentation_agent = Agent(
+            name="Documentation Agent",
+            model=os.getenv("AGENT_MODEL", "gpt-5-nano"),
+            tools=[
+                read_dashboard_tools_doc,
+                read_schema_explorer_doc,
+                read_semantic_tools_doc,
+            ]
+            if function_tool
+            else [],
+            model_settings=model_settings,
+            instructions=prompts.DOCUMENTATION_AGENT,
+        )
+
+        if function_tool:
+            @function_tool
+            async def run_chart_context_agent(payload_json: str) -> str:
+                """Run Chart Context Agent with a JSON payload; returns JSON string."""
+                return await self._run_subagent(chart_context_agent, payload_json)
+
+            @function_tool
+            async def run_schema_mapping_agent(payload_json: str) -> str:
+                """Run Schema Mapping Agent with a JSON payload; returns JSON string."""
+                return await self._run_subagent(schema_mapping_agent, payload_json)
+
+            @function_tool
+            async def run_data_query_agent(payload_json: str) -> str:
+                """Run Data Query Agent with a JSON payload; returns JSON string."""
+                return await self._run_subagent(data_query_agent, payload_json)
+
+            @function_tool
+            async def run_semantic_view_builder_agent(payload_json: str) -> str:
+                """Run Semantic View Builder Agent with a JSON payload; returns JSON string."""
+                return await self._run_subagent(semantic_view_builder_agent, payload_json)
+
+            @function_tool
+            async def run_answer_composer_agent(payload_json: str) -> str:
+                """Run Answer Composer Agent with a JSON payload; returns JSON string."""
+                return await self._run_subagent(answer_composer_agent, payload_json)
+
+            @function_tool
+            async def run_documentation_agent(payload_json: str) -> str:
+                """Run Documentation Agent with a JSON payload; returns JSON string."""
+                return await self._run_subagent(documentation_agent, payload_json)
+        else:
+            run_chart_context_agent = None
+            run_schema_mapping_agent = None
+            run_data_query_agent = None
+            run_semantic_view_builder_agent = None
+            run_answer_composer_agent = None
+            run_documentation_agent = None
+
+        orchestrator_agent = Agent(
+            name="Orchestrator Agent",
+            model=os.getenv("AGENT_MODEL", "gpt-5-nano"),
+            tools=[
+                run_chart_context_agent,
+                run_schema_mapping_agent,
+                run_data_query_agent,
+                run_semantic_view_builder_agent,
+                run_answer_composer_agent,
+                run_documentation_agent,
+            ]
+            if function_tool
+            else [],
+            model_settings=model_settings,
+            instructions=prompts.ORCHESTRATOR_AGENT,
+        )
+
+        return {
+            "orchestrator": orchestrator_agent,
+            "chart_context": chart_context_agent,
+            "schema_mapping": schema_mapping_agent,
+            "data_query": data_query_agent,
+            "semantic_view_builder": semantic_view_builder_agent,
+            "answer_composer": answer_composer_agent,
+            "documentation": documentation_agent,
+            "summary": summary_agent,
+            "lookahead": lookahead_agent,
+        }
+
+    async def _run_subagent(self, agent: Any, payload_json: str) -> str:
+        if Runner is None:
+            raise RuntimeError(_IMPORT_ERROR or "agents Runner unavailable")
+        prompt = [{"role": "user", "content": payload_json}]
+        run_sync = getattr(Runner, "run_sync", None)
+        if callable(run_sync):
+            result = await asyncio.to_thread(run_sync, agent, prompt, context=_ACTIVE_CONTEXT)
+        else:
+            run_async = getattr(Runner, "run", None)
+            if callable(run_async):
+                result = run_async(agent, prompt, context=_ACTIVE_CONTEXT)
+                if asyncio.iscoroutine(result):
+                    result = await result
+            else:
+                raise RuntimeError("agents Runner has no run method")
+        for attr in ("final_output", "output_text", "output"):
+            value = getattr(result, attr, None)
+            if isinstance(value, str) and value.strip():
+                return value
+        if isinstance(result, str):
+            return result
+        return json.dumps(result, default=str)
+
+    def _is_summary_command(self, message: str) -> bool:
+        return message.strip().lower().startswith("/summary")
+
+    async def _call_summary(
+        self,
+        history: list[dict[str, str]],
+        context_obj: Any | None,
+    ) -> str:
+        payload = {
+            "mode": "summary",
+            "history": history[-50:],
+            "trace": getattr(context_obj, "trace_logs", None) if context_obj else None,
+            "active": getattr(context_obj, "active_chart", None) if context_obj else None,
+        }
+        return await self._run_subagent(
+            self._summary_agent, json.dumps(payload, ensure_ascii=False)
+        )
+
+    async def _call_lookahead(
+        self,
+        history: list[dict[str, str]],
+        user_msg: str,
+        final_answer: str,
+        context_obj: Any | None,
+    ) -> str:
+        payload = {
+            "mode": "lookahead",
+            "last_user_message": user_msg,
+            "final_answer": final_answer,
+            "history": history[-20:],
+            "trace": getattr(context_obj, "trace_logs", None) if context_obj else None,
+            "active": getattr(context_obj, "active_chart", None) if context_obj else None,
+        }
+        return await self._run_subagent(
+            self._lookahead_agent, json.dumps(payload, ensure_ascii=False)
         )
 
     async def respond(
@@ -943,22 +1403,26 @@ class AgentRunner:
         debug: bool = False,
     ) -> tuple[str, list[dict[str, Any]], str | None]:
         await self.startup()
-        if not self._router_agent:
+        if not self._orchestrator_agent:
             return (
                 "Agent not available. "
                 "Install the OpenAI agents package and set OPENAI_API_KEY."
             ), [{"type": "error", "message": "agent_not_available"}] if debug else [], None
 
-        prompt = self._build_input_messages(
-            message,
-            history,
-            context=self._inject_docs(context),
-        )
         debug_items: list[dict[str, Any]] = []
         try:
             global _ACTIVE_CONTEXT
             _ACTIVE_CONTEXT = context_obj
-            result = await self._run_agent(self._router_agent, prompt, context_obj)
+            if self._is_summary_command(message) and self._summary_agent:
+                summary_text = await self._call_summary(history, context_obj)
+                summary_answer = self._parse_json_answer(summary_text)
+                return summary_answer, [], summary_text
+            prompt = self._build_input_messages(
+                message,
+                history,
+                context=self._inject_docs(context),
+            )
+            result = await self._run_agent(self._orchestrator_agent, prompt, context_obj)
         except Exception as exc:
             if debug:
                 debug_items.append({"type": "error", "message": str(exc)})
@@ -966,6 +1430,11 @@ class AgentRunner:
         finally:
             _ACTIVE_CONTEXT = None
         answer = self._extract_answer(result)
+        if self._lookahead_agent:
+            rec = await self._call_lookahead(history, message, answer, context_obj)
+            rec_text = self._parse_json_answer(rec)
+            if rec_text.strip():
+                answer = f"{answer}\n\n---\n### 다음으로 보면 좋을 것 같아요\n{rec_text}"
         raw_output = self._extract_raw_output(result)
         if debug:
             debug_items.extend(self._extract_debug_items(result))
@@ -980,20 +1449,25 @@ class AgentRunner:
         debug: bool = False,
     ) -> AsyncIterator[dict[str, Any]]:
         await self.startup()
-        if not self._router_agent:
+        if not self._orchestrator_agent:
             yield {"event": "error", "message": "agent_not_available"}
             return
 
-        prompt = self._build_input_messages(
-            message,
-            history,
-            context=self._inject_docs(context),
-        )
         last_text = ""
         try:
             global _ACTIVE_CONTEXT
             _ACTIVE_CONTEXT = context_obj
-            stream = Runner.run_streamed(self._router_agent, prompt, context=context_obj)
+            if self._is_summary_command(message) and self._summary_agent:
+                summary_text = await self._call_summary(history, context_obj)
+                summary_answer = self._parse_json_answer(summary_text)
+                yield {"event": "final", "answer": summary_answer, "raw": summary_text}
+                return
+            prompt = self._build_input_messages(
+                message,
+                history,
+                context=self._inject_docs(context),
+            )
+            stream = Runner.run_streamed(self._orchestrator_agent, prompt, context=context_obj)
             async for event in stream.stream_events():
                 if RunItemStreamEvent and isinstance(event, RunItemStreamEvent):
                     name = event.name
@@ -1032,6 +1506,11 @@ class AgentRunner:
         final_text = getattr(stream, "final_output", None) or last_text
         raw_text = final_text if isinstance(final_text, str) else str(final_text)
         answer = self._parse_json_answer(raw_text)
+        if self._lookahead_agent:
+            rec = await self._call_lookahead(history, message, answer, context_obj)
+            rec_text = self._parse_json_answer(rec)
+            if rec_text.strip():
+                answer = f"{answer}\n\n---\n### 다음으로 보면 좋을 것 같아요\n{rec_text}"
         yield {"event": "final", "answer": answer, "raw": raw_text}
 
     def _build_input_messages(
@@ -1136,7 +1615,7 @@ class AgentRunner:
         doc_tools = {
             "read_dashboard_tools_doc": "dashboard tools",
             "read_schema_explorer_doc": "schema explorer",
-            "read_cube_tools_doc": "cube tools",
+            "read_semantic_tools_doc": "semantic tools",
         }
         for item in new_items:
             item_type = getattr(item, "type", None) or "unknown_item"

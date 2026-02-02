@@ -170,7 +170,7 @@ Responsibilities:
 
 Suggested internal modules:
 - `llm/` (provider adapters, prompt templates, tool calling)
-- `cube/` (REST + SQL clients)
+- `semantic/` (REST + SQL clients)
 - `logging/` (event schemas, queue, DuckDB writer)
 - `superset/` (metadata DB poller, normalization)
 - `api/` (FastAPI routers)
@@ -279,7 +279,7 @@ Injects active chart context (chart id/name + latest Superset log form_data/quer
 ```
 
 ### GET /events/stream
-Streams UI events from DuckDB (`ui_events`) via SSE.
+Streams Superset logs (including embed UI events written into `superset_action_logs`) via SSE.
 
 ### GET /superset/charts/{chart_id}/data
 Looks up the latest Superset log for `chart_id` in DuckDB, builds a chart payload
@@ -323,7 +323,7 @@ Returns the latest Superset log payload for the chart (from DuckDB), including
 {"status":"ok"}
 ```
 
-**Note**: `POST /events` writes UI events (e.g., tab clicks) into DuckDB `ui_events`.
+**Note**: `POST /events` writes embed UI events (e.g., tab clicks) into DuckDB `superset_action_logs`.
 
 **Unit test (example)**
 
@@ -357,7 +357,11 @@ Returns the list of charts (figures) for a Superset dashboard.
       "name": "Sales by Category",
       "viz_type": "bar",
       "datasource_id": 5,
-      "datasource_type": "table"
+      "datasource_type": "table",
+      "tab": {
+        "id": 12,
+        "name": "Overview"
+      }
     }
   ]
 }
@@ -377,30 +381,6 @@ def test_superset_dashboard_charts_missing_config(self) -> None:
 
 ---
 
-### GET /superset/dashboards/{dashboard_id}/tab-map
-
-Returns a mapping of chart (slice) ids to Superset dashboard tab names.
-
-**Response (example)**
-
-```json
-{
-  "dashboard_id": 12,
-  "tab_map": {
-    "160": "Q1 Overview",
-    "161": "Q1 Overview"
-  }
-}
-```
-
-**Unit test (example)**
-
-```python
-tab_map = client.get("/superset/dashboards/12/tab-map")
-self.assertEqual(tab_map.status_code, 400)
-```
-
----
 ### GET /health
 
 Used for container health checks.
@@ -546,7 +526,7 @@ self.assertEqual(schema.status_code, 400)
 
 ---
 
-### GET /cube/meta
+### GET /semantic/meta
 
 Returns Cube.js metadata from the Cube REST API.
 
@@ -567,13 +547,13 @@ Returns Cube.js metadata from the Cube REST API.
 **Unit test (example)**
 
 ```python
-cube_meta = client.get("/cube/meta")
+cube_meta = client.get("/semantic/meta")
 self.assertEqual(cube_meta.status_code, 400)
 ```
 
 ---
 
-### GET /cube/schema
+### GET /semantic/schema
 
 Returns a schema/joins map built from Cube config files under `CUBE_CONF_PATH`.
 
@@ -603,24 +583,25 @@ Returns a schema/joins map built from Cube config files under `CUBE_CONF_PATH`.
 **Unit test (example)**
 
 ```python
-cube_schema = client.get("/cube/schema")
+cube_schema = client.get("/semantic/schema")
 self.assertEqual(cube_schema.status_code, 400)
 ```
 
 ---
-### GET /superset/logs/stream
+### GET /events/stream
 
-Streams Superset action logs from DuckDB using Server-Sent Events (SSE).
+Streams Superset action logs and UI events from DuckDB using Server-Sent Events (SSE).
 
 **Query params**
 
 - `dashboard_id`: filter by dashboard id
 - `user_id`: filter by Superset user id
 - `action`: filter by action name
+- `source`: `superset` (default)
 - `last_id`: start from this superset_log_id (default 0)
 - `limit`: max rows per poll (default 100)
 - `poll_interval_sec`: poll interval (default 1.0)
-- `Last-Event-ID` header: optional resume token used on reconnects
+- `Last-Event-ID` header: optional resume token used on reconnects (superset_log_id)
 
 **Notes**
 
@@ -640,7 +621,7 @@ Streams Superset action logs from DuckDB using Server-Sent Events (SSE).
 ```python
 with client.stream(
     "GET",
-    "/superset/logs/stream",
+    "/events/stream",
     headers={"Last-Event-ID": "0"},
 ) as stream:
     self.assertEqual(stream.status_code, 200)
@@ -649,32 +630,6 @@ with client.stream(
 ```
 
 ---
-
-### GET /events/stream
-
-Streams UI events (from `ui_events`) using Server-Sent Events (SSE).
-
-**Query params**
-
-- `session_id`: filter by Streamlit session id
-- `event_type`: filter by event type
-- `last_id`: start from this event_id (default 0)
-- `limit`: max rows per poll (default 100)
-- `poll_interval_sec`: poll interval (default 1.0)
-- `Last-Event-ID` header: optional resume token used on reconnects
-
-**Unit test (example)**
-
-```python
-with client.stream(
-    "GET",
-    "/events/stream",
-    headers={"Last-Event-ID": "0"},
-) as stream:
-    self.assertEqual(stream.status_code, 200)
-    content_type = stream.headers.get("content-type", "")
-    self.assertTrue(content_type.startswith("text/event-stream"))
-```
 
 ---
 
@@ -688,8 +643,7 @@ Resolves a Superset username to user id (metadata DB lookup).
 
 - **session_id**: stable across a user session in Streamlit  
 - **request_id**: unique per `/chat` call  
-- **event_id**: unique per event row (generated at ingestion time)  
-- **superset_log_id**: Superset `logs.id` (source primary key)
+- **superset_log_id**: Superset `logs.id` (source primary key) or local id for embed events
 
 ---
 
@@ -705,18 +659,10 @@ Resolves a Superset username to user id (metadata DB lookup).
 - `response` VARCHAR  
 - `latency_ms` BIGINT  
 
-#### ui_events
-
-- `event_id` BIGINT  
-- `ts` TIMESTAMP  
-- `session_id` VARCHAR  
-- `user_id` VARCHAR  
-- `event_type` VARCHAR  
-- `payload_json` VARCHAR  
-
 #### superset_action_logs
 
 (ingested from `superset_db.logs`; keep raw + add ingestion columns)
+Also stores embed UI events written by `POST /events` (action = event_type, json payload includes source/session/user).
 
 - `superset_log_id` BIGINT  
 - `dttm` TIMESTAMP  

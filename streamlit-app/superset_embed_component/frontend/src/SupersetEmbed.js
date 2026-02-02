@@ -75,6 +75,8 @@ export default function SupersetEmbed(props) {
                         iframe.contentWindow.dispatchEvent(new Event('resize'));
                         // Also try postMessage for Superset's event listener
                         iframe.contentWindow.postMessage({ type: 'resize', width: mount.offsetWidth, height: effectiveHeight }, supersetDomain);
+                        // Bind parent so injected Superset JS can post active tab updates.
+                        iframe.contentWindow.postMessage({ id: 'bind-parent' }, supersetDomain);
                     }
                     // Force parent window resize as fallback
                     window.dispatchEvent(new Event('resize'));
@@ -116,10 +118,22 @@ export default function SupersetEmbed(props) {
                 return;
             if (!event.data)
                 return;
+            const data = event.data;
+            if (data && data.id === 'superset-ui-event') {
+                const eventType = String(data.event || data.event_type || '');
+                if (eventType) {
+                    postEvent(eventType, {
+                        dashboard_id: data.dashboard_id || dashboardId,
+                        slice_id: data.chart_id,
+                        viz_type: data.viz_type,
+                        payload: data.payload,
+                    });
+                }
+                return;
+            }
             const raw = typeof event.data === "string" ? event.data : JSON.stringify(event.data);
             if (!/tab/i.test(raw))
                 return;
-            const data = event.data;
             const tabId = (data && (data.tabId || data.tab_id)) ||
                 (data && (data.activeTabId || data.active_tab_id));
             const tabName = (data && (data.tabName || data.tab_name)) ||

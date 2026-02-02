@@ -1,0 +1,147 @@
+<div id="{{CONTAINER_ID}}" style="font-family: sans-serif; color:#fff;">
+  <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+    <span style="font-weight:600;">Status:</span>
+    <span class="status" style="color:#2e7d32;">connecting</span>
+    <span class="last-id" style="margin-left:8px; font-size:12px; color:#aaa;">last_id: -</span>
+    <button
+      class="resume"
+      style="margin-left:auto; padding:4px 8px; background:#2a2a2a; color:#fff; border:1px solid #444; border-radius:4px; cursor:pointer;"
+    >
+      Resume
+    </button>
+  </div>
+  <div
+    class="latest"
+    style="padding:8px 10px; border:1px solid #444; border-radius:6px; margin-bottom:10px; background:#1f1f1f;"
+  >
+    <div style="font-weight:600; margin-bottom:4px;">Latest log</div>
+    <div class="latest-body" style="font-size:12px; color:#ddd;">No logs yet.</div>
+  </div>
+  <div
+    style="max-height:520px; overflow:auto; border:1px solid #444; border-radius:6px; background:#1a1a1a;"
+  >
+    <table style="width:100%; border-collapse:collapse; font-size:13px; color:#fff;">
+      <thead style="position:sticky; top:0; background:#2a2a2a;">
+        <tr>
+          <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">Time</th>
+          <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">Action</th>
+          <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">User</th>
+          <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">Dashboard</th>
+          <th style="text-align:left; padding:6px; border-bottom:1px solid #444;">Slice</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+<script>
+  const root = document.getElementById("{{CONTAINER_ID}}");
+  const statusEl = root.querySelector(".status");
+  const resumeBtn = root.querySelector(".resume");
+  const tbody = root.querySelector("tbody");
+  const latestBody = root.querySelector(".latest-body");
+  const lastIdEl = root.querySelector(".last-id");
+  const apiBase = "{{API_BASE}}";
+  const maxRows = 80;
+  const seen = new Set();
+  const rows = [];
+  const storageKey = "superset-log-last-id-{{DASHBOARD_KEY}}";
+  const initialToken = localStorage.getItem(storageKey) || "0";
+  const initialId = Number(initialToken) || 0;
+  const streamUrl =
+    "{{STREAM_BASE_URL}}" +
+    "&last_id=" +
+    initialId;
+
+  function render() {
+    tbody.innerHTML = "";
+    for (const row of rows) {
+      const ts = row.dttm || row.ts || "";
+      const action = row.action_label || row.action || row.event_type || "";
+      const dash = row.dashboard_id || (row.payload && row.payload.dashboard_id) || "";
+      const slice =
+        row.slice_id ||
+        (row.payload && (row.payload.slice_id || row.payload.tab_id || row.payload.tab_name)) ||
+        "";
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td style="padding:6px; border-bottom:1px solid #333;">${ts}</td>
+        <td style="padding:6px; border-bottom:1px solid #333;">${action}</td>
+        <td style="padding:6px; border-bottom:1px solid #333;">${row.user_id || ""}</td>
+        <td style="padding:6px; border-bottom:1px solid #333;">${dash}</td>
+        <td style="padding:6px; border-bottom:1px solid #333;">${slice}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function addRow(row) {
+    if (!row) return;
+    const rowId = row.superset_log_id || row.event_id;
+    if (!rowId) return;
+    const key = String(row.source || "superset") + ":" + String(rowId);
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.unshift(row);
+    const ts = row.dttm || row.ts || "";
+    const action = row.action_label || row.action || row.event_type || "";
+    const dash = row.dashboard_id || (row.payload && row.payload.dashboard_id) || "";
+    const slice =
+      row.slice_id ||
+      (row.payload && (row.payload.slice_id || row.payload.tab_id || row.payload.tab_name)) ||
+      "";
+    latestBody.textContent =
+      `[${ts}] ${action} (user=${row.user_id || ""}, ` +
+      `dashboard=${dash}, slice=${slice})`;
+    if (rows.length > maxRows) rows.pop();
+    render();
+  }
+
+  let supersetSource = null;
+
+  function closeStreams() {
+    if (supersetSource) supersetSource.close();
+    supersetSource = null;
+  }
+
+  function openStreams() {
+    if (!window.EventSource) {
+      statusEl.textContent = "EventSource not supported";
+      statusEl.style.color = "#c62828";
+      return;
+    }
+
+    closeStreams();
+    statusEl.textContent = "connecting";
+    statusEl.style.color = "#2e7d32";
+
+    supersetSource = new EventSource(streamUrl);
+    supersetSource.onopen = () => {
+      statusEl.textContent = "connected";
+      statusEl.style.color = "#2e7d32";
+    };
+    supersetSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (event.lastEventId) {
+          localStorage.setItem(storageKey, String(event.lastEventId));
+          if (lastIdEl) lastIdEl.textContent = `last_id: ${event.lastEventId}`;
+        }
+        addRow(data);
+        statusEl.textContent = "connected";
+        statusEl.style.color = "#2e7d32";
+      } catch (err) {}
+    };
+    supersetSource.onerror = () => {
+      statusEl.textContent = "disconnected";
+      statusEl.style.color = "#c62828";
+    };
+
+  }
+
+  openStreams();
+  resumeBtn.addEventListener("click", () => {
+    openStreams();
+  });
+
+</script>

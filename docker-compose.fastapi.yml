@@ -9,7 +9,7 @@ services:
     env_file:
       - ./fastapi/.env
     environment:
-      - DUCKDB_PATH=/data/events.duckdb
+      - DUCKDB_PATH=/logs/events.duckdb
       - SUPERSET_META_DB_URI=postgresql://superset:superset@superset_db:5432/superset
       - SUPERSET_POLL_INTERVAL_SEC=2
       - SUPERSET_BATCH_SIZE=200
@@ -27,8 +27,8 @@ services:
       - CUBE_CONF_PATH=/cube/conf
       - CORS_ORIGINS=http://localhost:8501
     volumes:
-      - ./data/logs:/data
-      - ./data/sales:/app/data/sales:ro
+      - ./data/logs:/logs
+      - ./data/sales:/app/cube_data:ro
       - ./src:/app/src:ro
       - ./data/sales/cube_conf:/cube/conf:ro
     networks:

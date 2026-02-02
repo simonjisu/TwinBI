@@ -243,8 +243,8 @@
 
   function startHighlightStream() {
     if (!apiBase || !sessionId || !window.EventSource) return;
-    const lastId = (BigInt(Date.now()) * 1000000n).toString();
-    const url = `${apiBase.replace(/\/+$/, "")}/events/stream?session_id=${encodeURIComponent(sessionId)}&event_type=schema_highlight&limit=1&last_id=${lastId}`;
+    const lastId = "0";
+    const url = `${apiBase.replace(/\/+$/, "")}/events/stream?source=superset&action=schema_highlight&limit=1&last_id=${lastId}`;
     const source = new EventSource(url);
     source.onmessage = (event) => {
       try {

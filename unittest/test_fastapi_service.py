@@ -79,23 +79,11 @@ class FastAPITestCase(unittest.TestCase):
                 schema = client.get("/superset/datasets/12/schema")
                 self.assertEqual(schema.status_code, 400)
 
-                cube_meta = client.get("/cube/meta")
+                cube_meta = client.get("/semantic/meta")
                 self.assertEqual(cube_meta.status_code, 400)
 
-                cube_schema = client.get("/cube/schema")
+                cube_schema = client.get("/semantic/schema")
                 self.assertEqual(cube_schema.status_code, 400)
-
-                tab_map = client.get("/superset/dashboards/12/tab-map")
-                self.assertEqual(tab_map.status_code, 400)
-
-                with client.stream(
-                    "GET",
-                    "/superset/logs/stream",
-                    headers={"Last-Event-ID": "0"},
-                ) as stream:
-                    self.assertEqual(stream.status_code, 200)
-                    content_type = stream.headers.get("content-type", "")
-                    self.assertTrue(content_type.startswith("text/event-stream"))
 
                 with client.stream(
                     "GET",
@@ -132,7 +120,9 @@ class FastAPITestCase(unittest.TestCase):
                 client.app.state.writer.flush_blocking()
 
             conn = duckdb.connect(str(db_path))
-            rows = conn.execute("SELECT COUNT(*) FROM ui_events").fetchone()
+            rows = conn.execute(
+                "SELECT COUNT(*) FROM superset_action_logs WHERE action = 'chart_click'"
+            ).fetchone()
             conn.close()
             self.assertEqual(rows[0], 1)
 

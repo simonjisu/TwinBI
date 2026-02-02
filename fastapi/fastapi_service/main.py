@@ -22,24 +22,35 @@ from fastapi_service.models import (
     ChatResponse,
     EventRequest,
     StatusResponse,
+    ViewSpec,
+    CreateViewResult,
+    SupersetDatasetSyncRequest,
+    SupersetDatasetSyncResult,
+    CreateViewAndSyncRequest,
+    CreateViewAndSyncResult,
 )
 from fastapi_service.superset import (
     QueryTranslater,
     SupersetPoller,
     fetch_dashboard_charts,
+    fetch_dashboard_default_tab,
     fetch_dataset_schema,
     fetch_dataset_data,
-    fetch_dashboard_layout,
-    extract_tab_map,
     lookup_user_id,
     fetch_chart_data_from_log,
-    fetch_chart_detail,
     fetch_chart_form_data,
     fetch_chart_queries,
     normalize_chart_queries_result,
 )
-from fastapi_service.cube import fetch_cube_meta
+from fastapi_service.semantic import fetch_cube_meta
 from fastapi_service.cube_conf import load_repo_schema
+from fastapi_service.semantic import (
+    create_cube_view,
+    sync_superset_dataset,
+    log_create_view,
+    log_dataset_sync,
+    log_unified_event,
+)
 from fastapi_service.writer import DuckDBWriter
 
 logger = logging.getLogger(__name__)
@@ -218,6 +229,47 @@ def _fetch_latest_active_chart(
     }
 
 
+def _fetch_latest_ui_event(
+    conn: duckdb.DuckDBPyConnection,
+    dashboard_id: int | None = None,
+) -> dict[str, Any] | None:
+    ui_actions = ("superset_tab_click", "legend_toggle", "chart_click", "schema_highlight")
+    params: list[Any] = list(ui_actions)
+    filters = [f"action IN ({','.join(['?'] * len(ui_actions))})"]
+    if dashboard_id is not None:
+        filters.append("dashboard_id = ?")
+        params.append(dashboard_id)
+    where_clause = " AND ".join(filters)
+    row = conn.execute(
+        f"""
+        SELECT superset_log_id, dttm, action, user_id, dashboard_id, slice_id, json
+        FROM superset_action_logs
+        WHERE {where_clause}
+        ORDER BY superset_log_id DESC
+        LIMIT 1
+        """,
+        params,
+    ).fetchone()
+    if not row:
+        return None
+    payload = None
+    raw_json = row[6]
+    if isinstance(raw_json, str) and raw_json:
+        try:
+            payload = json.loads(raw_json)
+        except json.JSONDecodeError:
+            payload = None
+    return {
+        "superset_log_id": row[0],
+        "dttm": row[1].isoformat() if row[1] else None,
+        "action": row[2],
+        "user_id": row[3],
+        "dashboard_id": row[4],
+        "slice_id": row[5],
+        "payload": payload.get("payload") if isinstance(payload, dict) else None,
+    }
+
+
 def _summarize_chart_log(log: dict[str, Any] | None) -> dict[str, Any]:
     if not log or not isinstance(log, dict):
         return {}
@@ -270,6 +322,10 @@ def _decorate_superset_log(row: dict[str, Any]) -> dict[str, Any]:
     elif isinstance(raw_json, dict):
         payload = raw_json
     if payload and isinstance(payload, dict):
+        if payload.get("payload") is not None and "payload" not in row:
+            row["payload"] = payload.get("payload")
+        if row.get("user_id") is None and payload.get("user_id") is not None:
+            row["user_id"] = payload.get("user_id")
         event_name = payload.get("event_name")
         if event_name:
             row["event_name"] = event_name
@@ -469,7 +525,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "slice_id, duration_ms, referrer, json, ingested_at "
                 "FROM superset_action_logs "
                 f"WHERE {where_clause} "
-                "ORDER BY superset_log_id ASC "
+                "ORDER BY superset_log_id DESC "
                 "LIMIT ?"
             )
             params.append(limit)
@@ -493,9 +549,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ]
         return [_decorate_superset_log(row) for row in rows_out]
 
-    @app.get("/superset/logs/stream")
-    async def superset_logs_stream(
+    def _row_timestamp(value: Any) -> datetime:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value)
+            except ValueError:
+                return datetime.min
+        return datetime.min
+
+    @app.get("/events/stream")
+    async def events_stream(
         request: Request,
+        source: str | None = None,
         dashboard_id: int | None = None,
         user_id: int | None = None,
         action: str | None = None,
@@ -507,50 +574,64 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         header_last_id = request.headers.get("Last-Event-ID") or request.headers.get(
             "last-event-id"
         )
-        if header_last_id:
-            try:
-                last_id = max(last_id, int(header_last_id))
-            except ValueError:
-                pass
+        if header_last_id and header_last_id.isdigit():
+            last_id = max(last_id, int(header_last_id))
+        if source:
+            source = source.lower()
+        if source in ("ui", "all"):
+            source = "superset"
 
         async def event_generator() -> Any:
-            current_id = last_id
+            current_superset_id = last_id
             while True:
                 if await request.is_disconnected():
                     break
-                try:
-                    rows = await asyncio.to_thread(
-                        _fetch_superset_logs_since,
-                        last_id=current_id,
-                        dashboard_id=dashboard_id,
-                        user_id=user_id,
-                        action=action,
-                        limit=limit,
+                rows_out: list[dict[str, Any]] = []
+                if source in (None, "", "superset"):
+                    try:
+                        rows = await asyncio.to_thread(
+                            _fetch_superset_logs_since,
+                            last_id=current_superset_id,
+                            dashboard_id=dashboard_id,
+                            user_id=user_id,
+                            action=action,
+                            limit=limit,
+                        )
+                    except Exception as exc:
+                        logger.exception("Superset stream query failed: %s", exc)
+                        yield ": error\n\n"
+                        await asyncio.sleep(poll_interval_sec)
+                        continue
+                    for row in rows:
+                        row_id = int(row["superset_log_id"] or 0)
+                        current_superset_id = max(current_superset_id, row_id)
+                        if (
+                            row.get("action") in QueryTranslater.SUPPORTED_ACTIONS
+                            and row.get("json")
+                        ):
+                            try:
+                                parsed = translator.parse_payload(row["json"])
+                            except Exception as exc:
+                                logger.exception(
+                                    "Superset SQL translate failed: %s", exc
+                                )
+                                parsed = None
+                            if parsed:
+                                row["translated_sql"] = parsed.get("sql")
+                                row["translated_filters"] = parsed.get("filters")
+                                row["translated_where"] = parsed.get("where")
+                        row["source"] = "superset"
+                        rows_out.append(row)
+                if rows_out:
+                    rows_out.sort(
+                        key=lambda item: _row_timestamp(
+                            item.get("dttm") or item.get("ts")
+                        )
                     )
-                except Exception as exc:
-                    logger.exception("Superset stream query failed: %s", exc)
-                    yield ": error\n\n"
-                    await asyncio.sleep(poll_interval_sec)
-                    continue
-                for row in rows:
-                    row_id = int(row["superset_log_id"] or 0)
-                    current_id = max(current_id, row_id)
-                    if (
-                        row.get("action") in QueryTranslater.SUPPORTED_ACTIONS
-                        and row.get("json")
-                    ):
-                        try:
-                            parsed = translator.parse_payload(row["json"])
-                        except Exception as exc:
-                            logger.exception("Superset SQL translate failed: %s", exc)
-                            parsed = None
-                        if parsed:
-                            row["translated_sql"] = parsed.get("sql")
-                            row["translated_filters"] = parsed.get("filters")
-                            row["translated_where"] = parsed.get("where")
-                    payload = json.dumps(row, default=str)
-                    yield f"id: {row_id}\n" f"data: {payload}\n\n"
-                if not rows:
+                    for row in rows_out:
+                        payload = json.dumps(row, default=str)
+                        yield f"id: {current_superset_id}\n" f"data: {payload}\n\n"
+                else:
                     yield ": keepalive\n\n"
                 await asyncio.sleep(poll_interval_sec)
 
@@ -640,7 +721,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail=f"Superset API error: {exc}",
             ) from exc
 
-    @app.get("/cube/meta")
+    @app.get("/semantic/meta")
     def cube_meta() -> dict[str, Any]:
         settings = app.state.settings
         if not settings.cube_rest_url:
@@ -656,7 +737,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail=f"Cube API error: {exc}",
             ) from exc
 
-    @app.get("/cube/schema")
+    @app.get("/semantic/schema")
     def cube_schema() -> dict[str, Any]:
         settings = app.state.settings
         if not settings.cube_conf_path:
@@ -672,88 +753,98 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail=f"Cube conf parse error: {exc}",
             ) from exc
 
-    def _fetch_ui_events_since(
-        *,
-        last_id: int,
-        session_id: str | None,
-        event_type: str | None,
-        limit: int,
-    ) -> list[dict[str, Any]]:
-        conn = db.connect(app.state.settings.duckdb_path, read_only=False)
-        try:
-            filters = ["event_id > ?"]
-            params: list[Any] = [last_id]
-            if session_id is not None:
-                filters.append("session_id = ?")
-                params.append(session_id)
-            if event_type is not None:
-                filters.append("event_type = ?")
-                params.append(event_type)
-            where_clause = " AND ".join(filters)
-            sql = (
-                "SELECT event_id, ts, session_id, user_id, event_type, payload_json "
-                "FROM ui_events "
-                f"WHERE {where_clause} "
-                "ORDER BY event_id ASC "
-                "LIMIT ?"
+    @app.post("/semantic/views", response_model=CreateViewResult)
+    def semantic_create_view(payload: ViewSpec) -> CreateViewResult:
+        settings = app.state.settings
+        if not settings.cube_conf_path:
+            raise HTTPException(
+                status_code=400,
+                detail="CUBE_CONF_PATH not configured",
             )
-            params.append(limit)
-            rows = conn.execute(sql, params).fetchall()
-        finally:
-            conn.close()
-        return [
-            {
-                "event_id": row[0],
-                "ts": row[1],
-                "session_id": row[2],
-                "user_id": row[3],
-                "event_type": row[4],
-                "payload": json.loads(row[5]) if row[5] else {},
-                "source": "ui",
-            }
-            for row in rows
-        ]
+        try:
+            result = create_cube_view(settings, payload)
+        except ValueError as exc:
+            log_unified_event(
+                app.state.conn,
+                "semantic_view_create_failed",
+                {"view_name": payload.view_name, "error": str(exc)},
+            )
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            log_unified_event(
+                app.state.conn,
+                "semantic_view_create_failed",
+                {"view_name": payload.view_name, "error": str(exc)},
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"create view failed: {exc}",
+            ) from exc
+        log_create_view(app.state.conn, payload, result)
+        return result
 
-    @app.get("/events/stream")
-    async def ui_events_stream(
-        request: Request,
-        session_id: str | None = None,
-        event_type: str | None = None,
-        last_id: int = 0,
-        limit: int = 100,
-        poll_interval_sec: float = 1.0,
-    ) -> StreamingResponse:
-        header_last_id = request.headers.get("Last-Event-ID") or request.headers.get(
-            "last-event-id"
-        )
-        if header_last_id:
+    @app.post("/sync/superset/dataset", response_model=SupersetDatasetSyncResult)
+    def superset_dataset_sync(
+        payload: SupersetDatasetSyncRequest,
+    ) -> SupersetDatasetSyncResult:
+        settings = app.state.settings
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        try:
+            result = sync_superset_dataset(settings, payload)
+        except Exception as exc:
+            log_unified_event(
+                app.state.conn,
+                "superset_dataset_sync_failed",
+                {
+                    "table_name": payload.table_name,
+                    "database_id": payload.database_id,
+                    "error": str(exc),
+                },
+            )
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+        log_dataset_sync(app.state.conn, payload, result)
+        return result
+
+    @app.post("/orchestrate/create_view_and_sync", response_model=CreateViewAndSyncResult)
+    def create_view_and_sync(
+        payload: CreateViewAndSyncRequest,
+    ) -> CreateViewAndSyncResult:
+        view_result = semantic_create_view(payload.view)
+        superset_payload = payload.superset
+        if superset_payload is None and payload.view.superset_sync:
             try:
-                last_id = max(last_id, int(header_last_id))
-            except ValueError:
-                pass
-
-        async def event_generator() -> Any:
-            current_id = last_id
-            while True:
-                if await request.is_disconnected():
-                    break
-                rows = await asyncio.to_thread(
-                    _fetch_ui_events_since,
-                    last_id=current_id,
-                    session_id=session_id,
-                    event_type=event_type,
-                    limit=limit,
+                superset_payload = SupersetDatasetSyncRequest(
+                    **payload.view.superset_sync
                 )
-                for row in rows:
-                    row_id = int(row["event_id"] or 0)
-                    current_id = max(current_id, row_id)
-                    payload = json.dumps(row, default=str)
-                    yield f"id: {row_id}\n" f"data: {payload}\n\n"
-                if not rows:
-                    yield ": keepalive\n\n"
-                await asyncio.sleep(poll_interval_sec)
-
-        return StreamingResponse(event_generator(), media_type="text/event-stream")
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"superset_sync payload invalid: {exc}",
+                ) from exc
+        if not superset_payload:
+            return CreateViewAndSyncResult(
+                status="view_created",
+                view_result=view_result,
+                superset_result=None,
+            )
+        superset_result = superset_dataset_sync(superset_payload)
+        return CreateViewAndSyncResult(
+            status="ok",
+            view_result=view_result,
+            superset_result=superset_result,
+        )
 
     @app.post("/poller/clear", response_model=StatusResponse)
     def poller_clear() -> StatusResponse:
@@ -808,29 +899,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             for chart in charts:
                 chart["description"] = None
         return {"dashboard_id": dashboard_id, "charts": charts}
-
-    @app.get("/superset/dashboards/{dashboard_id}/tab-map")
-    def superset_dashboard_tab_map(dashboard_id: int) -> dict[str, Any]:
-        settings = app.state.settings
-        if not settings.superset_username or not settings.superset_password:
-            raise HTTPException(
-                status_code=400,
-                detail="Superset credentials not configured",
-            )
-        if not (settings.superset_internal_url or settings.superset_public_url):
-            raise HTTPException(
-                status_code=400,
-                detail="Superset URL not configured",
-            )
-        try:
-            layout = fetch_dashboard_layout(settings, dashboard_id)
-            tab_map = extract_tab_map(layout.get("layout") or {})
-        except Exception as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Superset API error: {exc}",
-            ) from exc
-        return {"dashboard_id": dashboard_id, "tab_map": tab_map}
 
     @app.get("/superset/charts/{chart_id}/data")
     def superset_chart_data(
@@ -890,29 +958,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="chart log not found")
         return {"chart_id": chart_id, "log": _summarize_chart_log(log)}
 
-    @app.get("/superset/charts/{chart_id}/detail")
-    def superset_chart_detail(chart_id: int) -> dict[str, Any]:
-        settings = app.state.settings
-        if not settings.superset_username or not settings.superset_password:
-            raise HTTPException(
-                status_code=400,
-                detail="Superset credentials not configured",
-            )
-        if not (settings.superset_internal_url or settings.superset_public_url):
-            raise HTTPException(
-                status_code=400,
-                detail="Superset URL not configured",
-            )
-        try:
-            return fetch_chart_detail(settings, chart_id)
-        except LookupError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except Exception as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Superset API error: {exc}",
-            ) from exc
-
     @app.get("/superset/charts/{chart_id}/form-data")
     def superset_chart_form_data(chart_id: int) -> dict[str, Any]:
         settings = app.state.settings
@@ -967,32 +1012,124 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     result["form_data"] = payload.get("form_data")
         return normalize_chart_queries_result(result)
 
+    def _build_superset_active_context(
+        conn: duckdb.DuckDBPyConnection,
+        dashboard_id: int | None = None,
+    ) -> dict[str, Any]:
+        log = _fetch_latest_active_chart(conn, dashboard_id=dashboard_id)
+        ui_event = _fetch_latest_ui_event(conn, dashboard_id=dashboard_id)
+        if not log and not ui_event and not dashboard_id:
+            return {}
+        chart_name = None
+        effective_dashboard_id = dashboard_id
+        if log and log.get("dashboard_id"):
+            effective_dashboard_id = log.get("dashboard_id")
+        if ui_event and ui_event.get("dashboard_id") and not effective_dashboard_id:
+            effective_dashboard_id = ui_event.get("dashboard_id")
+
+        charts: list[dict[str, Any]] = []
+        if effective_dashboard_id:
+            try:
+                charts = fetch_dashboard_charts(
+                    app.state.settings, int(effective_dashboard_id)
+                )
+            except Exception:
+                charts = []
+
+        if log and log.get("slice_id"):
+            try:
+                chart_list = charts
+                if not chart_list:
+                    chart_list = fetch_dashboard_charts(
+                        app.state.settings,
+                        int(log.get("dashboard_id") or dashboard_id or 0),
+                    )
+            except Exception:
+                chart_list = []
+            for chart in chart_list:
+                if str(chart.get("slice_id")) == str(log.get("slice_id")):
+                    chart_name = chart.get("name")
+                    break
+
+        active_tab = None
+        if ui_event and ui_event.get("action") == "superset_tab_click":
+            payload = ui_event.get("payload") or {}
+            if isinstance(payload, dict) and isinstance(payload.get("payload"), dict):
+                payload = payload.get("payload") or {}
+            active_tab = {
+                "id": payload.get("tab_id") or payload.get("tabId"),
+                "name": payload.get("tab_name") or payload.get("tabName"),
+            }
+        elif charts and log and log.get("slice_id"):
+            for chart in charts:
+                if str(chart.get("slice_id")) == str(log.get("slice_id")):
+                    active_tab = chart.get("tab")
+                    break
+        if active_tab is None and effective_dashboard_id:
+            try:
+                active_tab = fetch_dashboard_default_tab(
+                    app.state.settings, int(effective_dashboard_id)
+                )
+            except Exception:
+                active_tab = None
+        if active_tab is None and charts:
+            for chart in charts:
+                if chart.get("tab"):
+                    active_tab = chart.get("tab")
+                    break
+
+        def _tab_matches(chart_tab: Any, target_tab: dict[str, Any]) -> bool:
+            if not target_tab or not chart_tab:
+                return False
+            if isinstance(chart_tab, dict):
+                if target_tab.get("id") is not None and chart_tab.get("id") is not None:
+                    return str(chart_tab.get("id")) == str(target_tab.get("id"))
+                if target_tab.get("name") and chart_tab.get("name"):
+                    return str(chart_tab.get("name")) == str(target_tab.get("name"))
+            return False
+
+        active_charts: list[dict[str, Any]] = []
+        if active_tab:
+            active_charts = [
+                chart
+                for chart in charts
+                if _tab_matches(chart.get("tab"), active_tab)
+            ]
+
+        interaction_payload = None
+        interaction_slice_id = None
+        if ui_event and ui_event.get("action") in ("legend_toggle", "chart_click"):
+            interaction_payload = ui_event.get("payload")
+            if isinstance(interaction_payload, dict) and isinstance(
+                interaction_payload.get("payload"), dict
+            ):
+                interaction_payload = interaction_payload.get("payload")
+            interaction_slice_id = ui_event.get("slice_id")
+
+        if active_charts:
+            for chart in active_charts:
+                chart["interaction"] = None
+                if interaction_payload and interaction_slice_id is not None:
+                    if str(chart.get("slice_id")) == str(interaction_slice_id):
+                        chart["interaction"] = interaction_payload
+
+        response = {
+            "dashboard_id": log.get("dashboard_id") if log else effective_dashboard_id,
+            "active_tab": active_tab,
+            "active_charts": active_charts,
+            "last_ui_event": ui_event,
+            "interacting_chart": {"slice_id": log.get("slice_id"), "name": chart_name}
+            if log and log.get("slice_id")
+            else None,
+        }
+        return {key: value for key, value in response.items() if value is not None}
+
     @app.get("/superset/charts/active")
     def superset_active_chart(
         dashboard_id: int | None = None,
     ) -> dict[str, Any]:
         conn = app.state.conn
-        log = _fetch_latest_active_chart(conn, dashboard_id=dashboard_id)
-        if not log:
-            return {"slice_id": None, "superset_log_id": None, "dashboard_id": dashboard_id}
-        chart_name = None
-        if log.get("slice_id"):
-            try:
-                charts = fetch_dashboard_charts(app.state.settings, int(log.get("dashboard_id") or dashboard_id or 0))
-            except Exception:
-                charts = []
-            for chart in charts:
-                if str(chart.get("slice_id")) == str(log.get("slice_id")):
-                    chart_name = chart.get("name")
-                    break
-        return {
-            "slice_id": log.get("slice_id"),
-            "superset_log_id": log.get("superset_log_id"),
-            "dashboard_id": log.get("dashboard_id"),
-            "chart_name": chart_name,
-            "action": log.get("action"),
-            "dttm": log.get("dttm"),
-        }
+        return _build_superset_active_context(conn, dashboard_id=dashboard_id)
 
 
     @app.post("/chat", response_model=ChatResponse)
@@ -1002,10 +1139,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request_id = uuid.uuid4().hex
         start = time.perf_counter()
         conn = app.state.conn
+        active_context = _build_superset_active_context(
+            conn, dashboard_id=payload.dashboard_id
+        )
         if payload.active_chart_id is None:
-            latest = _fetch_latest_active_chart(conn)
-            if latest:
-                payload.active_chart_id = latest.get("slice_id")
+            interacting = active_context.get("interacting_chart") or {}
+            payload.active_chart_id = interacting.get("slice_id")
+            payload.active_chart_name = interacting.get("name") or payload.active_chart_name
+            if payload.active_chart_id is None:
+                active_charts = active_context.get("active_charts") or []
+                if active_charts:
+                    payload.active_chart_id = active_charts[0].get("slice_id")
+                    payload.active_chart_name = (
+                        active_charts[0].get("name") or payload.active_chart_name
+                    )
 
         plan = {
             "measures": [],
@@ -1039,6 +1186,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "active_chart_name": payload.active_chart_name,
                     "chart_log": summary,
                     "chart_data": chart_data,
+                    "active_context": active_context,
                 },
                 ensure_ascii=False,
             )
@@ -1050,6 +1198,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         "active_chart_name": payload.active_chart_name,
                         "chart_log": summary,
                         "chart_data": chart_data,
+                        "active_context": active_context,
                     }
                 )
             chart_context_obj = AgentContext(
@@ -1058,6 +1207,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 chart_id=payload.active_chart_id,
                 chart_name=payload.active_chart_name,
                 chart_data=chart_data,
+                active_chart=active_context,
             )
             app.state.last_chat_context = {
                 "chart_id": payload.active_chart_id,
@@ -1072,6 +1222,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             chart_context_obj = AgentContext(
                 settings=app.state.settings,
                 conn=conn,
+                active_chart=active_context,
             )
         answer, agent_debug_items, raw_output = await agent_runner.respond(
             payload.message,
@@ -1131,10 +1282,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         chart_context = None
         chart_context_obj = None
         conn = app.state.conn
+        active_context = _build_superset_active_context(
+            conn, dashboard_id=payload.dashboard_id
+        )
         if payload.active_chart_id is None:
-            latest = _fetch_latest_active_chart(conn)
-            if latest:
-                payload.active_chart_id = latest.get("slice_id")
+            interacting = active_context.get("interacting_chart") or {}
+            payload.active_chart_id = interacting.get("slice_id")
+            payload.active_chart_name = interacting.get("name") or payload.active_chart_name
+            if payload.active_chart_id is None:
+                active_charts = active_context.get("active_charts") or []
+                if active_charts:
+                    payload.active_chart_id = active_charts[0].get("slice_id")
+                    payload.active_chart_name = (
+                        active_charts[0].get("name") or payload.active_chart_name
+                    )
 
         if payload.active_chart_id:
             log = _fetch_latest_chart_log(conn, payload.active_chart_id)
@@ -1155,6 +1316,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "active_chart_name": payload.active_chart_name,
                     "chart_log": summary,
                     "chart_data": chart_data,
+                    "active_context": active_context,
                 },
                 ensure_ascii=False,
             )
@@ -1164,12 +1326,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 chart_id=payload.active_chart_id,
                 chart_name=payload.active_chart_name,
                 chart_data=chart_data,
+                active_chart=active_context,
             )
             app.state.context_cleared = False
         else:
             chart_context_obj = AgentContext(
                 settings=app.state.settings,
                 conn=conn,
+                active_chart=active_context,
             )
             app.state.context_cleared = False
 

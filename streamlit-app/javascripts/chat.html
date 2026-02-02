@@ -63,6 +63,19 @@
       cursor: pointer;
       font-size: 13px;
     }
+    .chat-stop {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #7f1d1d;
+      color: #fef2f2;
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .chat-stop[disabled] {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     .chat-status {
       margin-top: 6px;
       font-size: 13px;
@@ -200,6 +213,7 @@
     <div class="chat-input-row">
       <textarea class="chat-input" rows="1" placeholder="Ask about what you see..."></textarea>
       <button class="chat-send">Send</button>
+      <button class="chat-stop" disabled>Stop</button>
       <button class="chat-clear">Clear Chat</button>
     </div>
     <div class="chat-status">ready</div>
@@ -214,6 +228,7 @@
   const root = document.getElementById("{{CHAT_CONTAINER_ID}}");
   const inputEl = root.querySelector(".chat-input");
   const sendBtn = root.querySelector(".chat-send");
+  const stopBtn = root.querySelector(".chat-stop");
   const clearBtn = root.querySelector(".chat-clear");
   const statusEl = root.querySelector(".chat-status");
   const listEl = root.querySelector(".scroller-content");
@@ -232,9 +247,17 @@
   const chartMap = new Map();
   let activeChartId = null;
   let activeChartName = null;
+  let currentController = null;
+  let isStreaming = false;
 
   function setStatus(text) {
     statusEl.textContent = text;
+  }
+
+  function setStreamingState(nextState) {
+    isStreaming = nextState;
+    sendBtn.disabled = nextState;
+    stopBtn.disabled = !nextState;
   }
 
   function escapeHtml(value) {
@@ -484,7 +507,7 @@
   function startLogListener() {
     if (!dashboardId || !window.EventSource) return;
     const lastId = logStorageKey ? Number(localStorage.getItem(logStorageKey) || "0") : 0;
-    const logUrl = `${apiBase}/superset/logs/stream?limit=50&poll_interval_sec=1.0&dashboard_id=${dashboardId}&last_id=${lastId}`;
+    const logUrl = `${apiBase}/events/stream?source=superset&limit=50&poll_interval_sec=1.0&dashboard_id=${dashboardId}&last_id=${lastId}`;
     const source = new EventSource(logUrl);
     source.onmessage = (event) => {
       try {
@@ -504,6 +527,7 @@
   }
 
   async function sendMessage() {
+    if (isStreaming) return;
     const text = inputEl.value.trim();
     if (!text) return;
     inputEl.value = "";
@@ -516,6 +540,8 @@
 
     setStatus("sending...");
     try {
+      setStreamingState(true);
+      currentController = new AbortController();
       const localHistory = messages.slice(0, -2).map((msg) => ({
         role: String(msg.role || "user"),
         content: String(msg.content || ""),
@@ -524,6 +550,7 @@
       const response = await fetch(`${apiBase}/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: currentController.signal,
         body: JSON.stringify({
           session_id: sessionId,
           user_id: userId,
@@ -580,20 +607,38 @@
               saveMessages(messages);
               renderMessages(messages);
               setStatus("ready");
+              setStreamingState(false);
+              currentController = null;
             }
           } catch (err) {}
         }
       }
     } catch (err) {
-      messages[messages.length - 1].content = `FastAPI error: ${err}`;
-      messages[messages.length - 1].is_loading = false;
-      saveMessages(messages);
-      renderMessages(messages);
-      setStatus("error");
+      if (err && err.name === "AbortError") {
+        appendEventToLastAssistant(messages, { event: "error", message: "interrupted by user" });
+        messages[messages.length - 1].is_loading = false;
+        saveMessages(messages);
+        renderMessages(messages);
+        setStatus("interrupted");
+      } else {
+        messages[messages.length - 1].content = `FastAPI error: ${err}`;
+        messages[messages.length - 1].is_loading = false;
+        saveMessages(messages);
+        renderMessages(messages);
+        setStatus("error");
+      }
+    } finally {
+      setStreamingState(false);
+      currentController = null;
     }
   }
 
   sendBtn.addEventListener("click", sendMessage);
+  stopBtn.addEventListener("click", () => {
+    if (currentController) {
+      currentController.abort();
+    }
+  });
   clearBtn.addEventListener("click", clearMessages);
   function autoResizeInput() {
     inputEl.style.height = "auto";
