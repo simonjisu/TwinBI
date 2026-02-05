@@ -79,9 +79,6 @@ class FastAPITestCase(unittest.TestCase):
                 schema = client.get("/superset/datasets/12/schema")
                 self.assertEqual(schema.status_code, 400)
 
-                cube_meta = client.get("/semantic/meta")
-                self.assertEqual(cube_meta.status_code, 400)
-
                 cube_schema = client.get("/semantic/schema")
                 self.assertEqual(cube_schema.status_code, 400)
 

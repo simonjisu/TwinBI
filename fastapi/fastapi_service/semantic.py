@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -294,6 +295,33 @@ def _find_existing_view(
     return None
 
 
+def _delete_view_file(conf_root: str, view_name: str) -> tuple[str, str]:
+    root = Path(conf_root)
+    views_dir = root / "model" / "views"
+    if not views_dir.exists():
+        raise FileNotFoundError("views directory not found")
+    existing = _find_existing_view(views_dir, view_name)
+    if not existing:
+        raise FileNotFoundError(f"view '{view_name}' not found")
+    path, doc, idx = existing
+    views = doc.get("views") or []
+    if isinstance(views, list):
+        views.pop(idx)
+        if views:
+            doc["views"] = views
+            yaml.safe_dump(
+                doc,
+                path.open("w", encoding="utf-8"),
+                sort_keys=False,
+                allow_unicode=True,
+            )
+        else:
+            path.unlink(missing_ok=True)
+    else:
+        path.unlink(missing_ok=True)
+    return "deleted", str(path)
+
+
 def _write_view_file(
     conf_root: str, spec: ViewSpec
 ) -> tuple[str, str, list[str]]:
@@ -364,6 +392,24 @@ def create_cube_view(
         cube_reload_status=reload_status,
         physical_name=spec.view_name,
         warnings=warnings,
+    )
+
+
+def delete_cube_view(
+    settings: Settings,
+    view_name: str,
+) -> CreateViewResult:
+    if not settings.cube_conf_path:
+        raise ValueError("CUBE_CONF_PATH not configured")
+    status, view_file = _delete_view_file(settings.cube_conf_path, view_name)
+    reload_status = _reload_cube_metadata(settings)
+    return CreateViewResult(
+        status=status,
+        view_name=view_name,
+        view_file=view_file,
+        cube_reload_status=reload_status,
+        physical_name=view_name,
+        warnings=[],
     )
 
 
@@ -454,6 +500,40 @@ def _refresh_dataset(
     return False, warnings
 
 
+def _delete_dataset(session: Any, base_url: str, dataset_id: int) -> tuple[bool, str | None]:
+    response = session.delete(
+        f"{base_url}/api/v1/dataset/{dataset_id}",
+        timeout=30,
+    )
+    if response.status_code in {200, 202, 204}:
+        return True, None
+    return False, response.text
+
+
+def _wait_dataset_deleted(
+    session: Any,
+    base_url: str,
+    database_id: int,
+    schema: str | None,
+    table_name: str,
+    timeout_sec: int = 10,
+    interval_sec: float = 0.5,
+) -> bool:
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        existing = _find_dataset_by_table(
+            session,
+            base_url,
+            database_id,
+            schema,
+            table_name,
+        )
+        if not existing:
+            return True
+        time.sleep(interval_sec)
+    return False
+
+
 def sync_superset_dataset(
     settings: Settings,
     request: SupersetDatasetSyncRequest,
@@ -488,15 +568,75 @@ def sync_superset_dataset(
             timeout=30,
         )
         if response.status_code >= 400:
-            raise RuntimeError(
-                f"Superset dataset create failed {response.status_code}: {response.text}"
-            )
-        created = True
-        result = response.json()
-        if isinstance(result, dict):
-            ds = result.get("result") or result
-            if isinstance(ds, dict):
-                dataset_id = ds.get("id") or ds.get("dataset_id")
+            if response.status_code == 422 and "already exists" in response.text:
+                if request.force_refresh:
+                    dataset = _find_dataset_by_table(
+                        session,
+                        base_url,
+                        request.database_id,
+                        request.schema_name,
+                        request.table_name,
+                    )
+                    if not dataset:
+                        raise RuntimeError(
+                            f"Superset dataset create failed {response.status_code}: {response.text}"
+                        )
+                    existing_id = dataset.get("id") or dataset.get("dataset_id")
+                    if existing_id is None:
+                        raise RuntimeError(
+                            f"Superset dataset create failed {response.status_code}: {response.text}"
+                        )
+                    deleted, delete_error = _delete_dataset(
+                        session, base_url, int(existing_id)
+                    )
+                    if not deleted:
+                        warnings.append(
+                            "dataset refresh failed; delete fallback failed; manual refresh may be required"
+                        )
+                        if delete_error:
+                            warnings.append(f"delete failed: {delete_error}")
+                        updated = True
+                        dataset_id = existing_id
+                    else:
+                        if not _wait_dataset_deleted(
+                            session,
+                            base_url,
+                            request.database_id,
+                            request.schema_name,
+                            request.table_name,
+                        ):
+                            warnings.append(
+                                "dataset delete did not finalize in time; recreate may fail"
+                            )
+                        response = session.post(
+                            f"{base_url}/api/v1/dataset/",
+                            json=payload,
+                            timeout=30,
+                        )
+                        if response.status_code >= 400:
+                            raise RuntimeError(
+                                f"Superset dataset create failed {response.status_code}: {response.text}"
+                            )
+                        created = True
+                        result = response.json()
+                        if isinstance(result, dict):
+                            ds = result.get("result") or result
+                            if isinstance(ds, dict):
+                                dataset_id = ds.get("id") or ds.get("dataset_id")
+                else:
+                    updated = True
+                    warnings.append("dataset already exists; refresh skipped")
+            else:
+                raise RuntimeError(
+                    f"Superset dataset create failed {response.status_code}: {response.text}"
+                )
+        else:
+            created = True
+            result = response.json()
+            if isinstance(result, dict):
+                ds = result.get("result") or result
+                if isinstance(ds, dict):
+                    dataset_id = ds.get("id") or ds.get("dataset_id")
     else:
         updated = True
         dataset_id = dataset.get("id") or dataset.get("dataset_id")
@@ -508,7 +648,41 @@ def sync_superset_dataset(
             ok, refresh_warnings = _refresh_dataset(session, base_url, int(dataset_id))
             warnings.extend(refresh_warnings)
             if not ok:
-                warnings.append("dataset refresh failed; manual refresh may be required")
+                # Fallback: delete + recreate when refresh endpoints are unsupported
+                deleted, delete_error = _delete_dataset(
+                    session, base_url, int(dataset_id)
+                )
+                if not deleted:
+                    warnings.append(
+                        "dataset refresh failed; delete fallback failed; manual refresh may be required"
+                    )
+                    if delete_error:
+                        warnings.append(f"delete failed: {delete_error}")
+                else:
+                    recreate_payload: dict[str, Any] = {
+                        "database": request.database_id,
+                        "schema": request.schema_name,
+                        "table_name": request.table_name,
+                    }
+                    if request.dataset_name:
+                        recreate_payload["dataset_name"] = request.dataset_name
+                    response = session.post(
+                        f"{base_url}/api/v1/dataset/",
+                        json=recreate_payload,
+                        timeout=30,
+                    )
+                    if response.status_code >= 400:
+                        warnings.append(
+                            f"dataset recreate failed {response.status_code}: {response.text}"
+                        )
+                    else:
+                        created = True
+                        updated = False
+                        result = response.json()
+                        if isinstance(result, dict):
+                            ds = result.get("result") or result
+                            if isinstance(ds, dict):
+                                dataset_id = ds.get("id") or ds.get("dataset_id")
 
     status = "created" if created else "updated"
     return SupersetDatasetSyncResult(

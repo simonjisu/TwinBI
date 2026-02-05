@@ -3,6 +3,7 @@ import duckdb
 import asyncio
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from dataclasses import dataclass
@@ -21,268 +22,31 @@ from fastapi_service.superset import (
 )
 from fastapi_service.semantic import fetch_cube_meta, run_cube_query
 from fastapi_service.cube_conf import load_repo_schema
-from fastapi_service.models import ViewSpec, SupersetDatasetSyncRequest
+from fastapi_service.models import (
+    ViewSpec,
+    SupersetDatasetSyncRequest,
+    ChartCreateRequest,
+)
 from fastapi_service.semantic import (
     create_cube_view as semantic_create_view,
+    delete_cube_view as semantic_delete_view,
     sync_superset_dataset as semantic_sync_dataset,
     log_create_view,
     log_dataset_sync,
     log_unified_event,
 )
+from fastapi_service.superset import lookup_user_id
+from fastapi_service.superset_client import (
+    _api_session_with_bearer,
+    _ensure_csrf,
+    _get_base_url,
+)
 from fastapi_service import prompts
-# import sys
-# proj_path = Path(__file__).resolve().parent.parent
-# sys.path.append(str(proj_path))
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-_DOCS_ROOT = _PROJECT_ROOT / "fastapi" / "docs"
-_DOC_FALLBACKS: dict[str, str] = {
-    "dashboard_tools.md": """Dashboard Agent Tools
 
-Overview
-These tools help the agent inspect Superset dashboards and charts and fetch
-data for the active chart. Use them when a user asks about the current dashboard,
-available charts, or chart results.
-
-Tools
-- get_active_chart_log
-  Returns the latest Superset log payload for the active chart from DuckDB.
-  Output: {"chart_id": int, "payload": dict | null} or {"error": "..."}
-
-- get_active_chart_data
-  Fetches chart data using the latest log payload for the active chart.
-  Output: {"chart_id": int, "data": dict} or {"error": "..."}
-
-- get_chart_sql
-  Returns the latest SQL/query for the active chart from DuckDB logs.
-  Output: {"chart_id": int, "sql": str | null} or {"error": "..."}
-
-- get_active_tab_charts
-  Returns charts for the active tab (last tab click or default tab).
-  Output: {"dashboard_id": int, "active_tab": {...}, "active_charts": [...], "last_ui_event": {...}}
-
-- list_dashboard_charts
-  Lists charts for the configured or most recent dashboard.
-  Output: {"dashboard_id": int, "charts": [..]} or {"error": "..."}
-
-- get_superset_dataset_schema
-  Returns Superset dataset schema metadata for a dataset id.
-  Input: dataset_id (int)
-  Output: {"id": int, "table_name": str, "schema": str | null, "columns": [..]} or {"error": "..."}
-
-- query_superset_dataset
-  Queries Superset dataset data with filters via /api/v1/chart/data.
-  Input: dataset_id (int), query_json (str; JSON object)
-  Output: {"data": [...], "raw": {...}} or {"error": "..."}
-
-- get_chart_data_by_id
-  Fetches chart data for a specific chart id using the latest log payload.
-  Input: chart_id (int)
-  Output: {"chart_id": int, "data": dict} or {"error": "..."}
-
-- get_chart_form_data
-  Returns chart form_data (parsed from chart params when needed).
-  Input: chart_id (int)
-  Output: {"chart_id": int, "form_data": dict | null} or {"error": "..."}
-
-Documentation tools
-- read_dashboard_tools_doc
-  Loads this dashboard tools document.
-- read_schema_explorer_doc
-  Loads the schema explorer tools document.
-- read_semantic_tools_doc
-  Loads the semantic tools document.
-
-Typical usage patterns
-- "What charts are on this dashboard?" -> list_dashboard_charts
-- "What is this chart based on?" -> get_chart_sql
-- "Show the data behind this chart" -> get_active_chart_data
-- "Query a dataset with filters" -> query_superset_dataset(query_json)
-
-Notes
-- These tools require Superset credentials and DuckDB logs configured in FastAPI.
-- If there is no active chart context, use list_dashboard_charts and then
-  get_chart_data_by_id as needed.
-- list_dashboard_charts returns datasource_id and datasource_type; datasource_id
-  is the Superset dataset id and can be used with get_superset_dataset_schema
-  and query_superset_dataset.
-- Hint: if you need the chart's query structure (columns/metrics/filters) before
-  issuing a dataset query, call get_chart_form_data and reuse its form_data to
-  build the query payload.
-
-Superset dataset query flow (recommended)
-1) list_dashboard_charts -> find chart_id and datasource_id (dataset id)
-2) get_chart_form_data(chart_id) -> read form_data (columns/metrics/filters)
-3) query_superset_dataset(dataset_id, query_json) -> send ChartDataRestApi.data payload
-
-Example query_json (extras.where with CAST)
-```json
-{
-  "datasource": {
-    "id": 28,
-    "type": "table"
-  },
-  "queries": [
-    {
-      "columns": ["dim_product_department"],
-      "metrics": [
-        {
-          "aggregate": "SUM",
-          "column": { "column_name": "previous_units" },
-          "label": "SUM(previous_units)"
-        },
-        {
-          "aggregate": "SUM",
-          "column": { "column_name": "total_units_sold" },
-          "label": "SUM(total_units_sold)"
-        },
-        {
-          "aggregate": "MAX",
-          "column": { "column_name": "qoq_growth_rate" },
-          "label": "MAX(qoq_growth_rate)"
-        }
-      ],
-      "filters": [],
-      "extras": {
-        "where": "dim_date_quarter_start >= CAST('2024-07-01 00:00:00' AS TIMESTAMP)",
-        "having": ""
-      },
-      "orderby": [],
-      "row_limit": 10000
-    }
-  ],
-  "result_format": "json",
-  "result_type": "full"
-}
-```
-
-Superset dataset query input schema (query_json)
-```json
-{
-  "columns": [
-    "string"
-  ],
-  "metrics": [
-    "string"
-  ],
-  "filters": [
-    {
-      "additionalProp1": {}
-    }
-  ],
-  "orderby": [
-    "string"
-  ],
-  "row_limit": 0,
-  "extras": {
-    "additionalProp1": {}
-  },
-  "result_format": "table",
-  "result_type": "full",
-  "queries": [
-    {
-      "additionalProp1": {}
-    }
-  ]
-}
-```
-""",
-    "schema_explorer.md": """Schema Explorer Tools
-
-Overview
-These tools expose the SchemaExplorer graph for the star schema. Use them when
-the user asks about fact tables, dimensions, measures, attributes, or whether
-an attribute value exists.
-
-Tools
-- get_facts
-  Returns the list of fact tables.
-  Output: ["fact_sales", ...] or {"error": "..."}
-
-- get_schema_info
-  Returns schema nodes for a fact table.
-  Input: fact_table (str)
-  Output: list of nodes with:
-  - name, type ("fact" or "dimension")
-  - attributes (for dimensions)
-  - measures and fks (for the fact table)
-
-- search_attribute
-  Searches hierarchy paths that lead to the attribute.
-  Input: fact_table (str), attribute_name (str)
-  Output: list of results with:
-  - dimension, attribute
-  - path: steps from dimension to attribute
-  - stats: count, distinct_count, min/max, dtype, unique_values metadata
-
-- search_value_exists
-  Checks whether an attribute value exists.
-  Input: fact_table (str), attribute_name (str), value (str)
-  Output: true/false or {"error": "..."}
-
-Typical usage patterns
-- "What fact tables exist?" -> get_facts
-- "What dimensions are in fact_sales?" -> get_schema_info("fact_sales")
-- "Where is the year attribute?" -> search_attribute("fact_sales", "year")
-- "Does year=2024 exist?" -> search_value_exists("fact_sales", "year", "2024")
-
-Notes
-- The explorer is configured to use the star schema under ./data/sales.
-- Attribute lookup is case-insensitive for labels; use short attribute names.
-""",
-    "semantic_tools.md": """Semantic Tools
-
-Overview
-These tools use the semantic layer (Cube REST API + repo config) to list cubes/views,
-inspect schema, create views, and query data. Use them when the user asks for data
-directly from Cube or needs Cube member names.
-
-Tools
-- list_cube_tables
-  Lists cubes and views from Cube config (preferred) and Cube meta.
-  Output: [{"name": "...", "type": "cube|view"}] or {"error": "..."}
-
-- get_cube_schema
-  Returns schema for a cube or view.
-  Input: table_name (str)
-  Output (config-based): {"name": "...", "type": "cube|view", "columns": [...], "sql_table": "...", "joined": {...}}
-  Output (meta-based cube): {"name": "...", "type": "cube", "measures": [...], "dimensions": [...], "segments": [...]}
-
-- query_cube
-  Executes a Cube query via /cubejs-api/v1/load.
-  Input: query_json (str) - JSON string for a Cube query object or list.
-  Output: raw Cube response payload or {"error": "..."}
-
-- create_cube_view
-  Creates or updates a semantic view in Cube config.
-  Input: view_json (str) - JSON string matching ViewSpec.
-
-- sync_superset_dataset
-  Creates or refreshes a Superset dataset for a view/table.
-  Input: request_json (str) - JSON string matching SupersetDatasetSyncRequest.
-
-- create_view_and_sync
-  Convenience wrapper: create a view then sync a Superset dataset.
-  Input: view_json (str) - ViewSpec JSON (must include superset_sync fields).
-
-Example query_json
-{"measures":["sales.total_sales"],"dimensions":["sales.brand"],"limit":10}
-
-Typical usage patterns
-- "What cubes/views are available?" -> list_cube_tables
-- "What fields exist in sales?" -> get_cube_schema("sales")
-- "Run a Cube query for total sales by brand" -> query_cube(query_json)
-- "Create a new semantic view" -> create_cube_view(view_json) then sync_superset_dataset(request_json)
-
-Notes
-- Requires CUBE_REST_URL for live queries and CUBE_CONF_PATH for repo schema.
-- The query_json must be valid JSON.
-""",
-}
-_SRC_ROOT = _PROJECT_ROOT / "src"
+_DOCS_ROOT = Path(__file__).resolve().parents[1] / "docs"
+_SRC_ROOT = Path(__file__).resolve().parents[2] / "src"
 if _SRC_ROOT.exists():
     sys.path.insert(0, str(_SRC_ROOT))
-if _PROJECT_ROOT.exists():
-    sys.path.insert(0, str(_PROJECT_ROOT))
 
 try:
     from src.schema_processor import SchemaExplorer
@@ -336,30 +100,31 @@ def _get_active_settings() -> tuple[Any | None, dict[str, Any] | None]:
 
 
 def _read_doc_file(path: Path) -> str | dict[str, Any]:
-    if not path.is_absolute() and not path.exists():
-        fallback_paths = [
-            _DOCS_ROOT / path.name,
-            _PROJECT_ROOT / "docs" / path.name,
-            _PROJECT_ROOT / "fastapi_service" / "docs" / path.name,
-            _PROJECT_ROOT.parent / path,
-        ]
-        for base in (Path(__file__).resolve(), Path.cwd()):
-            for parent in [base, *base.parents]:
-                fallback_paths.append(parent / "fastapi" / "docs" / path.name)
-                fallback_paths.append(parent / "docs" / path.name)
-        for candidate in fallback_paths:
-            if candidate.exists():
-                path = candidate
-                break
+    if not path.is_absolute():
+        path = _DOCS_ROOT / path.name
     try:
         return path.read_text(encoding="utf-8")
     except FileNotFoundError:
-        fallback = _DOC_FALLBACKS.get(path.name)
-        if fallback:
-            return fallback
         return {"error": f"doc not found: {path}"}
     except Exception as exc:
         return {"error": f"failed to read doc: {exc}"}
+
+
+def _load_chart_templates() -> dict[str, Any]:
+    candidates = [
+        Path(__file__).resolve().parents[1] / "chart_templates.json",
+        Path.cwd() / "fastapi" / "chart_templates.json",
+        Path.cwd() / "chart_templates.json",
+    ]
+    for path in candidates:
+        try:
+            if path.exists():
+                data = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    return data
+        except Exception:
+            continue
+    return {}
 
 
 def _fetch_latest_chart_log_payload(
@@ -689,17 +454,22 @@ if function_tool:
     @function_tool
     def read_dashboard_tools_doc() -> str | dict[str, Any]:
         """Return the dashboard tools documentation markdown."""
-        return _read_doc_file(Path("fastapi/docs/dashboard_tools.md"))
+        return _read_doc_file(Path("dashboard_tools.md"))
 
     @function_tool
     def read_schema_explorer_doc() -> str | dict[str, Any]:
         """Return the schema explorer documentation markdown."""
-        return _read_doc_file(Path("fastapi/docs/schema_explorer.md"))
+        return _read_doc_file(Path("schema_explorer.md"))
 
     @function_tool
     def read_semantic_tools_doc() -> str | dict[str, Any]:
         """Return the semantic tools documentation markdown."""
-        return _read_doc_file(Path("fastapi/docs/semantic_tools.md"))
+        return _read_doc_file(Path("semantic_tools.md"))
+
+    @function_tool
+    def read_charts_doc() -> str | dict[str, Any]:
+        """Return the charts documentation markdown."""
+        return _read_doc_file(Path("charts.md"))
 
     @function_tool
     def get_chart_form_data(chart_id: int) -> dict[str, Any]:
@@ -869,30 +639,39 @@ if function_tool:
         return result.model_dump()
 
     @function_tool
-    def create_view_and_sync(view_json: str) -> dict[str, Any]:
+    def delete_cube_view(view_name: str) -> dict[str, Any]:
         """
-        Convenience: create a Cube view then sync Superset dataset.
+        Delete a semantic view from Cube config and reload metadata.
 
         Input:
-        - view_json: ViewSpec JSON string (must include superset_sync fields or call sync separately).
+        - view_name: view name to delete.
 
         Output:
-        - {"view_result": {...}, "superset_result": {...|None}}
-        - {"error": "..."} on failures.
+        - {"status": "deleted", "view_name": "...", "view_file": "...", "cube_reload_status": "...", "warnings": [...]}
+        - {"error": "..."} on failure.
         """
+        settings, error = _get_active_settings()
+        if error:
+            return error
         try:
-            payload = json.loads(view_json)
-        except json.JSONDecodeError as exc:
-            return {"error": f"view_json is not valid JSON: {exc}"}
-        view_spec = ViewSpec.model_validate(payload)
-        view_result = create_cube_view(json.dumps(payload))
-        if "error" in view_result:
-            return {"error": view_result["error"]}
-        superset_sync = payload.get("superset_sync")
-        if not superset_sync:
-            return {"view_result": view_result, "superset_result": None}
-        superset_result = sync_superset_dataset(json.dumps(superset_sync))
-        return {"view_result": view_result, "superset_result": superset_result}
+            result = semantic_delete_view(settings, view_name)
+        except Exception as exc:
+            context = _get_active_context()
+            if context and context.conn:
+                log_unified_event(
+                    context.conn,
+                    "semantic_view_delete_failed",
+                    {"view_name": view_name, "error": str(exc)},
+                )
+            return {"error": f"delete view failed: {exc}"}
+        context = _get_active_context()
+        if context and context.conn:
+            log_unified_event(
+                context.conn,
+                "semantic_view_deleted",
+                {"view_name": view_name, "view_file": result.view_file},
+            )
+        return result.model_dump()
 
     @function_tool
     def list_cube_tables() -> list[dict[str, Any]] | dict[str, Any]:
@@ -989,6 +768,453 @@ if function_tool:
             return run_cube_query(settings, query)
         except Exception as exc:
             return {"error": f"cube query failed: {exc}"}
+
+    @function_tool
+    def get_semantic_schema(
+        type: str | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any] | list[dict[str, Any]]:
+        """
+        Return Cube meta schema with filtered keys.
+
+        Input:
+        - type: "cubes" or "views" to filter output.
+        - name: optional substring filter on cube/view name.
+        """
+        settings, error = _get_active_settings()
+        if error:
+            return error
+        if not settings.cube_rest_url:
+            return {"error": "CUBE_REST_URL not configured"}
+        try:
+            payload = fetch_cube_meta(settings)
+        except Exception as exc:
+            return {"error": f"cube meta fetch failed: {exc}"}
+        if not isinstance(payload, dict):
+            return payload
+        drop_keys = {
+            "suggestFilterValues",
+            "isVisible",
+            "public",
+            "segments",
+            "hierarchies",
+            "folders",
+            "nestedFolders",
+            "drillMembers",
+            "drillMembersGrouped",
+            "connectedComponent",
+        }
+
+        def _strip_keys(obj: Any) -> Any:
+            if isinstance(obj, dict):
+                return {
+                    key: _strip_keys(value)
+                    for key, value in obj.items()
+                    if key not in drop_keys
+                }
+            if isinstance(obj, list):
+                return [_strip_keys(item) for item in obj]
+            return obj
+
+        cubes = payload.get("cubes")
+        if not isinstance(cubes, list):
+            return payload
+        filtered: list[dict[str, Any]] = []
+        name_filter = name.lower() if isinstance(name, str) else None
+        for cube in cubes:
+            if not isinstance(cube, dict):
+                continue
+            cube_name = str(cube.get("name") or "")
+            if name_filter and name_filter not in cube_name.lower():
+                continue
+            entry = _strip_keys(cube)
+            is_view = cube_name.startswith("view_") or entry.get("type") == "view"
+            if type == "views" and not is_view:
+                continue
+            if type == "cubes" and is_view:
+                continue
+            filtered.append(entry)
+        if type in ("views", "cubes"):
+            return {type: filtered}
+        return {"cubes": filtered}
+
+    @function_tool
+    def list_superset_databases_meta() -> dict[str, Any]:
+        """
+        Return Superset database ids and names.
+        """
+        settings, error = _get_active_settings()
+        if error:
+            return error
+        if not settings.superset_username or not settings.superset_password:
+            return {"error": "Superset credentials not configured"}
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            return {"error": "Superset URL not configured"}
+        try:
+            session = _api_session_with_bearer(settings)
+            base_url = _get_base_url(settings)
+            _ensure_csrf(session, base_url)
+            response = session.get(
+                f"{base_url}/api/v1/database/",
+                params={"q": "(page:0,page_size:200)"},
+                timeout=30,
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:
+            return {"error": f"superset database meta fetch failed: {exc}"}
+
+        result = payload.get("result")
+        items: list[dict[str, Any]] = []
+        if isinstance(result, list):
+            for entry in result:
+                if not isinstance(entry, dict):
+                    continue
+                db_id = entry.get("id") or entry.get("database_id")
+                name = entry.get("database_name") or entry.get("name")
+                if db_id is None or not name:
+                    continue
+                items.append({"id": db_id, "database_name": name})
+        return {"count": len(items), "result": items}
+
+    @function_tool
+    def list_superset_database_tables(
+        database_id: int,
+        schema_name: str = "public",
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        """
+        Return table names for a Superset database schema.
+        """
+        settings, error = _get_active_settings()
+        if error:
+            return error
+        if not settings.superset_username or not settings.superset_password:
+            return {"error": "Superset credentials not configured"}
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            return {"error": "Superset URL not configured"}
+        try:
+            session = _api_session_with_bearer(settings)
+            base_url = _get_base_url(settings)
+        except Exception as exc:
+            return {"error": f"superset api session failed: {exc}"}
+
+        page = 0
+        page_size = 200
+        remaining = max(1, limit)
+        results: list[str] = []
+        while remaining > 0:
+            response = session.get(
+                f"{base_url}/api/v1/database/{database_id}/tables/",
+                params={
+                    "q": f"(schema_name:{schema_name},page:{page},page_size:{page_size})"
+                },
+                timeout=30,
+            )
+            if response.status_code >= 400:
+                return {"error": f"superset api error: {response.text}"}
+            payload = response.json()
+            batch = payload.get("result")
+            if not isinstance(batch, list) or not batch:
+                break
+            for entry in batch:
+                if not isinstance(entry, dict):
+                    continue
+                name = (
+                    entry.get("name")
+                    or entry.get("value")
+                    or entry.get("table")
+                    or entry.get("table_name")
+                )
+                if isinstance(name, str):
+                    results.append(name)
+                    remaining -= 1
+                    if remaining <= 0:
+                        break
+            if len(batch) < page_size:
+                break
+            page += 1
+        return {"result": results}
+
+    @function_tool
+    def list_superset_datasets(
+        user_id: int | None = None,
+        username: str | None = None,
+        name: str | None = None,
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        """
+        List Superset datasets filtered by user or name.
+        """
+        settings, error = _get_active_settings()
+        if error:
+            return error
+        if not settings.superset_username or not settings.superset_password:
+            return {"error": "Superset credentials not configured"}
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            return {"error": "Superset URL not configured"}
+        if username and user_id:
+            return {"error": "Provide either user_id or username, not both"}
+        if username and not user_id:
+            meta_db_uri = settings.superset_meta_db_uri
+            if not meta_db_uri:
+                return {"error": "Superset meta DB not configured"}
+            try:
+                user_id = lookup_user_id(meta_db_uri, username)
+            except Exception as exc:
+                return {"error": f"Superset API error: {exc}"}
+            if not user_id:
+                return {"count": 0, "result": []}
+
+        try:
+            session = _api_session_with_bearer(settings)
+            base_url = _get_base_url(settings)
+            _ensure_csrf(session, base_url)
+        except Exception as exc:
+            return {"error": f"Superset API error: {exc}"}
+
+        page = 0
+        page_size = 100
+        remaining = max(1, limit)
+        results: list[dict[str, Any]] = []
+        name_filter = name.strip().lower() if isinstance(name, str) else None
+
+        while remaining > 0:
+            response = session.get(
+                f"{base_url}/api/v1/dataset/",
+                params={"page": page, "page_size": page_size},
+                timeout=30,
+            )
+            if response.status_code >= 400:
+                return {"error": f"Superset API error: {response.text}"}
+            payload = response.json()
+            batch = payload.get("result")
+            if not isinstance(batch, list) or not batch:
+                break
+            for entry in batch:
+                if not isinstance(entry, dict):
+                    continue
+                if user_id is not None:
+                    owners = entry.get("owners") or []
+                    owner_ids = [
+                        o.get("id") for o in owners if isinstance(o, dict) and o.get("id")
+                    ]
+                    if user_id not in owner_ids:
+                        continue
+                if name_filter:
+                    table_name = str(entry.get("table_name") or "").lower()
+                    dataset_name = str(entry.get("dataset_name") or entry.get("name") or "").lower()
+                    if name_filter not in table_name and name_filter not in dataset_name:
+                        continue
+                results.append(
+                    {
+                        "id": entry.get("id") or entry.get("dataset_id"),
+                        "table_name": entry.get("table_name"),
+                        "dataset_name": entry.get("dataset_name") or entry.get("name"),
+                        "database": entry.get("database"),
+                    }
+                )
+                remaining -= 1
+                if remaining <= 0:
+                    break
+            if len(batch) < page_size:
+                break
+            page += 1
+        return {"count": len(results), "result": results}
+
+    @function_tool
+    def list_chart_templates(viz_type: str | None = None) -> dict[str, Any]:
+        """
+        Return chart template definitions.
+        """
+        templates = _load_chart_templates()
+        if not templates:
+            return {"templates": []}
+        if viz_type:
+            entry = templates.get(viz_type)
+            if entry is None:
+                return {"error": f"viz_type not found: {viz_type}"}
+            return {"templates": {viz_type: entry}}
+        return {"templates": templates}
+
+    @function_tool
+    def create_superset_chart(request_json: str) -> dict[str, Any]:
+        """
+        Create a Superset chart using templates.
+
+        Input:
+        - request_json: JSON string matching ChartCreateRequest.
+
+        Output:
+        - {"status": "created", "chart_id": int | null, "slice_name": str, "warnings": [...]}
+        - {"error": "..."} on failure.
+        """
+        settings, error = _get_active_settings()
+        if error:
+            return error
+        if not settings.superset_username or not settings.superset_password:
+            return {"error": "Superset credentials not configured"}
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            return {"error": "Superset URL not configured"}
+
+        try:
+            payload = json.loads(request_json)
+        except json.JSONDecodeError as exc:
+            return {"error": f"request_json is not valid JSON: {exc}"}
+        try:
+            request = ChartCreateRequest.model_validate(payload)
+        except Exception as exc:
+            return {"error": f"chart request invalid: {exc}"}
+
+        templates = _load_chart_templates()
+        template = templates.get(request.viz_type)
+        if not template:
+            return {"error": f"Unsupported viz_type: {request.viz_type}"}
+
+        actual_viz_type = template.get("viz_type") or request.viz_type
+        form_data = dict(template.get("form_data") or {})
+        form_data["viz_type"] = actual_viz_type
+        form_data["datasource"] = f"{request.dataset_id}__{request.datasource_type}"
+
+        enc = request.encodings or {}
+        opts = request.options or {}
+        warnings: list[str] = []
+
+        def _normalize_metrics(value: Any) -> Any:
+            if not isinstance(value, list):
+                return value
+            normalized: list[Any] = []
+            for metric in value:
+                if isinstance(metric, dict):
+                    normalized.append(metric)
+                    continue
+                if isinstance(metric, str):
+                    text = metric.strip()
+                    match = re.match(r"^([A-Z]+)\\((.+)\\)$", text)
+                    if match:
+                        agg = match.group(1)
+                        col = match.group(2).strip()
+                        normalized.append(
+                            {
+                                "expressionType": "SIMPLE",
+                                "aggregate": agg,
+                                "column": {"column_name": col},
+                                "label": f"{agg}({col})",
+                            }
+                        )
+                    else:
+                        normalized.append(metric)
+                    continue
+                normalized.append(metric)
+            return normalized
+
+        def _set_if_present(key: str, target_key: str | None = None) -> None:
+            if key in enc:
+                form_data[target_key or key] = enc.get(key)
+            if key in opts:
+                form_data[target_key or key] = opts.get(key)
+
+        if "time_column" in enc:
+            form_data["granularity_sqla"] = enc.get("time_column")
+        _set_if_present("granularity_sqla")
+        _set_if_present("time_grain_sqla")
+        _set_if_present("time_range")
+        _set_if_present("groupby")
+        if "metrics" in enc:
+            form_data["metrics"] = _normalize_metrics(enc.get("metrics"))
+        elif "metrics" in opts:
+            form_data["metrics"] = _normalize_metrics(opts.get("metrics"))
+        _set_if_present("adhoc_filters")
+        _set_if_present("filters")
+        _set_if_present("all_columns")
+        _set_if_present("row_limit")
+        _set_if_present("orderby")
+        _set_if_present("order_desc")
+
+        if actual_viz_type == "pie":
+            if "metric" in enc:
+                metric_value = enc.get("metric")
+                if isinstance(metric_value, str):
+                    match = re.match(r"^([A-Z]+)\\((.+)\\)$", metric_value.strip())
+                    if match:
+                        agg = match.group(1)
+                        col = match.group(2).strip()
+                        metric_value = {
+                            "expressionType": "SIMPLE",
+                            "aggregate": agg,
+                            "column": {"column_name": col},
+                            "label": f"{agg}({col})",
+                        }
+                form_data["metric"] = metric_value
+            elif "metrics" in enc and isinstance(enc.get("metrics"), list):
+                metrics = enc.get("metrics") or []
+                form_data["metric"] = metrics[0] if metrics else None
+            if not form_data.get("metric"):
+                return {"error": "pie requires metric or metrics"}
+            if not form_data.get("groupby"):
+                return {"error": "pie requires groupby"}
+
+        if actual_viz_type == "table":
+            if form_data.get("all_columns"):
+                form_data["query_mode"] = "raw"
+                form_data.pop("metrics", None)
+                form_data.pop("groupby", None)
+            else:
+                form_data["query_mode"] = "aggregate"
+                if not form_data.get("metrics"):
+                    return {"error": "table aggregate requires metrics or all_columns"}
+
+        if actual_viz_type in {
+            "echarts_timeseries_line",
+            "echarts_timeseries_bar",
+            "echarts_timeseries_scatter",
+        }:
+            if not form_data.get("granularity_sqla"):
+                return {
+                    "error": f"{actual_viz_type} requires granularity_sqla or time_column"
+                }
+            if not form_data.get("metrics"):
+                return {"error": f"{actual_viz_type} requires metrics"}
+
+        chart_payload = {
+            "slice_name": request.slice_name,
+            "viz_type": actual_viz_type,
+            "datasource_id": request.dataset_id,
+            "datasource_type": request.datasource_type,
+            "params": json.dumps(form_data, ensure_ascii=False),
+        }
+        if request.owners is not None:
+            chart_payload["owners"] = request.owners
+        if request.dashboard_id is not None:
+            chart_payload["dashboards"] = [request.dashboard_id]
+
+        try:
+            session = _api_session_with_bearer(settings)
+            base_url = _get_base_url(settings)
+            _ensure_csrf(session, base_url)
+            response = session.post(
+                f"{base_url}/api/v1/chart/",
+                json=chart_payload,
+                timeout=30,
+            )
+            if response.status_code >= 400:
+                return {"error": f"Superset API error: {response.text}"}
+            result = response.json()
+        except Exception as exc:
+            return {"error": f"Superset API error: {exc}"}
+
+        chart_id = None
+        if isinstance(result, dict):
+            res = result.get("result") or result
+            if isinstance(res, dict):
+                chart_id = res.get("id") or res.get("slice_id")
+
+        return {
+            "status": "created",
+            "chart_id": chart_id,
+            "slice_name": request.slice_name,
+            "warnings": warnings,
+        }
 
     @function_tool
     def get_facts() -> list[str] | dict[str, Any]:
@@ -1205,6 +1431,7 @@ class AgentRunner:
                 search_value_exists,
                 list_cube_tables,
                 get_cube_schema,
+                get_semantic_schema,
             ]
             if function_tool
             else [],
@@ -1222,6 +1449,9 @@ class AgentRunner:
                 get_superset_dataset_schema,
                 get_active_chart_data,
                 get_chart_data_by_id,
+                list_superset_datasets,
+                list_chart_templates,
+                create_superset_chart,
             ]
             if function_tool
             else [],
@@ -1235,9 +1465,12 @@ class AgentRunner:
             tools=[
                 list_cube_tables,
                 get_cube_schema,
+                get_semantic_schema,
                 create_cube_view,
+                delete_cube_view,
                 sync_superset_dataset,
-                create_view_and_sync,
+                list_superset_databases_meta,
+                list_superset_database_tables,
             ]
             if function_tool
             else [],
@@ -1260,6 +1493,7 @@ class AgentRunner:
                 read_dashboard_tools_doc,
                 read_schema_explorer_doc,
                 read_semantic_tools_doc,
+                read_charts_doc,
             ]
             if function_tool
             else [],
@@ -1537,7 +1771,7 @@ class AgentRunner:
         return messages
 
     def _load_dashboard_tools_doc(self) -> str | None:
-        doc = _read_doc_file(Path("fastapi/docs/dashboard_tools.md"))
+        doc = _read_doc_file(Path("dashboard_tools.md"))
         if isinstance(doc, str):
             return doc
         return None
@@ -1616,6 +1850,7 @@ class AgentRunner:
             "read_dashboard_tools_doc": "dashboard tools",
             "read_schema_explorer_doc": "schema explorer",
             "read_semantic_tools_doc": "semantic tools",
+            "read_charts_doc": "charts",
         }
         for item in new_items:
             item_type = getattr(item, "type", None) or "unknown_item"

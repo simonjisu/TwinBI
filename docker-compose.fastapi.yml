@@ -30,7 +30,7 @@ services:
       - ./data/logs:/logs
       - ./data/sales:/app/cube_data:ro
       - ./src:/app/src:ro
-      - ./data/sales/cube_conf:/cube/conf:ro
+      - ./data/sales/cube_conf:/cube/conf
     networks:
       - agent4olap_net
 

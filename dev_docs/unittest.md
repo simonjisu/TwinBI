@@ -25,8 +25,7 @@ The FastAPI initial implementation has unit tests under `unittest/`.
 - Superset `/datasource/samples` requests are labeled as `drill_to_details` in stream payloads.
 - Drill-by apply logs (`event_name: "further_drill_by"`) are labeled as `drill_by` and include a `drill_by` payload in stream rows.
 - `/superset/datasets/{dataset_id}/schema` returns 400 when Superset config is missing.
-- `/semantic/meta` returns 400 when Cube REST URL is missing.
-- `/semantic/schema` returns 400 when Cube conf path is missing.
+- `/semantic/schema` returns 400 when Cube REST URL is missing.
 - `/superset/dashboards/{dashboard_id}/charts` returns 400 when Superset config is missing.
 - `/superset/charts/{chart_id}/data` returns 400 when Superset config is missing, or 404 when no chart log exists.
 - `/chat/context/latest` returns a null context when no chat has been processed.
@@ -169,13 +168,6 @@ self.assertIsNone(debug.json().get("debug"))
 dialogue = client.get("/chat/dialogue", params={"session_id": "s_1"})
 self.assertEqual(dialogue.status_code, 200)
 self.assertIn("dialogue", dialogue.json())
-```
-
-### Cube meta endpoint test
-
-```python
-cube_meta = client.get("/semantic/meta")
-self.assertEqual(cube_meta.status_code, 400)
 ```
 
 ### Cube schema endpoint test

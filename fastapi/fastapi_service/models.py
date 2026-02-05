@@ -95,12 +95,19 @@ class SupersetDatasetSyncResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
-class CreateViewAndSyncRequest(BaseModel):
-    view: ViewSpec
-    superset: SupersetDatasetSyncRequest | None = None
+class ChartCreateRequest(BaseModel):
+    dataset_id: int
+    slice_name: str
+    viz_type: str
+    datasource_type: str = "table"
+    encodings: dict[str, Any] = Field(default_factory=dict)
+    options: dict[str, Any] = Field(default_factory=dict)
+    owners: list[int] | None = None
+    dashboard_id: int | None = None
 
 
-class CreateViewAndSyncResult(BaseModel):
+class ChartCreateResponse(BaseModel):
     status: str
-    view_result: CreateViewResult | None = None
-    superset_result: SupersetDatasetSyncResult | None = None
+    chart_id: int | None = None
+    slice_name: str | None = None
+    warnings: list[str] = Field(default_factory=list)

@@ -3,11 +3,12 @@ import duckdb
 import asyncio
 import json
 import logging
+import re
 import time
 import uuid
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Literal
 from pathlib import Path
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Request
@@ -26,8 +27,8 @@ from fastapi_service.models import (
     CreateViewResult,
     SupersetDatasetSyncRequest,
     SupersetDatasetSyncResult,
-    CreateViewAndSyncRequest,
-    CreateViewAndSyncResult,
+    ChartCreateRequest,
+    ChartCreateResponse,
 )
 from fastapi_service.superset import (
     QueryTranslater,
@@ -42,10 +43,16 @@ from fastapi_service.superset import (
     fetch_chart_queries,
     normalize_chart_queries_result,
 )
+from fastapi_service.superset_client import (
+    _api_session_with_bearer,
+    _ensure_csrf,
+    _get_base_url,
+)
 from fastapi_service.semantic import fetch_cube_meta
 from fastapi_service.cube_conf import load_repo_schema
 from fastapi_service.semantic import (
     create_cube_view,
+    delete_cube_view,
     sync_superset_dataset,
     log_create_view,
     log_dataset_sync,
@@ -55,6 +62,29 @@ from fastapi_service.writer import DuckDBWriter
 
 logger = logging.getLogger(__name__)
 _CHART_DESC_PATH = Path(__file__).resolve().parents[1] / "chart_desc.json"
+_CHART_TEMPLATES_PATH = Path(__file__).resolve().parents[1] / "chart_templates.json"
+
+
+def _load_chart_templates() -> dict[str, Any]:
+    candidates = [
+        _CHART_TEMPLATES_PATH,
+        Path.cwd() / "fastapi" / "chart_templates.json",
+        Path.cwd() / "chart_templates.json",
+        Path(__file__).resolve().parents[2] / "chart_templates.json",
+        Path(__file__).resolve().parents[2] / "fastapi" / "chart_templates.json",
+    ]
+    path = None
+    for candidate in candidates:
+        if candidate.exists():
+            path = candidate
+            break
+    if path is None:
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def _load_chart_descriptions(dashboard_id: int) -> dict[str, str]:
@@ -397,7 +427,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or load_settings()
-    app = FastAPI(title="Agent4OLAP FastAPI", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="TwinBI🐝 FastAPI", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins or ["*"],
@@ -697,6 +727,321 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from exc
         return schema
 
+    @app.get("/superset/datasets")
+    def superset_datasets(
+        user_id: int | None = None,
+        username: str | None = None,
+        name: str | None = None,
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        settings = app.state.settings
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        if username and user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide either user_id or username, not both",
+            )
+
+        if username and not user_id:
+            meta_db_uri = settings.superset_meta_db_uri
+            if not meta_db_uri:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Superset meta DB not configured",
+                )
+            try:
+                user_id = lookup_user_id(meta_db_uri, username)
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Superset API error: {exc}",
+                ) from exc
+            if not user_id:
+                return {"count": 0, "result": []}
+
+        try:
+            session = _api_session_with_bearer(settings)
+            base_url = _get_base_url(settings)
+            _ensure_csrf(session, base_url)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+
+        page = 0
+        page_size = 100
+        remaining = max(1, limit)
+        results: list[dict[str, Any]] = []
+        name_filter = name.strip().lower() if isinstance(name, str) else None
+
+        while remaining > 0:
+            response = session.get(
+                f"{base_url}/api/v1/dataset/",
+                params={"page": page, "page_size": page_size},
+                timeout=30,
+            )
+            if response.status_code >= 400:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Superset API error: {response.text}",
+                )
+            payload = response.json()
+            batch = payload.get("result")
+            if not isinstance(batch, list) or not batch:
+                break
+            for entry in batch:
+                if not isinstance(entry, dict):
+                    continue
+                if user_id is not None:
+                    owners = entry.get("owners") or []
+                    owner_ids = [
+                        o.get("id") for o in owners if isinstance(o, dict) and o.get("id")
+                    ]
+                    if user_id not in owner_ids:
+                        continue
+                if name_filter:
+                    table_name = str(entry.get("table_name") or "").lower()
+                    dataset_name = str(entry.get("dataset_name") or entry.get("name") or "").lower()
+                    if name_filter not in table_name and name_filter not in dataset_name:
+                        continue
+                results.append(
+                    {
+                        "id": entry.get("id") or entry.get("dataset_id"),
+                        "table_name": entry.get("table_name"),
+                        "dataset_name": entry.get("dataset_name") or entry.get("name"),
+                        "database": entry.get("database"),
+                    }
+                )
+                remaining -= 1
+                if remaining <= 0:
+                    break
+            if len(batch) < page_size:
+                break
+            page += 1
+
+        return {"count": len(results), "result": results}
+
+    @app.get("/superset/charts/templates")
+    def superset_chart_templates(
+        viz_type: str | None = None,
+    ) -> dict[str, Any]:
+        templates = _load_chart_templates()
+        if not templates:
+            return {"templates": []}
+        if viz_type:
+            entry = templates.get(viz_type)
+            if entry is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"viz_type not found: {viz_type}",
+                )
+            return {"templates": {viz_type: entry}}
+        return {"templates": templates}
+
+    @app.post("/superset/charts", response_model=ChartCreateResponse)
+    def superset_chart_create(
+        payload: ChartCreateRequest,
+    ) -> ChartCreateResponse:
+        settings = app.state.settings
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+
+        templates = _load_chart_templates()
+        template = templates.get(payload.viz_type)
+        if not template:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported viz_type: {payload.viz_type}",
+            )
+
+        actual_viz_type = template.get("viz_type") or payload.viz_type
+        form_data = dict(template.get("form_data") or {})
+        form_data["viz_type"] = actual_viz_type
+        form_data["datasource"] = f"{payload.dataset_id}__{payload.datasource_type}"
+
+        enc = payload.encodings or {}
+        opts = payload.options or {}
+        warnings: list[str] = []
+
+        def _normalize_metrics(value: Any) -> Any:
+            if not isinstance(value, list):
+                return value
+            normalized: list[Any] = []
+            for metric in value:
+                if isinstance(metric, dict):
+                    normalized.append(metric)
+                    continue
+                if isinstance(metric, str):
+                    text = metric.strip()
+                    match = re.match(r"^([A-Z]+)\\((.+)\\)$", text)
+                    if match:
+                        agg = match.group(1)
+                        col = match.group(2).strip()
+                        normalized.append(
+                            {
+                                "expressionType": "SIMPLE",
+                                "aggregate": agg,
+                                "column": {"column_name": col},
+                                "label": f"{agg}({col})",
+                            }
+                        )
+                    else:
+                        normalized.append(metric)
+                    continue
+                normalized.append(metric)
+            return normalized
+
+        def _set_if_present(key: str, target_key: str | None = None) -> None:
+            if key in enc:
+                form_data[target_key or key] = enc.get(key)
+            if key in opts:
+                form_data[target_key or key] = opts.get(key)
+
+        # Common mappings
+        if "time_column" in enc:
+            form_data["granularity_sqla"] = enc.get("time_column")
+        _set_if_present("granularity_sqla")
+        _set_if_present("time_grain_sqla")
+        _set_if_present("time_range")
+        _set_if_present("groupby")
+        if "metrics" in enc:
+            form_data["metrics"] = _normalize_metrics(enc.get("metrics"))
+        elif "metrics" in opts:
+            form_data["metrics"] = _normalize_metrics(opts.get("metrics"))
+        _set_if_present("adhoc_filters")
+        _set_if_present("filters")
+        _set_if_present("all_columns")
+        _set_if_present("row_limit")
+        _set_if_present("orderby")
+        _set_if_present("order_desc")
+
+        # Pie expects "metric" and "groupby"
+        if actual_viz_type == "pie":
+            if "metric" in enc:
+                metric_value = enc.get("metric")
+                if isinstance(metric_value, str):
+                    match = re.match(r"^([A-Z]+)\\((.+)\\)$", metric_value.strip())
+                    if match:
+                        agg = match.group(1)
+                        col = match.group(2).strip()
+                        metric_value = {
+                            "expressionType": "SIMPLE",
+                            "aggregate": agg,
+                            "column": {"column_name": col},
+                            "label": f"{agg}({col})",
+                        }
+                form_data["metric"] = metric_value
+            elif "metrics" in enc and isinstance(enc.get("metrics"), list):
+                metrics = enc.get("metrics") or []
+                form_data["metric"] = metrics[0] if metrics else None
+            if not form_data.get("metric"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="pie requires metric or metrics",
+                )
+            if not form_data.get("groupby"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="pie requires groupby",
+                )
+
+        # Table: decide raw vs aggregate
+        if actual_viz_type == "table":
+            if form_data.get("all_columns"):
+                form_data["query_mode"] = "raw"
+                form_data.pop("metrics", None)
+                form_data.pop("groupby", None)
+            else:
+                form_data["query_mode"] = "aggregate"
+                if not form_data.get("metrics"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="table aggregate requires metrics or all_columns",
+                    )
+
+        # Timeseries-like charts require granularity + metrics
+        if actual_viz_type in {
+            "echarts_timeseries_line",
+            "echarts_timeseries_bar",
+            "echarts_timeseries_scatter",
+        }:
+            if not form_data.get("granularity_sqla"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{actual_viz_type} requires granularity_sqla or time_column",
+                )
+            if not form_data.get("metrics"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{actual_viz_type} requires metrics",
+                )
+
+        chart_payload = {
+            "slice_name": payload.slice_name,
+            "viz_type": actual_viz_type,
+            "datasource_id": payload.dataset_id,
+            "datasource_type": payload.datasource_type,
+            "params": json.dumps(form_data, ensure_ascii=False),
+        }
+        if payload.owners is not None:
+            chart_payload["owners"] = payload.owners
+        if payload.dashboard_id is not None:
+            chart_payload["dashboards"] = [payload.dashboard_id]
+
+        try:
+            session = _api_session_with_bearer(settings)
+            base_url = _get_base_url(settings)
+            _ensure_csrf(session, base_url)
+            response = session.post(
+                f"{base_url}/api/v1/chart/",
+                json=chart_payload,
+                timeout=30,
+            )
+            if response.status_code >= 400:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Superset API error: {response.text}",
+                )
+            result = response.json()
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+
+        chart_id = None
+        if isinstance(result, dict):
+            res = result.get("result") or result
+            if isinstance(res, dict):
+                chart_id = res.get("id") or res.get("slice_id")
+
+        return ChartCreateResponse(
+            status="created",
+            chart_id=chart_id,
+            slice_name=payload.slice_name,
+            warnings=warnings,
+        )
+
     @app.post("/superset/datasets/query")
     def superset_dataset_query(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         settings = app.state.settings
@@ -721,8 +1066,121 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail=f"Superset API error: {exc}",
             ) from exc
 
-    @app.get("/semantic/meta")
-    def cube_meta() -> dict[str, Any]:
+    @app.get("/superset/databases/meta")
+    def superset_database_meta() -> dict[str, Any]:
+        settings = app.state.settings
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        try:
+            session = _api_session_with_bearer(settings)
+            base_url = _get_base_url(settings)
+            _ensure_csrf(session, base_url)
+            response = session.get(
+                f"{base_url}/api/v1/database/",
+                params={"q": "(page:0,page_size:200)"},
+                timeout=30,
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+
+        result = payload.get("result")
+        items: list[dict[str, Any]] = []
+        if isinstance(result, list):
+            for entry in result:
+                if not isinstance(entry, dict):
+                    continue
+                db_id = entry.get("id") or entry.get("database_id")
+                name = entry.get("database_name") or entry.get("name")
+                if db_id is None or not name:
+                    continue
+                items.append({"id": db_id, "database_name": name})
+        return {"count": len(items), "result": items}
+
+    @app.get("/superset/databases/{database_id}/tables")
+    def superset_database_tables(
+        database_id: int,
+        schema_name: str = "public",
+        limit: int = 500,
+    ) -> dict[str, Any]:
+        settings = app.state.settings
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        try:
+            session = _api_session_with_bearer(settings)
+            base_url = _get_base_url(settings)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+
+        page = 0
+        page_size = 200
+        remaining = max(1, limit)
+        results: list[str] = []
+        while remaining > 0:
+            response = session.get(
+                f"{base_url}/api/v1/database/{database_id}/tables/",
+                params={
+                    "q": f"(schema_name:{schema_name},page:{page},page_size:{page_size})"
+                },
+                timeout=30,
+            )
+            if response.status_code >= 400:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Superset API error: {response.text}",
+                )
+            payload = response.json()
+            batch = payload.get("result")
+            if not isinstance(batch, list) or not batch:
+                break
+            for entry in batch:
+                if not isinstance(entry, dict):
+                    continue
+                name = (
+                    entry.get("name")
+                    or entry.get("value")
+                    or entry.get("table")
+                    or entry.get("table_name")
+                )
+                if isinstance(name, str):
+                    results.append(name)
+                    remaining -= 1
+                    if remaining <= 0:
+                        break
+            if len(batch) < page_size:
+                break
+            page += 1
+
+        return {"result": results}
+
+    @app.get("/semantic/schema")
+    def cube_meta(
+        type: Literal["cubes", "views"] | None = None,
+        name: str | None = None,
+    ) -> dict[str, Any] | list[dict[str, Any]]:
         settings = app.state.settings
         if not settings.cube_rest_url:
             raise HTTPException(
@@ -730,28 +1188,72 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail="CUBE_REST_URL not configured",
             )
         try:
-            return fetch_cube_meta(settings)
+            payload = fetch_cube_meta(settings)
         except Exception as exc:
             raise HTTPException(
                 status_code=502,
                 detail=f"Cube API error: {exc}",
             ) from exc
+        if not isinstance(payload, dict):
+            return payload
+        drop_keys = {
+            "suggestFilterValues",
+            "isVisible",
+            "public",
+            "segments",
+            "hierarchies",
+            "folders",
+            "nestedFolders",
+            "drillMembers",
+            "drillMembersGrouped",
+            "connectedComponent"
+        }
 
-    @app.get("/semantic/schema")
-    def cube_schema() -> dict[str, Any]:
-        settings = app.state.settings
-        if not settings.cube_conf_path:
-            raise HTTPException(
-                status_code=400,
-                detail="CUBE_CONF_PATH not configured",
-            )
-        try:
-            return load_repo_schema(settings.cube_conf_path)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Cube conf parse error: {exc}",
-            ) from exc
+        def _strip_keys(obj: Any) -> Any:
+            if isinstance(obj, dict):
+                return {
+                    key: _strip_keys(value)
+                    for key, value in obj.items()
+                    if key not in drop_keys
+                }
+            if isinstance(obj, list):
+                return [_strip_keys(item) for item in obj]
+            return obj
+        cubes = payload.get("cubes")
+        if isinstance(cubes, list):
+            filtered: list[dict[str, Any]] = []
+            for cube in cubes:
+                if not isinstance(cube, dict):
+                    continue
+                filtered_cube = _strip_keys(cube)
+                filtered.append(filtered_cube)
+            payload["cubes"] = filtered
+
+        cubes = payload.get("cubes")
+        if isinstance(cubes, list) and (type or name):
+            type_filter = type
+            if type_filter not in {None, "cubes", "views"}:
+                raise HTTPException(
+                    status_code=400,
+                    detail="type must be one of: cubes, views",
+                )
+            name_filter = name.strip().lower() if isinstance(name, str) else None
+            results: list[dict[str, Any]] = []
+            for cube in cubes:
+                if not isinstance(cube, dict):
+                    continue
+                if type_filter:
+                    cube_type = "views" if str(cube.get("type") or "cube").lower() == "view" else "cubes"
+                    if cube_type != type_filter:
+                        continue
+                if name_filter:
+                    cube_name = str(cube.get("name") or "").lower()
+                    if name_filter not in cube_name:
+                        continue
+                results.append(cube)
+            return {type_filter or "cubes": results}
+
+        return payload
 
     @app.post("/semantic/views", response_model=CreateViewResult)
     def semantic_create_view(payload: ViewSpec) -> CreateViewResult:
@@ -783,7 +1285,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         log_create_view(app.state.conn, payload, result)
         return result
 
-    @app.post("/sync/superset/dataset", response_model=SupersetDatasetSyncResult)
+    @app.delete("/semantic/views/{view_name}", response_model=CreateViewResult)
+    def semantic_delete_view(view_name: str) -> CreateViewResult:
+        settings = app.state.settings
+        if not settings.cube_conf_path:
+            raise HTTPException(
+                status_code=400,
+                detail="CUBE_CONF_PATH not configured",
+            )
+        try:
+            result = delete_cube_view(settings, view_name)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except Exception as exc:
+            log_unified_event(
+                app.state.conn,
+                "semantic_view_delete_failed",
+                {"view_name": view_name, "error": str(exc)},
+            )
+            raise HTTPException(
+                status_code=500,
+                detail=f"delete view failed: {exc}",
+            ) from exc
+        log_unified_event(
+            app.state.conn,
+            "semantic_view_delete",
+            {"view_name": view_name, "result": result.model_dump()},
+        )
+        return result
+
+    @app.post("/superset/datasets/sync", response_model=SupersetDatasetSyncResult)
     def superset_dataset_sync(
         payload: SupersetDatasetSyncRequest,
     ) -> SupersetDatasetSyncResult:
@@ -816,35 +1347,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from exc
         log_dataset_sync(app.state.conn, payload, result)
         return result
-
-    @app.post("/orchestrate/create_view_and_sync", response_model=CreateViewAndSyncResult)
-    def create_view_and_sync(
-        payload: CreateViewAndSyncRequest,
-    ) -> CreateViewAndSyncResult:
-        view_result = semantic_create_view(payload.view)
-        superset_payload = payload.superset
-        if superset_payload is None and payload.view.superset_sync:
-            try:
-                superset_payload = SupersetDatasetSyncRequest(
-                    **payload.view.superset_sync
-                )
-            except Exception as exc:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"superset_sync payload invalid: {exc}",
-                ) from exc
-        if not superset_payload:
-            return CreateViewAndSyncResult(
-                status="view_created",
-                view_result=view_result,
-                superset_result=None,
-            )
-        superset_result = superset_dataset_sync(superset_payload)
-        return CreateViewAndSyncResult(
-            status="ok",
-            view_result=view_result,
-            superset_result=superset_result,
-        )
 
     @app.post("/poller/clear", response_model=StatusResponse)
     def poller_clear() -> StatusResponse:

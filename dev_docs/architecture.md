@@ -33,9 +33,9 @@ Defined in `docker-compose.sales.yml`:
 - Volumes:
   - `./data/sales/database:/cube/data`
   - `./data/sales/cube_conf:/cube/conf`
-- Network: `agent4olap_net` (external)
+- Network: `TwinBI🐝_net` (external)
 
-**Implication:** Any container on `agent4olap_net` can query Cube via:
+**Implication:** Any container on `TwinBI🐝_net` can query Cube via:
 - REST: `http://sales:4000`
 - SQL (Postgres wire): `sales:15432`
 
@@ -84,7 +84,7 @@ Volumes:
 
 ## 3. Proposed Addition: FastAPI Backend
 
-Add a new service (e.g., `api`) to the same network (`agent4olap_net`) to act as:
+Add a new service (e.g., `api`) to the same network (`TwinBI🐝_net`) to act as:
 
 1) **LLM Orchestrator**
 - Accepts chat requests from Streamlit
@@ -111,20 +111,9 @@ To keep the system simple:
 1. User types question in Streamlit
 2. Streamlit calls `POST /chat` on FastAPI with `{session_id, user_id, message, history}`
 3. FastAPI:
-   - uses the OpenAI Agents SDK (`agents.Agent`) dashboard agent to answer the prompt
-   - prepends the active chart context when available (from Superset log stream)
-   - injects a chart context object (chart id/name + chart data summary) into the agent run
-   - dashboard agent tools:
-     - `get_active_chart_log` (reads latest log payload from DuckDB)
-     - `get_active_chart_data` (calls Superset chart data API using log payload)
-     - `get_chart_sql` (extracts SQL/query from the latest log payload)
-     - `get_activated_chart_metadata` (fetches chart metadata from Superset dashboard)
-     - `list_dashboard_charts` (lists charts for the current or latest dashboard)
-     - `get_chart_data_by_id` (fetches chart data for a specific chart id)
-     - `get_facts` (lists fact tables from the SchemaExplorer star schema)
-     - `get_schema_info` (returns schema nodes, measures, and FK links for a fact table)
-     - `search_attribute` (returns hierarchy paths + stats for a dimension attribute)
-     - `search_value_exists` (checks if a value exists for an attribute)
+   - uses the OpenAI Agents SDK with a **multi‑agent pipeline** (orchestrator + specialists)
+   - injects chart context (active tab + active charts + last UI event) into the agent run
+   - orchestrator delegates tool calls to specialist agents
    - returns the agent response as `answer`
 4. FastAPI logs:
    - Streamlit chat payload (session_id, request_id, message, response, latency_ms)
@@ -526,9 +515,9 @@ self.assertEqual(schema.status_code, 400)
 
 ---
 
-### GET /semantic/meta
+### GET /semantic/schema
 
-Returns Cube.js metadata from the Cube REST API.
+Returns Cube.js metadata from the Cube REST API (filtered to remove verbose keys).
 
 **Response (example)**
 
@@ -541,42 +530,6 @@ Returns Cube.js metadata from the Cube REST API.
       "dimensions": []
     }
   ]
-}
-```
-
-**Unit test (example)**
-
-```python
-cube_meta = client.get("/semantic/meta")
-self.assertEqual(cube_meta.status_code, 400)
-```
-
----
-
-### GET /semantic/schema
-
-Returns a schema/joins map built from Cube config files under `CUBE_CONF_PATH`.
-
-**Response (example)**
-
-```json
-{
-  "fact_sales": {
-    "sql_table": "main.fact_sales",
-    "columns": ["sale_id", "total_receipts"],
-    "joined": {
-      "dim_date": {
-        "relationship": "many_to_one",
-        "sql": "{CUBE}.date_key = {dim_date}.date_key",
-        "joined_key": [
-          {
-            "from": "fact_sales.date_key",
-            "to": "dim_date.date_key"
-          }
-        ]
-      }
-    }
-  }
 }
 ```
 
@@ -708,7 +661,7 @@ Environment:
 
 Network:
 
-- same external network: `agent4olap_net`
+- same external network: `TwinBI🐝_net`
 
 ---
 
@@ -778,7 +731,7 @@ FastAPI Poller -> superset_db: SELECT logs WHERE id > last_id
 superset_db -> FastAPI Poller: rows
 FastAPI Writer -> DuckDB: append superset_action_logs
 FastAPI Writer -> DuckDB: update checkpoint
-
+```
 ---
 
 ## 11. Superset Interactive Event Logging Plan
@@ -876,7 +829,6 @@ to the existing `further_drill_by` event.
 References:
 - Superset event logging docs: https://superset.apache.org/docs/configuration/event-logging/
 - HomeToGo logging analysis: https://engineering.hometogo.com/monitor-superset-usage-via-superset-c7f9fba79525?gi=294843d271e9
-```
 
 ---
 
@@ -886,8 +838,22 @@ This section describes how the core components exchange requests and outputs.
 
 ### 12.1 LLM Agent ↔ FastAPI (REST API server)
 - Request: Streamlit sends `POST /chat` or `POST /chat/stream` to FastAPI.
-- Processing: FastAPI builds context, then invokes the LLM agent runner.
+- Processing: FastAPI builds context, then invokes the **Orchestrator Agent**.
 - Output: FastAPI returns the agent response (final answer or stream events).
+
+### 12.1.1 Multi‑agent system (current)
+
+| Agent | Responsibility | Tools |
+| --- | --- | --- |
+| Orchestrator | Route tasks, call specialist agents, assemble final response | `run_chart_context_agent`, `run_schema_mapping_agent`, `run_data_query_agent`, `run_semantic_view_builder_agent`, `run_answer_composer_agent`, `run_documentation_agent` |
+| Chart Context | Identify active tab/chart and candidate charts | `get_active_chart_log`, `get_chart_sql`, `get_active_tab_charts`, `list_dashboard_charts` |
+| Schema Mapping | Map business terms to schema fields | `get_facts`, `get_schema_info`, `search_attribute`, `search_value_exists`, `list_cube_tables`, `get_cube_schema`, `get_semantic_schema` |
+| Data Query | Fetch data from Superset/Cube | `get_chart_queries`, `query_superset_dataset`, `get_superset_dataset_schema`, `get_active_chart_data`, `get_chart_data_by_id`, `query_cube`, `list_superset_datasets`, `list_chart_templates`, `create_superset_chart` |
+| Semantic View Builder | Create Cube views + sync datasets | `list_cube_tables`, `get_cube_schema`, `get_semantic_schema`, `create_cube_view`, `delete_cube_view`, `sync_superset_dataset`, `list_superset_databases_meta`, `list_superset_database_tables` |
+| Answer Composer | Draft final answer | (no tools) |
+| Documentation | Summarize docs + tool usage rules | `read_dashboard_tools_doc`, `read_schema_explorer_doc`, `read_semantic_tools_doc`, `read_charts_doc` |
+| Summary | `/summary` response | (no tools) |
+| LookAhead | Recommendations after final answer | (no tools) |
 
 ### 12.2 LLM Agent ↔ BI Tool (Superset)
 - Request: The agent calls tools like `get_active_chart_data`, which cause FastAPI
