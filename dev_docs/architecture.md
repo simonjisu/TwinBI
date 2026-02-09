@@ -33,9 +33,9 @@ Defined in `docker-compose.sales.yml`:
 - Volumes:
   - `./data/sales/database:/cube/data`
   - `./data/sales/cube_conf:/cube/conf`
-- Network: `agent4olap_net` (external)
+- Network: `TwinBI🐝_net` (external)
 
-**Implication:** Any container on `agent4olap_net` can query Cube via:
+**Implication:** Any container on `TwinBI🐝_net` can query Cube via:
 - REST: `http://sales:4000`
 - SQL (Postgres wire): `sales:15432`
 
@@ -84,7 +84,7 @@ Volumes:
 
 ## 3. Proposed Addition: FastAPI Backend
 
-Add a new service (e.g., `api`) to the same network (`agent4olap_net`) to act as:
+Add a new service (e.g., `api`) to the same network (`TwinBI🐝_net`) to act as:
 
 1) **LLM Orchestrator**
 - Accepts chat requests from Streamlit
@@ -111,20 +111,9 @@ To keep the system simple:
 1. User types question in Streamlit
 2. Streamlit calls `POST /chat` on FastAPI with `{session_id, user_id, message, history}`
 3. FastAPI:
-   - uses the OpenAI Agents SDK (`agents.Agent`) dashboard agent to answer the prompt
-   - prepends the active chart context when available (from Superset log stream)
-   - injects a chart context object (chart id/name + chart data summary) into the agent run
-   - dashboard agent tools:
-     - `get_active_chart_log` (reads latest log payload from DuckDB)
-     - `get_active_chart_data` (calls Superset chart data API using log payload)
-     - `get_chart_sql` (extracts SQL/query from the latest log payload)
-     - `get_activated_chart_metadata` (fetches chart metadata from Superset dashboard)
-     - `list_dashboard_charts` (lists charts for the current or latest dashboard)
-     - `get_chart_data_by_id` (fetches chart data for a specific chart id)
-     - `get_facts` (lists fact tables from the SchemaExplorer star schema)
-     - `get_schema_info` (returns schema nodes, measures, and FK links for a fact table)
-     - `search_attribute` (returns hierarchy paths + stats for a dimension attribute)
-     - `search_value_exists` (checks if a value exists for an attribute)
+   - uses the OpenAI Agents SDK with a **multi‑agent pipeline** (orchestrator + specialists)
+   - injects chart context (active tab + active charts + last UI event) into the agent run
+   - orchestrator delegates tool calls to specialist agents
    - returns the agent response as `answer`
 4. FastAPI logs:
    - Streamlit chat payload (session_id, request_id, message, response, latency_ms)
@@ -170,7 +159,7 @@ Responsibilities:
 
 Suggested internal modules:
 - `llm/` (provider adapters, prompt templates, tool calling)
-- `cube/` (REST + SQL clients)
+- `semantic/` (REST + SQL clients)
 - `logging/` (event schemas, queue, DuckDB writer)
 - `superset/` (metadata DB poller, normalization)
 - `api/` (FastAPI routers)
@@ -279,7 +268,7 @@ Injects active chart context (chart id/name + latest Superset log form_data/quer
 ```
 
 ### GET /events/stream
-Streams UI events from DuckDB (`ui_events`) via SSE.
+Streams Superset logs (including embed UI events written into `superset_action_logs`) via SSE.
 
 ### GET /superset/charts/{chart_id}/data
 Looks up the latest Superset log for `chart_id` in DuckDB, builds a chart payload
@@ -323,7 +312,7 @@ Returns the latest Superset log payload for the chart (from DuckDB), including
 {"status":"ok"}
 ```
 
-**Note**: `POST /events` writes UI events (e.g., tab clicks) into DuckDB `ui_events`.
+**Note**: `POST /events` writes embed UI events (e.g., tab clicks) into DuckDB `superset_action_logs`.
 
 **Unit test (example)**
 
@@ -341,9 +330,15 @@ client.app.state.writer.flush_blocking()
 
 ---
 
-### GET /superset/dashboards/{dashboard_id}/charts
+### GET /superset/dashboards/charts
 
-Returns the list of charts (figures) for a Superset dashboard.
+Returns charts by filter mode:
+- `dashboard_id` only: all charts on that dashboard
+- `user_name` / `user_id` only: all charts owned by that user (including unassigned charts with `dashboard_ids: []`)
+- `dashboard_id` + `user_name` / `user_id`: only charts owned by user and assigned to that dashboard (intersection)
+
+Notes:
+- `username` is accepted as a backward-compatible alias for `user_name`.
 
 **Response (example)**
 
@@ -357,11 +352,40 @@ Returns the list of charts (figures) for a Superset dashboard.
       "name": "Sales by Category",
       "viz_type": "bar",
       "datasource_id": 5,
-      "datasource_type": "table"
+      "datasource_type": "table",
+      "tab": {
+        "id": 12,
+        "name": "Overview"
+      }
     }
   ]
 }
 ```
+
+**Owner-scope response (example)**
+
+```json
+{
+  "dashboard_id": null,
+  "user_id": 5,
+  "user_name": "harry_potter",
+  "count": 2,
+  "charts": [
+    {
+      "chart_id": 704,
+      "slice_id": 704,
+      "name": "Average Daily Sales by State",
+      "viz_type": "echarts_timeseries_line",
+      "datasource_id": 42,
+      "datasource_type": "table",
+      "dashboard_ids": []
+    }
+  ]
+}
+```
+
+Backward compatibility:
+- `GET /superset/dashboards/{dashboard_id}/charts` is still supported and maps to dashboard-scope behavior.
 
 **Unit test (example)**
 
@@ -371,36 +395,72 @@ def test_superset_dashboard_charts_missing_config(self) -> None:
         settings = self._build_settings(str(Path(tmpdir) / "events.duckdb"))
         app = create_app(settings)
         with TestClient(app) as client:
-            response = client.get("/superset/dashboards/12/charts")
+            response = client.get("/superset/dashboards/charts?dashboard_id=12")
             self.assertEqual(response.status_code, 400)
 ```
 
 ---
 
-### GET /superset/dashboards/{dashboard_id}/tab-map
+### GET /superset/dashboards/{dashboard_id}/layout
 
-Returns a mapping of chart (slice) ids to Superset dashboard tab names.
+Returns a compact dashboard layout (parsed from Superset `position_json`) with the
+minimum keys required for topology traversal and chart linking.
 
 **Response (example)**
 
 ```json
 {
   "dashboard_id": 12,
-  "tab_map": {
-    "160": "Q1 Overview",
-    "161": "Q1 Overview"
+  "layout": {
+    "ROOT_ID": {"id": "ROOT_ID", "type": "ROOT", "children": ["GRID_ID"]},
+    "GRID_ID": {"id": "GRID_ID", "type": "GRID", "children": ["TAB-..."]},
+    "CHART-abc": {
+      "id": "CHART-abc",
+      "type": "CHART",
+      "children": [],
+      "meta": {"chartId": 662}
+    }
   }
 }
 ```
 
-**Unit test (example)**
+### POST /superset/dashboards/{dashboard_id}/layout/append-chart
 
-```python
-tab_map = client.get("/superset/dashboards/12/tab-map")
-self.assertEqual(tab_map.status_code, 400)
+Appends an existing chart to dashboard layout in one call:
+1) attach chart to dashboard (dashboard-slice relation), then
+2) write a new `ROW-*` and `CHART-*` node into `position_json`,
+3) save via Superset dashboard update API.
+
+**Request (example)**
+
+```json
+{
+  "chart_id": 662,
+  "tab_id": "TAB-4HTFsBSog_QWn2XhGESOD",
+  "width": 4,
+  "height": 50
+}
+```
+
+**Response (example)**
+
+```json
+{
+  "status": "appended",
+  "dashboard_id": 12,
+  "chart_id": 662,
+  "container_id": "TAB-4HTFsBSog_QWn2XhGESOD",
+  "row_id": "ROW-1b61d8c2e4b84785bdfd",
+  "chart_node_id": "CHART-7468c7bdb7104c0a8d5d",
+  "tab": {
+    "id": "TAB-4HTFsBSog_QWn2XhGESOD",
+    "name": "Sales"
+  }
+}
 ```
 
 ---
+
 ### GET /health
 
 Used for container health checks.
@@ -546,9 +606,9 @@ self.assertEqual(schema.status_code, 400)
 
 ---
 
-### GET /cube/meta
+### GET /semantic/schema
 
-Returns Cube.js metadata from the Cube REST API.
+Returns Cube.js metadata from the Cube REST API (filtered to remove verbose keys).
 
 **Response (example)**
 
@@ -567,60 +627,25 @@ Returns Cube.js metadata from the Cube REST API.
 **Unit test (example)**
 
 ```python
-cube_meta = client.get("/cube/meta")
-self.assertEqual(cube_meta.status_code, 400)
-```
-
----
-
-### GET /cube/schema
-
-Returns a schema/joins map built from Cube config files under `CUBE_CONF_PATH`.
-
-**Response (example)**
-
-```json
-{
-  "fact_sales": {
-    "sql_table": "main.fact_sales",
-    "columns": ["sale_id", "total_receipts"],
-    "joined": {
-      "dim_date": {
-        "relationship": "many_to_one",
-        "sql": "{CUBE}.date_key = {dim_date}.date_key",
-        "joined_key": [
-          {
-            "from": "fact_sales.date_key",
-            "to": "dim_date.date_key"
-          }
-        ]
-      }
-    }
-  }
-}
-```
-
-**Unit test (example)**
-
-```python
-cube_schema = client.get("/cube/schema")
+cube_schema = client.get("/semantic/schema")
 self.assertEqual(cube_schema.status_code, 400)
 ```
 
 ---
-### GET /superset/logs/stream
+### GET /events/stream
 
-Streams Superset action logs from DuckDB using Server-Sent Events (SSE).
+Streams Superset action logs and UI events from DuckDB using Server-Sent Events (SSE).
 
 **Query params**
 
 - `dashboard_id`: filter by dashboard id
 - `user_id`: filter by Superset user id
 - `action`: filter by action name
+- `source`: `superset` (default)
 - `last_id`: start from this superset_log_id (default 0)
 - `limit`: max rows per poll (default 100)
 - `poll_interval_sec`: poll interval (default 1.0)
-- `Last-Event-ID` header: optional resume token used on reconnects
+- `Last-Event-ID` header: optional resume token used on reconnects (superset_log_id)
 
 **Notes**
 
@@ -640,7 +665,7 @@ Streams Superset action logs from DuckDB using Server-Sent Events (SSE).
 ```python
 with client.stream(
     "GET",
-    "/superset/logs/stream",
+    "/events/stream",
     headers={"Last-Event-ID": "0"},
 ) as stream:
     self.assertEqual(stream.status_code, 200)
@@ -649,32 +674,6 @@ with client.stream(
 ```
 
 ---
-
-### GET /events/stream
-
-Streams UI events (from `ui_events`) using Server-Sent Events (SSE).
-
-**Query params**
-
-- `session_id`: filter by Streamlit session id
-- `event_type`: filter by event type
-- `last_id`: start from this event_id (default 0)
-- `limit`: max rows per poll (default 100)
-- `poll_interval_sec`: poll interval (default 1.0)
-- `Last-Event-ID` header: optional resume token used on reconnects
-
-**Unit test (example)**
-
-```python
-with client.stream(
-    "GET",
-    "/events/stream",
-    headers={"Last-Event-ID": "0"},
-) as stream:
-    self.assertEqual(stream.status_code, 200)
-    content_type = stream.headers.get("content-type", "")
-    self.assertTrue(content_type.startswith("text/event-stream"))
-```
 
 ---
 
@@ -688,8 +687,7 @@ Resolves a Superset username to user id (metadata DB lookup).
 
 - **session_id**: stable across a user session in Streamlit  
 - **request_id**: unique per `/chat` call  
-- **event_id**: unique per event row (generated at ingestion time)  
-- **superset_log_id**: Superset `logs.id` (source primary key)
+- **superset_log_id**: Superset `logs.id` (source primary key) or local id for embed events
 
 ---
 
@@ -705,18 +703,10 @@ Resolves a Superset username to user id (metadata DB lookup).
 - `response` VARCHAR  
 - `latency_ms` BIGINT  
 
-#### ui_events
-
-- `event_id` BIGINT  
-- `ts` TIMESTAMP  
-- `session_id` VARCHAR  
-- `user_id` VARCHAR  
-- `event_type` VARCHAR  
-- `payload_json` VARCHAR  
-
 #### superset_action_logs
 
 (ingested from `superset_db.logs`; keep raw + add ingestion columns)
+Also stores embed UI events written by `POST /events` (action = event_type, json payload includes source/session/user).
 
 - `superset_log_id` BIGINT  
 - `dttm` TIMESTAMP  
@@ -762,7 +752,7 @@ Environment:
 
 Network:
 
-- same external network: `agent4olap_net`
+- same external network: `TwinBI🐝_net`
 
 ---
 
@@ -832,105 +822,126 @@ FastAPI Poller -> superset_db: SELECT logs WHERE id > last_id
 superset_db -> FastAPI Poller: rows
 FastAPI Writer -> DuckDB: append superset_action_logs
 FastAPI Writer -> DuckDB: update checkpoint
-
+```
 ---
 
-## 11. Superset Interactive Event Logging Plan
+## 11. Chart Interaction Architecture (Current)
 
-Goal: capture richer, user-level dashboard interactions beyond basic REST calls.
+This section describes the current event and state model used to track chart interactions for embedded Superset.
 
-### 11.0 Event Logs DuckDB schema and data dictionary
+### 11.0 Storage model and source of truth
 
-All event logs are stored in `events.duckdb` (mounted at `./data/logs/events.duckdb`).
+All interaction and Superset events are unified in `events.duckdb` (mounted at `./data/logs/events.duckdb`), primarily in `superset_action_logs`.
 
-#### Table: streamlit_chat_logs
-- `ts` (TIMESTAMP): FastAPI receipt time (UTC).
-- `session_id` (VARCHAR): Streamlit session identifier.
-- `request_id` (VARCHAR): Unique id per chat request.
-- `user_id` (VARCHAR): Streamlit user id string (if provided).
-- `message` (VARCHAR): User message text.
-- `response` (VARCHAR): Assistant response text.
-- `latency_ms` (BIGINT): API latency for `/chat`.
+`superset_action_logs` contains:
+- polled Superset metadata DB log rows (`source` effectively server-side, via poller)
+- UI-origin rows generated by `POST /events` (`json.source = "ui"`)
 
-#### Table: superset_action_logs
-Raw Superset action log rows ingested from `superset_db.logs`.
-- `superset_log_id` (BIGINT): Superset `logs.id` primary key.
-- `dttm` (TIMESTAMP): Superset action timestamp (`logs.dttm`).
-- `action` (VARCHAR): Action name (e.g., `DashboardRestApi.get`, `log`, `ChartDataRestApi.data`).
-- `user_id` (BIGINT): Superset user id (`logs.user_id`).
-- `dashboard_id` (BIGINT): Superset dashboard id.
-- `slice_id` (BIGINT): Superset slice (chart) id.
-- `duration_ms` (BIGINT): Action duration in ms.
-- `referrer` (VARCHAR): Referrer URL (if present).
-- `json` (VARCHAR): Raw JSON payload from Superset logs.
-- `ingested_at` (TIMESTAMP): FastAPI ingestion timestamp (UTC).
-
-#### Table: _checkpoint
-- `key` (VARCHAR, PK): Checkpoint name.
-- `value` (VARCHAR): Checkpoint value (e.g., last ingested Superset log id).
-
-### 11.0.1 Superset logs source table (metadata DB)
-
-Superset writes action logs to the metadata DB table `logs`.
 Key columns:
-- `id` (BIGINT): Primary key.
-- `dttm` (TIMESTAMP): Event time.
-- `action` (VARCHAR): Action name.
-- `user_id` (BIGINT): Superset user id.
-- `dashboard_id` (BIGINT): Dashboard id (if applicable).
-- `slice_id` (BIGINT): Chart id (if applicable).
-- `duration_ms` (BIGINT): Timing metric for the action.
-- `referrer` (VARCHAR): Referrer URL.
-- `json` (TEXT): JSON payload (for `action='log'` and others).
+- `superset_log_id`, `dttm`, `action`, `dashboard_id`, `slice_id`, `json`, `ingested_at`
 
-### 11.1 Current limits
-- Superset Action Log entries are mostly server-side endpoints (e.g., `DashboardRestApi.get`).
-- Interactive client events are often stored as `action='log'` with JSON payloads.
-- Embedded dashboards may emit `/superset/log/?explode=events` requests that batch UI events.
+### 11.1 Event taxonomy in use
 
-**Drill-by logging (action log)**
+UI events emitted by the embed frontend and written through `/events`:
+- `superset_tab_click`
+- `chart_click`
+- `legend_toggle`
+- `cross_filter_added`
+- `cross_filter_removed`
+- `global_filter_added`
+- `global_filter_removed`
 
-Drill-by actions are captured via Superset action logs (`action='log'`) and emitted
-by the Drill-by modal when users apply a drill-by selection. The payload is attached
-to the existing `further_drill_by` event.
+Backward-compatible names still recognized by backend readers:
+- `filter_added`
+- `filter_removed`
 
-- Source: `superset/superset-frontend/src/components/Chart/DrillBy/DrillByModal.tsx`
-  appends drill-by metadata to `LOG_ACTIONS_FURTHER_DRILL_BY`.
-- Log payload fields (JSON):
-  - `event_name`: `further_drill_by`
-  - `slice_id`
-  - `drill_depth`
-  - `drill_column` / `drill_column_label`
-  - `drill_groupby_field`
-  - `drill_adhoc_filter_field`
-  - `drill_filters` (simple filter objects)
-- FastAPI decorates these into `action_label: "drill_by"` and `drill_by` in stream rows.
+Server-side Superset events used for query/filter context:
+- `ChartDataRestApi.data`
+- `ChartDataRestApi.json_dumps`
 
-### 11.2 Proposed plan
-1) **Inventory actual actions**
-   - Run `SELECT action, count(*) FROM logs GROUP BY 1 ORDER BY 2 DESC;`
-   - Identify actions tied to dashboards (e.g., `ChartRestApi.data`, `explore_json`, `log`)
-2) **Parse `action='log'` payloads (future)**
-   - Extract `event_name`, `dashboard_id`, `slice_id`, filter metadata, and timing from JSON
-   - Store parsed fields in a new table (e.g., `superset_interaction_events`)
-3) **Add optional client event ingestion (future)**
-   - If `action='log'` is insufficient, enable Superset event logging configuration
-   - Capture the batched event payloads for embedded dashboards
-4) **Define a taxonomy**
-   - Map raw event names to UX categories: filter change, drill, cross-filter, export, refresh, etc.
-5) **Backfill strategy**
-   - Reset checkpoint and re-ingest after parser is in place
-   - Keep raw logs alongside parsed events for auditability
+### 11.2 Frontend event generation (embed component)
 
-### 11.3 Implementation hooks (future)
-- Extend the poller to detect `action='log'` and parse JSON into structured columns.
-- Add a new DuckDB table for parsed interactions if needed.
-- Keep `superset_action_logs` as raw source-of-truth.
+Source: `streamlit-app/superset_embed_component/frontend/src/SupersetEmbed.tsx`
 
-References:
-- Superset event logging docs: https://superset.apache.org/docs/configuration/event-logging/
-- HomeToGo logging analysis: https://engineering.hometogo.com/monitor-superset-usage-via-superset-c7f9fba79525?gi=294843d271e9
-```
+1. PostMessage events from iframe (`id="superset-ui-event"`) are mapped to:
+   - `superset_tab_click`, `chart_click`, `legend_toggle`
+2. DataMask snapshots are diffed to emit filter events:
+   - chart/cross-filter diffs -> `cross_filter_added` / `cross_filter_removed`
+   - native filter (`NATIVE_FILTER-*`) diffs -> `global_filter_added` / `global_filter_removed`
+3. Events are posted to FastAPI `/events` with `session_id`, `event_type`, and payload.
+
+### 11.3 FastAPI ingestion path
+
+Source: `fastapi/fastapi_service/main.py`, `fastapi/fastapi_service/writer.py`
+
+1. `/events` receives UI events.
+2. `DuckDBWriter` converts UI payload into a `superset_action_logs` row:
+   - `action = event_type`
+   - `json = {"source":"ui","session_id":...,"event_type":...,"payload":...}`
+3. Superset poller writes backend action logs into the same table.
+
+This gives one ordered timeline for UI + backend events.
+
+### 11.4 Stream contract (`GET /events/stream`)
+
+- Streams rows from `superset_action_logs` by `superset_log_id`.
+- Supports `source`, `dashboard_id`, `user_id`, `action`, `last_id`, `limit`.
+- For chart-data actions, adds:
+  - `translated_sql`
+  - `translated_filters`
+  - `translated_where`
+- Emits `: keepalive` when no new rows.
+
+Note:
+- For active-context UIs, unfiltered stream consumption (`source=superset`) is safer than strict dashboard filtering because some UI rows can have sparse dashboard fields.
+
+### 11.5 Active context contract (`GET /superset/charts/active`)
+
+Source: `fastapi/fastapi_service/main.py` (`_build_superset_active_context`)
+
+Returned shape:
+- `dashboard_id`
+- `active_tab`
+- `active_charts` (tab scoped)
+- `last_ui_event`
+- `interacting_chart`
+- `session_id`
+
+Derivation rules:
+1. Session resolution:
+   - use query `session_id` if provided
+   - otherwise use latest UI session id for the dashboard
+2. Tab resolution:
+   - latest `superset_tab_click` in session/dashboard
+   - fallback to chart-derived/default tab
+3. Chart list:
+   - all charts in active tab
+4. `active_charts[].filters`:
+   - latest chart filters from `ChartDataRestApi.*` for each slice
+   - merged with current global filters reconstructed from `global_filter_added/removed`
+5. Filter cleanup:
+   - entries with `"No filter"` are excluded
+6. Interaction state:
+   - `legend_toggle`, `chart_click`, `cross_filter_added` set interaction focus
+   - `cross_filter_removed` clears interaction focus
+
+### 11.6 Active context widget behavior
+
+Source: `streamlit-app/javascripts/active_context.html`
+
+The widget uses both:
+- `/events/stream?source=superset` for realtime event reaction
+- `/superset/charts/active` for canonical reconciliation
+
+Session behavior:
+- when Streamlit session id changes (browser refresh/new session), widget resets to idle
+- events from other session ids are ignored when session id is available
+
+### 11.7 Known edge cases
+
+- `source_slice_id` can be `null` when upstream event payload has no chart/slice id.
+- Global filter events should update chart filter state, but should not force chart focus text by themselves.
+- Cross-filter source/target attribution is best-effort and may require combining UI events with `ChartDataRestApi.*`.
 
 ---
 
@@ -940,8 +951,26 @@ This section describes how the core components exchange requests and outputs.
 
 ### 12.1 LLM Agent ↔ FastAPI (REST API server)
 - Request: Streamlit sends `POST /chat` or `POST /chat/stream` to FastAPI.
-- Processing: FastAPI builds context, then invokes the LLM agent runner.
+- Processing: FastAPI builds context, then invokes the **Orchestrator Agent**.
 - Output: FastAPI returns the agent response (final answer or stream events).
+
+### 12.1.1 Multi‑agent system (current)
+
+| Agent | Responsibility | Tools |
+| --- | --- | --- |
+| Orchestrator | Route tasks, call specialist agents, assemble final response | `run_chart_manager_agent`, `run_schema_explorer_agent`, `run_answer_composer_agent`, `run_docs_retriever_agent` |
+| ChartManager | Retrieve/manage chart context, query chart/dataset data, create chart and append to dashboard, run one-call semantic view+dataset sync when needed | `get_active_chart_log`, `get_chart_sql`, `get_active_tab_charts`, `list_dashboard_charts`, `get_dashboard_layout`, `list_superset_datasets`, `get_chart_form_data`, `get_chart_queries`, `get_superset_dataset_schema`, `query_superset_dataset`, `get_active_chart_data`, `get_chart_data_by_id`, `query_cube`, `list_chart_templates`, `list_superset_databases_meta`, `list_superset_database_tables`, `create_semantic_view_and_dataset`, `create_superset_chart`, `append_chart_to_dashboard` |
+| SchemaExplorer | Map business terms to schema fields and validate field/value availability | `get_facts`, `get_schema_info`, `search_attribute`, `search_value_exists`, `list_cube_tables`, `get_cube_schema`, `get_semantic_schema` |
+| Answer Composer | Draft final answer | (no tools) |
+| DocsRetriever | Summarize docs + tool usage rules | `read_dashboard_tools_doc`, `read_schema_explorer_doc`, `read_semantic_tools_doc`, `read_charts_doc` |
+| InsightSeeker | `/insights` response (summary + actionable insights + next deep dives) | (no tools) |
+
+Implementation notes:
+- The code now uses only the new agent identities above (no backward-compatible alias names).
+- Chart creation/append workflow is centralized in `ChartManager`.
+- Orchestrator policy requires tool-confirmed success before claiming chart creation:
+  - `create_superset_chart` must return non-null `chart_id`
+  - `append_chart_to_dashboard` must return `status` in `appended|already_exists`.
 
 ### 12.2 LLM Agent ↔ BI Tool (Superset)
 - Request: The agent calls tools like `get_active_chart_data`, which cause FastAPI

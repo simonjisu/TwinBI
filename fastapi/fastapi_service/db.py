@@ -22,22 +22,6 @@ def connect(path: str, read_only: bool = False) -> duckdb.DuckDBPyConnection:
 def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute(
         """
-        CREATE TABLE IF NOT EXISTS ui_events (
-            event_id BIGINT,
-            ts TIMESTAMP,
-            session_id VARCHAR,
-            user_id VARCHAR,
-            event_type VARCHAR,
-            payload_json VARCHAR
-        )
-        """
-    )
-    try:
-        conn.execute("ALTER TABLE ui_events ADD COLUMN event_id BIGINT")
-    except duckdb.CatalogException:
-        pass
-    conn.execute(
-        """
         CREATE TABLE IF NOT EXISTS streamlit_chat_logs (
             ts TIMESTAMP,
             session_id VARCHAR,
@@ -47,7 +31,13 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
             response VARCHAR,
             response_raw VARCHAR,
             response_events VARCHAR,
-            latency_ms BIGINT
+            latency_ms BIGINT,
+            model_name VARCHAR,
+            prompt_tokens BIGINT,
+            completion_tokens BIGINT,
+            total_tokens BIGINT,
+            token_cost BIGINT,
+            usd_cost DOUBLE
         )
         """
     )
@@ -57,6 +47,30 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
         pass
     try:
         conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN response_events VARCHAR")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN model_name VARCHAR")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN prompt_tokens BIGINT")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN completion_tokens BIGINT")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN total_tokens BIGINT")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN token_cost BIGINT")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN usd_cost DOUBLE")
     except duckdb.CatalogException:
         pass
     conn.execute(
@@ -114,23 +128,8 @@ def get_max_superset_log_id(conn: duckdb.DuckDBPyConnection) -> int:
     return int(result[0]) if result else 0
 
 
-def insert_ui_event(conn: duckdb.DuckDBPyConnection, payload: dict[str, Any]) -> None:
-    conn.execute(
-        """
-        INSERT INTO ui_events (
-            event_id, ts, session_id, user_id, event_type, payload_json
-        )
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        [
-            payload.get("event_id"),
-            payload["ts"],
-            payload.get("session_id"),
-            payload.get("user_id"),
-            payload.get("event_type"),
-            payload.get("payload_json"),
-        ],
-    )
+def get_next_superset_log_id(conn: duckdb.DuckDBPyConnection) -> int:
+    return get_max_superset_log_id(conn) + 1
 
 
 def insert_streamlit_chat_log(
@@ -139,9 +138,10 @@ def insert_streamlit_chat_log(
     conn.execute(
         """
         INSERT INTO streamlit_chat_logs (
-            ts, session_id, request_id, user_id, message, response, response_raw, response_events, latency_ms
+            ts, session_id, request_id, user_id, message, response, response_raw, response_events,
+            latency_ms, model_name, prompt_tokens, completion_tokens, total_tokens, token_cost, usd_cost
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             payload["ts"],
@@ -153,6 +153,12 @@ def insert_streamlit_chat_log(
             payload.get("response_raw"),
             payload.get("response_events"),
             payload.get("latency_ms"),
+            payload.get("model_name"),
+            payload.get("prompt_tokens"),
+            payload.get("completion_tokens"),
+            payload.get("total_tokens"),
+            payload.get("token_cost"),
+            payload.get("usd_cost"),
         ],
     )
 

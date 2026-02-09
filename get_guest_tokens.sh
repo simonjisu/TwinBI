@@ -2,21 +2,26 @@
 set -euo pipefail
 
 # usage:
-# ./get_guest_token.sh http://localhost:8088 admin admin 12
-
+# ./get_guest_tokens.sh http://localhost:8088 admin admin 12
+# ./get_guest_tokens.sh http://localhost:8088 "harry_potter" 1234 12
+# eval "$(./get_guest_tokens.sh http://localhost:8088 "harry_potter" 1234 12 --env)"
+# ./get_guest_tokens.sh http://localhost:8088 admin admin 12 --json
 SUPERSET_URL="${1:-http://localhost:8088}"
 USERNAME="${2:-admin}"
 PASSWORD="${3:-admin}"
 DASHBOARD_ID="${4:-12}"
+OUTPUT_MODE="${5:-}"
 
 need() { command -v "$1" >/dev/null 2>&1 || { echo "ERROR: need $1"; exit 1; }; }
 need curl
 need python
 
-echo "Superset: $SUPERSET_URL"
-echo "User: $USERNAME"
-echo "Dashboard ID: $DASHBOARD_ID"
-echo
+if [[ "$OUTPUT_MODE" != "--env" && "$OUTPUT_MODE" != "--json" ]]; then
+  echo "Superset: $SUPERSET_URL"
+  echo "User: $USERNAME"
+  echo "Dashboard ID: $DASHBOARD_ID"
+  echo
+fi
 
 curl_json() {
   # prints: body\nHTTP_STATUS
@@ -124,7 +129,9 @@ fi
 # 5) guest token
 # Prefer embedded UUID if available; fall back to numeric dashboard id.
 RESOURCE_ID="${EMBED_UUID:-$DASHBOARD_ID}"
-echo "RESOURCE_ID=${RESOURCE_ID}"
+if [[ "$OUTPUT_MODE" != "--env" && "$OUTPUT_MODE" != "--json" ]]; then
+  echo "RESOURCE_ID=${RESOURCE_ID}"
+fi
 GUEST_PAYLOAD="$(python - <<PY
 import json
 print(json.dumps({
@@ -160,17 +167,30 @@ if [[ -z "$GUEST_TOKEN" ]]; then
   exit 1
 fi
 
-echo "ACCESS_TOKEN=${ACCESS_TOKEN}"
-echo "DASHBOARD_UUID=${DASHBOARD_UUID}"
-if [[ -n "$EMBED_UUID" ]]; then
-  echo "EMBED_UUID=${EMBED_UUID}"
-fi
-echo "GUEST_TOKEN=${GUEST_TOKEN}"
-python3 - <<PY
-import base64, json
-token = "${GUEST_TOKEN}"
-payload = token.split(".")[1]
-payload += "=" * (-len(payload) % 4)
-data = base64.urlsafe_b64decode(payload.encode("utf-8"))
-print("GUEST_TOKEN_PAYLOAD=" + data.decode("utf-8"))
+if [[ "$OUTPUT_MODE" == "--env" ]]; then
+  echo "ACCESS_TOKEN=${ACCESS_TOKEN}"
+  echo "CSRF_TOKEN=${CSRF_TOKEN}"
+  echo "DASHBOARD_UUID=${DASHBOARD_UUID}"
+  if [[ -n "$EMBED_UUID" ]]; then
+    echo "EMBED_UUID=${EMBED_UUID}"
+  fi
+  echo "GUEST_TOKEN=${GUEST_TOKEN}"
+elif [[ "$OUTPUT_MODE" == "--json" ]]; then
+  python3 - <<PY
+import json
+print(json.dumps({
+  "access_token": "${ACCESS_TOKEN}",
+  "csrf_token": "${CSRF_TOKEN}",
+  "dashboard_uuid": "${DASHBOARD_UUID}",
+  "embed_uuid": "${EMBED_UUID}",
+  "guest_token": "${GUEST_TOKEN}"
+}, ensure_ascii=False))
 PY
+else
+  echo "ACCESS_TOKEN=${ACCESS_TOKEN}"
+  echo "DASHBOARD_UUID=${DASHBOARD_UUID}"
+  if [[ -n "$EMBED_UUID" ]]; then
+    echo "EMBED_UUID=${EMBED_UUID}"
+  fi
+  echo "GUEST_TOKEN=${GUEST_TOKEN}"
+fi

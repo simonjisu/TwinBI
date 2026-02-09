@@ -1,4 +1,5 @@
 <div id="{{CHAT_CONTAINER_ID}}" class="chat-root">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     html, body {
       background: #262731;
@@ -62,6 +63,19 @@
       padding: 10px 12px;
       cursor: pointer;
       font-size: 13px;
+    }
+    .chat-stop {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #7f1d1d;
+      color: #fef2f2;
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .chat-stop[disabled] {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     .chat-status {
       margin-top: 6px;
@@ -131,6 +145,22 @@
       white-space: pre-wrap;
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
     }
+    .bubble p {
+      margin: 0 0 0.4rem 0;
+    }
+    .bubble p:last-child {
+      margin-bottom: 0;
+    }
+    .bubble ul, .bubble ol {
+      margin: 0.35rem 0 0.35rem 1.1rem;
+      padding: 0;
+    }
+    .bubble code {
+      background: rgba(255, 255, 255, 0.12);
+      padding: 0.08rem 0.28rem;
+      border-radius: 4px;
+      font-size: 0.95em;
+    }
     .bubble.user {
       margin-left: auto;
       background: rgba(0, 140, 255, 0.22);
@@ -147,6 +177,9 @@
       border-radius: 12px;
       background: rgba(255,255,255,0.04);
       padding: 4px 6px;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
     }
     .trace-details summary {
       cursor: pointer;
@@ -190,6 +223,90 @@
       white-space: pre-wrap;
       word-break: break-word;
     }
+    .trace-item p {
+      margin: 0;
+    }
+    .trace-item ul, .trace-item ol {
+      margin: 0.25rem 0 0.25rem 1rem;
+      padding: 0;
+    }
+    .trace-json {
+      margin-top: 4px;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 8px;
+      padding: 4px 6px;
+      background: rgba(255,255,255,0.04);
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .trace-json summary {
+      cursor: pointer;
+      color: #cbd5f5;
+      font-size: 11px;
+      user-select: none;
+      list-style: none;
+    }
+    .trace-json summary::-webkit-details-marker { display: none; }
+    .trace-json-pre {
+      margin: 6px 0 0 0;
+      padding: 8px;
+      border-radius: 6px;
+      background: rgba(0,0,0,0.35);
+      color: rgba(255,255,255,0.9);
+      font-size: 11px;
+      overflow: auto;
+      max-height: 240px;
+      white-space: pre;
+    }
+    .trace-json-tree {
+      margin: 6px 0 0 0;
+      font-size: 11px;
+      line-height: 1.35;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    .trace-json-node {
+      margin: 2px 0;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .trace-json-node details {
+      margin-left: 8px;
+      min-width: 0;
+      max-width: 100%;
+    }
+    .trace-json-node summary {
+      cursor: pointer;
+      color: #d1d5db;
+      display: block;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .json-key {
+      color: #93c5fd;
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    .json-type {
+      color: #9ca3af;
+      margin-left: 4px;
+    }
+    .json-string {
+      color: #86efac;
+    }
+    .json-number {
+      color: #fcd34d;
+    }
+    .json-boolean {
+      color: #c4b5fd;
+    }
+    .json-null {
+      color: #fca5a5;
+    }
     .trace-ts {
       color: rgba(255,255,255,0.45);
       margin-right: 6px;
@@ -200,6 +317,7 @@
     <div class="chat-input-row">
       <textarea class="chat-input" rows="1" placeholder="Ask about what you see..."></textarea>
       <button class="chat-send">Send</button>
+      <button class="chat-stop" disabled>Stop</button>
       <button class="chat-clear">Clear Chat</button>
     </div>
     <div class="chat-status">ready</div>
@@ -214,6 +332,7 @@
   const root = document.getElementById("{{CHAT_CONTAINER_ID}}");
   const inputEl = root.querySelector(".chat-input");
   const sendBtn = root.querySelector(".chat-send");
+  const stopBtn = root.querySelector(".chat-stop");
   const clearBtn = root.querySelector(".chat-clear");
   const statusEl = root.querySelector(".chat-status");
   const listEl = root.querySelector(".scroller-content");
@@ -222,6 +341,9 @@
   const sessionId = "{{SESSION_ID}}";
   const userId = "{{USER_ID}}";
   const dashboardId = "{{DASHBOARD_ID}}";
+  const supersetUsername = "{{SUPERSET_USERNAME}}";
+  const supersetPassword = "{{SUPERSET_PASSWORD}}";
+  const agentModel = "{{AGENT_MODEL}}";
   const storageKey = dashboardId
     ? `chat_messages_${dashboardId}`
     : "chat_messages_default";
@@ -232,9 +354,25 @@
   const chartMap = new Map();
   let activeChartId = null;
   let activeChartName = null;
+  let currentController = null;
+  let isStreaming = false;
+  let pendingAutoRefresh = false;
 
   function setStatus(text) {
     statusEl.textContent = text;
+  }
+
+  function authHeaders(extra = {}) {
+    const headers = { ...extra };
+    if (supersetUsername) headers["X-Superset-Username"] = supersetUsername;
+    if (supersetPassword) headers["X-Superset-Password"] = supersetPassword;
+    return headers;
+  }
+
+  function setStreamingState(nextState) {
+    isStreaming = nextState;
+    sendBtn.disabled = nextState;
+    stopBtn.disabled = !nextState;
   }
 
   function escapeHtml(value) {
@@ -242,6 +380,14 @@
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;");
+  }
+
+  function markdownToHtml(value) {
+    const text = toText(value || "");
+    if (window.marked && typeof window.marked.parse === "function") {
+      return window.marked.parse(text, { gfm: true, breaks: true });
+    }
+    return escapeHtml(text).replaceAll("\n", "<br>");
   }
 
   function loadMessages() {
@@ -273,7 +419,7 @@
       bubble.className = `bubble ${role}`;
 
       if (role === "assistant") {
-        const safeText = escapeHtml(msg.content || "");
+        const markdownText = markdownToHtml(msg.content || "");
         const events = Array.isArray(msg.events) ? msg.events : [];
         const isLoading = !!msg.is_loading;
 
@@ -286,7 +432,10 @@
           const items = events
             .map((e) => {
               const ts = e.ts ? `<span class="trace-ts">${escapeHtml(e.ts)}</span>` : "";
-              return `<li class="trace-item">${ts}${escapeHtml(e.text || "")}</li>`;
+              const jsonDetails = e.raw_json
+                ? `<details class="trace-json"><summary>JSON details</summary><div class="trace-json-tree">${renderJsonTree(e.raw_json)}</div></details>`
+                : "";
+              return `<li class="trace-item">${ts}${markdownToHtml(e.text || "")}${jsonDetails}</li>`;
             })
             .join("");
 
@@ -310,9 +459,9 @@
           `;
         }
 
-        bubble.innerHTML = `${safeText || ""}${traceHtml}`;
+        bubble.innerHTML = `${markdownText || ""}${traceHtml}`;
       } else {
-        bubble.innerHTML = escapeHtml(msg.content || "");
+        bubble.innerHTML = markdownToHtml(msg.content || "");
       }
 
       listEl.appendChild(meta);
@@ -336,7 +485,11 @@
     for (let i = messages.length - 1; i >= 0; i--) {
       if (messages[i].role === "assistant") {
         if (!Array.isArray(messages[i].events)) messages[i].events = [];
-        messages[i].events.push({ ts: nowTs(), text: formatEventMessage(payload) });
+        messages[i].events.push({
+          ts: nowTs(),
+          text: formatEventMessage(payload),
+          raw_json: extractEventJson(payload),
+        });
         return;
       }
     }
@@ -350,33 +503,94 @@
     try {
       const url = new URL(`${apiBase}/chat/dialogue`);
       url.searchParams.set("session_id", sessionId);
-      await fetch(url.toString(), { method: "DELETE" });
+      await fetch(url.toString(), { method: "DELETE", headers: authHeaders() });
     } catch (err) {}
     try {
-      await fetch(`${apiBase}/chat/context`, { method: "DELETE" });
+      await fetch(`${apiBase}/chat/context`, { method: "DELETE", headers: authHeaders() });
     } catch (err) {}
   }
 
-  function truncate(value, maxLen) {
-    const text = toText(value);
-    if (text.length <= maxLen) return text;
-    return `${text.slice(0, maxLen)}...`;
+  function tryParseJsonLike(value) {
+    if (value == null) return null;
+    if (typeof value === "object") return value;
+    if (typeof value !== "string") return null;
+    const text = value.trim();
+    if (!text) return null;
+    if (!(text.startsWith("{") || text.startsWith("["))) return null;
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  }
+
+  function extractEventJson(payload) {
+    if (!payload || typeof payload !== "object") return null;
+    if (payload.event === "tool_called") {
+      return tryParseJsonLike(payload.arguments) || null;
+    }
+    if (payload.event === "tool_output") {
+      return tryParseJsonLike(payload.output) || payload.output || null;
+    }
+    return null;
+  }
+
+  function renderJsonPrimitive(value) {
+    if (value === null) return '<span class="json-null">null</span>';
+    if (typeof value === "string") {
+      return `<span class="json-string">"${escapeHtml(value)}"</span>`;
+    }
+    if (typeof value === "number") {
+      return `<span class="json-number">${String(value)}</span>`;
+    }
+    if (typeof value === "boolean") {
+      return `<span class="json-boolean">${String(value)}</span>`;
+    }
+    return `<span class="json-string">"${escapeHtml(toText(value))}"</span>`;
+  }
+
+  function renderJsonTree(value, key = null, depth = 0) {
+    const keyHtml = key !== null ? `<span class="json-key">${escapeHtml(String(key))}:</span>` : "";
+    if (depth > 12) {
+      return `${keyHtml} <span class="json-type">[max depth]</span>`;
+    }
+    if (value === null || typeof value !== "object") {
+      return `<div class="trace-json-node">${keyHtml} ${renderJsonPrimitive(value)}</div>`;
+    }
+
+    if (Array.isArray(value)) {
+      const label = key !== null
+        ? `${keyHtml} <span class="json-type">array(${value.length})</span>`
+        : `<span class="json-type">array(${value.length})</span>`;
+      const children = value
+        .map((item, idx) => renderJsonTree(item, idx, depth + 1))
+        .join("");
+      return `<div class="trace-json-node"><details><summary>${label}</summary>${children}</details></div>`;
+    }
+
+    const entries = Object.entries(value);
+    const label = key !== null
+      ? `${keyHtml} <span class="json-type">object(${entries.length})</span>`
+      : `<span class="json-type">object(${entries.length})</span>`;
+    const children = entries
+      .map(([childKey, childVal]) => renderJsonTree(childVal, childKey, depth + 1))
+      .join("");
+    return `<div class="trace-json-node"><details><summary>${label}</summary>${children}</details></div>`;
   }
 
   function formatEventMessage(payload) {
     const type = payload.event;
     if (type === "tool_called") {
-      const args = payload.arguments ? truncate(payload.arguments, 120) : "";
-      return `calling tool ${payload.tool || "unknown"} ${args}`.trim();
+      return `calling tool ${payload.tool || "unknown"}`.trim();
     }
     if (type === "tool_output") {
-      return `tool output received ${truncate(payload.output, 120)}`.trim();
+      return "tool output received";
     }
     if (type === "reasoning") {
       return "reasoning in progress...";
     }
     if (type === "error") {
-      return `error ${truncate(payload.message, 160)}`.trim();
+      return `error ${toText(payload.message || "")}`.trim();
     }
     if (type === "message") {
       return "streaming response...";
@@ -385,6 +599,46 @@
       return "final answer ready";
     }
     return `event ${type}`;
+  }
+
+  function containsAppendSuccess(value, depth = 0) {
+    if (depth > 6 || value == null) return false;
+    if (typeof value === "string") {
+      const text = value.toLowerCase();
+      if (text.includes('"status":"appended"') || text.includes('"status":"already_exists"')) {
+        return true;
+      }
+      const parsed = tryParseJsonLike(value);
+      if (parsed) return containsAppendSuccess(parsed, depth + 1);
+      return false;
+    }
+    if (Array.isArray(value)) {
+      return value.some((item) => containsAppendSuccess(item, depth + 1));
+    }
+    if (typeof value === "object") {
+      const obj = value;
+      const status = String(obj.status || "").toLowerCase();
+      if (status === "appended" || status === "already_exists") return true;
+      return Object.values(obj).some((item) => containsAppendSuccess(item, depth + 1));
+    }
+    return false;
+  }
+
+  function maybeAutoRefreshOnAppend(payload) {
+    if (pendingAutoRefresh) return;
+    if (!payload || payload.event !== "tool_output") return;
+    if (!containsAppendSuccess(payload.output)) return;
+    pendingAutoRefresh = true;
+    setStatus("chart appended. refreshing dashboard...");
+    setTimeout(() => {
+      try {
+        if (window.parent && window.parent.location) {
+          window.parent.location.reload();
+          return;
+        }
+      } catch (err) {}
+      window.location.reload();
+    }, 900);
   }
 
   function formatChartLabel(chartId, chartName) {
@@ -414,7 +668,8 @@
     if (dashboardId) {
       try {
         const res = await fetch(
-          `${apiBase}/superset/charts/active?dashboard_id=${encodeURIComponent(dashboardId)}`
+          `${apiBase}/superset/charts/active?dashboard_id=${encodeURIComponent(dashboardId)}`,
+          { headers: authHeaders() }
         );
         if (res.ok) {
           const data = await res.json();
@@ -429,7 +684,7 @@
     }
     try {
       const url = new URL(`${apiBase}/chat/context/latest`);
-      const res = await fetch(url.toString());
+      const res = await fetch(url.toString(), { headers: authHeaders() });
       if (!res.ok) return "";
       const data = await res.json();
       if (!data || !data.context) {
@@ -452,7 +707,9 @@
   async function loadChartMap() {
     if (!dashboardId) return;
     try {
-      const res = await fetch(`${apiBase}/superset/dashboards/${dashboardId}/charts`);
+      const res = await fetch(`${apiBase}/superset/dashboards/${dashboardId}/charts`, {
+        headers: authHeaders(),
+      });
       if (!res.ok) return;
       const data = await res.json();
       const charts = data && data.charts ? data.charts : [];
@@ -484,7 +741,7 @@
   function startLogListener() {
     if (!dashboardId || !window.EventSource) return;
     const lastId = logStorageKey ? Number(localStorage.getItem(logStorageKey) || "0") : 0;
-    const logUrl = `${apiBase}/superset/logs/stream?limit=50&poll_interval_sec=1.0&dashboard_id=${dashboardId}&last_id=${lastId}`;
+    const logUrl = `${apiBase}/events/stream?source=superset&limit=50&poll_interval_sec=1.0&dashboard_id=${dashboardId}&last_id=${lastId}`;
     const source = new EventSource(logUrl);
     source.onmessage = (event) => {
       try {
@@ -504,6 +761,7 @@
   }
 
   async function sendMessage() {
+    if (isStreaming) return;
     const text = inputEl.value.trim();
     if (!text) return;
     inputEl.value = "";
@@ -516,6 +774,8 @@
 
     setStatus("sending...");
     try {
+      setStreamingState(true);
+      currentController = new AbortController();
       const localHistory = messages.slice(0, -2).map((msg) => ({
         role: String(msg.role || "user"),
         content: String(msg.content || ""),
@@ -523,7 +783,8 @@
       const history = localHistory.slice(-20);
       const response = await fetch(`${apiBase}/chat/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        signal: currentController.signal,
         body: JSON.stringify({
           session_id: sessionId,
           user_id: userId,
@@ -531,6 +792,9 @@
           history: history,
           active_chart_id: activeChartId,
           active_chart_name: activeChartName,
+          superset_username: supersetUsername || null,
+          superset_password: supersetPassword || null,
+          agent_model: agentModel || null,
           debug: true,
         }),
       });
@@ -561,6 +825,7 @@
             if (payload.event) {
               if (payload.event !== "message") {
                 appendEventToLastAssistant(messages, payload);
+                maybeAutoRefreshOnAppend(payload);
                 if (payload.event !== "reasoning") {
                   saveMessages(messages);
                 }
@@ -580,20 +845,38 @@
               saveMessages(messages);
               renderMessages(messages);
               setStatus("ready");
+              setStreamingState(false);
+              currentController = null;
             }
           } catch (err) {}
         }
       }
     } catch (err) {
-      messages[messages.length - 1].content = `FastAPI error: ${err}`;
-      messages[messages.length - 1].is_loading = false;
-      saveMessages(messages);
-      renderMessages(messages);
-      setStatus("error");
+      if (err && err.name === "AbortError") {
+        appendEventToLastAssistant(messages, { event: "error", message: "interrupted by user" });
+        messages[messages.length - 1].is_loading = false;
+        saveMessages(messages);
+        renderMessages(messages);
+        setStatus("interrupted");
+      } else {
+        messages[messages.length - 1].content = `FastAPI error: ${err}`;
+        messages[messages.length - 1].is_loading = false;
+        saveMessages(messages);
+        renderMessages(messages);
+        setStatus("error");
+      }
+    } finally {
+      setStreamingState(false);
+      currentController = null;
     }
   }
 
   sendBtn.addEventListener("click", sendMessage);
+  stopBtn.addEventListener("click", () => {
+    if (currentController) {
+      currentController.abort();
+    }
+  });
   clearBtn.addEventListener("click", clearMessages);
   function autoResizeInput() {
     inputEl.style.height = "auto";

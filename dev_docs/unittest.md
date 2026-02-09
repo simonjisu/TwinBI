@@ -11,7 +11,7 @@ The FastAPI initial implementation has unit tests under `unittest/`.
 ### Coverage
 
 - `/health` returns status ok.
-- `/events` responds ok and persists UI events into DuckDB.
+- `/events` responds ok and persists embed UI events into `superset_action_logs`.
 - `/chat` persists a Streamlit chat log row into DuckDB and supports `debug: true`.
 - `/poller/status` reports disabled state when Superset polling is not configured.
 - `/poller/reset` clears the Superset checkpoint.
@@ -21,15 +21,12 @@ The FastAPI initial implementation has unit tests under `unittest/`.
 - `/superset/users/lookup` returns 400 when Superset DB is not configured.
 - `/superset/logs/latest` returns recent Superset logs from DuckDB.
 - `/superset/logs/latest_sql` returns 404 when no chart data logs exist.
-- `/superset/logs/stream` opens an SSE stream for Superset logs.
+- `/events/stream` opens an SSE stream for Superset logs (including embed events).
 - Superset `/datasource/samples` requests are labeled as `drill_to_details` in stream payloads.
 - Drill-by apply logs (`event_name: "further_drill_by"`) are labeled as `drill_by` and include a `drill_by` payload in stream rows.
-- `/events/stream` opens an SSE stream for UI events.
 - `/superset/datasets/{dataset_id}/schema` returns 400 when Superset config is missing.
-- `/cube/meta` returns 400 when Cube REST URL is missing.
-- `/cube/schema` returns 400 when Cube conf path is missing.
+- `/semantic/schema` returns 400 when Cube REST URL is missing.
 - `/superset/dashboards/{dashboard_id}/charts` returns 400 when Superset config is missing.
-- `/superset/dashboards/{dashboard_id}/tab-map` returns 400 when Superset config is missing.
 - `/superset/charts/{chart_id}/data` returns 400 when Superset config is missing, or 404 when no chart log exists.
 - `/chat/context/latest` returns a null context when no chat has been processed.
 - `/chat/debug/latest` returns null until a debug chat is sent.
@@ -43,9 +40,9 @@ The FastAPI initial implementation has unit tests under `unittest/`.
 - QueryTranslater can infer cube table prefixes from Cube metadata when dataset schema is missing.
 - Cube metadata schema summary builds table/column map from cube meta.
 - Cube metadata join parsing extracts join keys from cube meta.
-- Cube metadata endpoint proxies `CUBE_REST_URL` `/meta`.
-- Cube metadata endpoint uses `CUBE_REST_URL/cubejs-api/v1/meta` with optional `CUBE_API_TOKEN`.
-- Cube schema endpoint parses `CUBE_CONF_PATH` YAML.
+- Semantic metadata endpoint proxies `CUBE_REST_URL` `/meta`.
+- Semantic metadata endpoint uses `CUBE_REST_URL/cubejs-api/v1/meta` with optional `CUBE_API_TOKEN`.
+- Semantic schema endpoint parses `CUBE_CONF_PATH` YAML.
 
 ### Notes
 
@@ -133,13 +130,6 @@ schema = client.get("/superset/datasets/12/schema")
 self.assertEqual(schema.status_code, 400)
 ```
 
-### Superset tab map endpoint test
-
-```python
-tab_map = client.get("/superset/dashboards/12/tab-map")
-self.assertEqual(tab_map.status_code, 400)
-```
-
 ### Superset chart data endpoint test
 
 ```python
@@ -180,17 +170,10 @@ self.assertEqual(dialogue.status_code, 200)
 self.assertIn("dialogue", dialogue.json())
 ```
 
-### Cube meta endpoint test
-
-```python
-cube_meta = client.get("/cube/meta")
-self.assertEqual(cube_meta.status_code, 400)
-```
-
 ### Cube schema endpoint test
 
 ```python
-cube_schema = client.get("/cube/schema")
+cube_schema = client.get("/semantic/schema")
 self.assertEqual(cube_schema.status_code, 400)
 ```
 
@@ -221,7 +204,7 @@ self.assertIn("fact_sales", joins)
 ```python
 with client.stream(
     "GET",
-    "/superset/logs/stream",
+    "/events/stream",
     headers={"Last-Event-ID": "0"},
 ) as stream:
     self.assertEqual(stream.status_code, 200)

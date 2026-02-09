@@ -1,6 +1,6 @@
 # Tooling Overview
 
-The `src/` directory collects Python utilities that prepare, introspect, and visualize the DuckDB datasets behind Agent4OLAP’s Cube service.
+The `src/` directory collects Python utilities that prepare, introspect, and visualize the DuckDB datasets behind TwinBI🐝’s Cube service.
 
 ## Quick Commands
 

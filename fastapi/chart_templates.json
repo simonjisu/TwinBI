@@ -1,0 +1,54 @@
+{
+  "table": {
+    "viz_type": "table",
+    "form_data": {
+      "viz_type": "table",
+      "query_mode": "aggregate",
+      "groupby": [],
+      "metrics": [],
+      "row_limit": 10000
+    }
+  },
+  "line": {
+    "viz_type": "echarts_timeseries_line",
+    "form_data": {
+      "viz_type": "echarts_timeseries_line",
+      "granularity_sqla": null,
+      "time_grain_sqla": "P1D",
+      "time_range": "No filter",
+      "metrics": [],
+      "groupby": []
+    }
+  },
+  "bar": {
+    "viz_type": "echarts_timeseries_bar",
+    "form_data": {
+      "viz_type": "echarts_timeseries_bar",
+      "granularity_sqla": null,
+      "time_grain_sqla": "P1D",
+      "time_range": "No filter",
+      "metrics": [],
+      "groupby": []
+    }
+  },
+  "pie": {
+    "viz_type": "pie",
+    "form_data": {
+      "viz_type": "pie",
+      "metric": null,
+      "groupby": [],
+      "row_limit": 10000
+    }
+  },
+  "scatter": {
+    "viz_type": "echarts_timeseries_scatter",
+    "form_data": {
+      "viz_type": "echarts_timeseries_scatter",
+      "granularity_sqla": null,
+      "time_grain_sqla": "P1D",
+      "time_range": "No filter",
+      "metrics": [],
+      "groupby": []
+    }
+  }
+}

@@ -1,0 +1,23 @@
+views:
+- name: view_sales_qoq_by_product
+  cubes:
+  - join_path: fact_sales
+    includes:
+    - qoq_growth_rate
+    - total_units_sold
+    - previous_units
+    - total_receipts
+  - join_path: fact_sales.dim_date
+    includes:
+    - date
+    - quarter_start
+    - quarter
+    - year
+    prefix: true
+  - join_path: fact_sales.dim_product
+    includes:
+    - department
+    - category
+    - brand
+    prefix: true
+  description: QoQ growth by product category/department with date context
