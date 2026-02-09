@@ -2,12 +2,34 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
 import duckdb
 
 from fastapi_service import db
+
+logger = logging.getLogger(__name__)
+
+
+def _coerce_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        if text.isdigit() or (text.startswith("-") and text[1:].isdigit()):
+            try:
+                return int(text)
+            except ValueError:
+                return None
+    return None
 
 
 class DuckDBWriter:
@@ -55,24 +77,28 @@ class DuckDBWriter:
         while True:
             item = await self._queue.get()
             item_type = item.get("type")
-            if item_type == "stop":
-                break
-            if item_type == "flush":
-                item["event"].set()
-                continue
-            if item_type == "ui_event":
-                payload = item["payload"]
-                superset_log = self.build_superset_ui_payload(payload)
-                db.insert_superset_action_log(self._conn, superset_log)
-                continue
-            if item_type == "streamlit_chat":
-                db.insert_streamlit_chat_log(self._conn, item["payload"])
-                continue
-            if item_type == "superset_log":
-                db.insert_superset_action_log(self._conn, item["payload"])
-                continue
-            if item_type == "checkpoint":
-                db.set_checkpoint(self._conn, item["key"], item["value"])
+            try:
+                if item_type == "stop":
+                    break
+                if item_type == "flush":
+                    item["event"].set()
+                    continue
+                if item_type == "ui_event":
+                    payload = item["payload"]
+                    superset_log = self.build_superset_ui_payload(payload)
+                    db.insert_superset_action_log(self._conn, superset_log)
+                    continue
+                if item_type == "streamlit_chat":
+                    db.insert_streamlit_chat_log(self._conn, item["payload"])
+                    continue
+                if item_type == "superset_log":
+                    db.insert_superset_action_log(self._conn, item["payload"])
+                    continue
+                if item_type == "checkpoint":
+                    db.set_checkpoint(self._conn, item["key"], item["value"])
+                    continue
+            except Exception:
+                logger.exception("DuckDBWriter failed to process queue item: %s", item_type)
                 continue
 
     def build_ui_payload(
@@ -107,12 +133,14 @@ class DuckDBWriter:
         elif isinstance(user_id, str) and user_id.isdigit():
             numeric_user_id = int(user_id)
 
-        dashboard_id = parsed_payload.get("dashboard_id") or parsed_payload.get("dashboardId")
+        dashboard_id = _coerce_int(
+            parsed_payload.get("dashboard_id") or parsed_payload.get("dashboardId")
+        )
         slice_id = (
-            parsed_payload.get("slice_id")
-            or parsed_payload.get("sliceId")
-            or parsed_payload.get("chart_id")
-            or parsed_payload.get("chartId")
+            _coerce_int(parsed_payload.get("slice_id"))
+            or _coerce_int(parsed_payload.get("sliceId"))
+            or _coerce_int(parsed_payload.get("chart_id"))
+            or _coerce_int(parsed_payload.get("chartId"))
         )
 
         json_payload = json.dumps(
@@ -150,19 +178,35 @@ class DuckDBWriter:
         response_raw: str | None = None,
         response_events: list[dict[str, Any]] | None = None,
         latency_ms: int,
+        model_name: str | None = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        total_tokens: int | None = None,
+        token_cost: int | None = None,
+        usd_cost: float | None = None,
     ) -> dict[str, Any]:
+        safe_message = message or ""
+        safe_response = response or ""
+        safe_response_raw = response_raw if response_raw is not None else safe_response
+        safe_response_events = (
+            response_events if isinstance(response_events, list) else []
+        )
         return {
             "ts": datetime.now(timezone.utc),
             "session_id": session_id,
             "request_id": request_id,
             "user_id": user_id,
-            "message": message,
-            "response": response,
-            "response_raw": response_raw,
-            "response_events": json.dumps(response_events, ensure_ascii=False)
-            if response_events
-            else None,
+            "message": safe_message,
+            "response": safe_response,
+            "response_raw": safe_response_raw,
+            "response_events": json.dumps(safe_response_events, ensure_ascii=False),
             "latency_ms": latency_ms,
+            "model_name": model_name,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "token_cost": token_cost,
+            "usd_cost": usd_cost,
         }
 
     @staticmethod

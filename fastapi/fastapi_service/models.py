@@ -15,6 +15,9 @@ class ChatRequest(BaseModel):
     dashboard_id: int | None = None
     active_chart_id: int | None = None
     active_chart_name: str | None = None
+    superset_username: str | None = None
+    superset_password: str | None = None
+    agent_model: str | None = None
     debug: bool = False
 
 
@@ -83,6 +86,8 @@ class SupersetDatasetSyncRequest(BaseModel):
     table_name: str
     dataset_name: str | None = None
     force_refresh: bool = False
+    superset_username: str | None = None
+    superset_password: str | None = None
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -111,3 +116,21 @@ class ChartCreateResponse(BaseModel):
     chart_id: int | None = None
     slice_name: str | None = None
     warnings: list[str] = Field(default_factory=list)
+
+
+class DashboardAppendChartRequest(BaseModel):
+    chart_id: int
+    tab_id: str | None = None
+    tab_name: str | None = None
+    width: int = 4
+    height: int = 50
+
+
+class DashboardAppendChartResponse(BaseModel):
+    status: str
+    dashboard_id: int
+    chart_id: int
+    container_id: str | None = None
+    row_id: str | None = None
+    chart_node_id: str | None = None
+    tab: dict[str, Any] | None = None

@@ -464,3 +464,138 @@ Uses `all_columns` for raw row display.
 - `time_grain_sqla` values are ISO durations (e.g., `P1D`, `P1W`, `P1M`, `P1Y`).
 - For bar/line charts, you can add `groupby` to split series by category.
 - These are **minimal** templates; the backend can merge defaults for UI/formatting options.
+
+---
+
+## Manual API Procedure: semantic view -> dataset -> chart -> dashboard
+
+This section is the manual curl flow for local verification/debugging.
+
+### 1) Create semantic view
+
+```bash
+curl -s -X POST "http://localhost:8000/semantic/views" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "view_name": "view_sales_qoq_by_product",
+    "base_cube": "fact_sales",
+    "description": "QoQ growth by product category/department with date context",
+    "measures": [
+      "qoq_growth_rate",
+      "total_units_sold",
+      "previous_units",
+      "total_receipts"
+    ],
+    "dimensions": [
+      {
+        "join_path": "fact_sales.dim_date",
+        "includes": ["date", "quarter_start", "quarter", "year"],
+        "prefix": true
+      },
+      {
+        "join_path": "fact_sales.dim_product",
+        "includes": ["department", "category", "brand"],
+        "prefix": true
+      }
+    ],
+    "filters": [],
+    "governance": {
+      "allowlist": [
+        "qoq_growth_rate",
+        "total_units_sold",
+        "previous_units",
+        "quarter_start",
+        "quarter",
+        "year",
+        "date",
+        "department",
+        "category",
+        "brand"
+      ]
+    }
+  }'
+```
+
+### 2) Sync dataset in Superset
+
+```bash
+curl -s -X POST "http://localhost:8000/superset/datasets/sync" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "database_id": 2,
+    "schema": "public",
+    "table_name": "view_sales_qoq_by_product",
+    "force_refresh": true,
+    "superset_username": "harry_potter",
+    "superset_password": "1234"
+  }'
+```
+
+Expected example:
+
+```json
+{"status":"created","dataset_id":43,"created":true,"updated":false,"warnings":["dataset id recovered via dataset lookup"]}
+```
+
+### 3) Inspect dashboard layout
+
+```bash
+curl -s "http://localhost:8000/superset/dashboards/12/layout"
+```
+
+Expected example:
+
+```json
+{"dashboard_id":12,"layout":{...}}
+```
+
+### 4) Create chart with dataset id
+
+```bash
+curl -s -X POST "http://localhost:8000/superset/charts" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dataset_id": 43,
+    "slice_name": "Monthly Sales Trend by Category",
+    "viz_type": "line",
+    "encodings": {
+      "time_column": "dim_date_date",
+      "groupby": ["dim_product_category"],
+      "metrics": [{
+        "expressionType": "SIMPLE",
+        "aggregate": "SUM",
+        "column": { "column_name": "total_receipts" },
+        "label": "SUM(total_receipts)"
+      }]
+    },
+    "options": {
+      "time_grain_sqla": "P1M",
+      "time_range": "No filter"
+    }
+  }'
+```
+
+Expected example:
+
+```json
+{"status":"created","chart_id":946,"slice_name":"Monthly Sales Trend by Category","warnings":[]}
+```
+
+### 5) Append chart to dashboard
+
+```bash
+curl -s -X POST "http://localhost:8000/superset/dashboards/12/layout/append-chart" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "chart_id": 946,
+    "tab_id": "TAB-gfLb86_MQoFqAy9UsN7qC",
+    "width": 4,
+    "height": 50
+  }'
+```
+
+Expected example:
+
+```json
+{"status":"appended","dashboard_id":12,"chart_id":946,"container_id":"TAB-gfLb86_MQoFqAy9UsN7qC","row_id":"ROW-5aa09d86f1304277831f","chart_node_id":"CHART-607a6de93e784c928f19","tab":{"id":"TAB-gfLb86_MQoFqAy9UsN7qC","name":"Product Mix"}}
+```

@@ -484,6 +484,72 @@ def _find_dataset_by_table(
         page += 1
 
 
+def _find_dataset_id_by_username(
+    session: Any,
+    base_url: str,
+    username: str,
+    database_id: int,
+    schema: str | None,
+    table_name: str,
+    limit: int = 200,
+) -> int | None:
+    target_username = (username or "").strip().lower()
+    if not target_username:
+        return None
+    page = 0
+    page_size = 100
+    remaining = max(1, limit)
+    while remaining > 0:
+        response = session.get(
+            f"{base_url}/api/v1/dataset/",
+            params={"page": page, "page_size": page_size},
+            timeout=30,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        datasets = _extract_dataset_list(payload)
+        if not datasets:
+            return None
+        for ds in datasets:
+            if not isinstance(ds, dict):
+                continue
+            owners = ds.get("owners") or []
+            owner_match = False
+            for owner in owners:
+                if not isinstance(owner, dict):
+                    continue
+                owner_username = str(owner.get("username") or "").strip().lower()
+                if owner_username and owner_username == target_username:
+                    owner_match = True
+                    break
+            if not owner_match:
+                continue
+            db_value = ds.get("database")
+            db_id = None
+            if isinstance(db_value, dict):
+                db_id = db_value.get("id")
+            elif isinstance(db_value, int):
+                db_id = db_value
+            if db_id != database_id:
+                continue
+            ds_schema = ds.get("schema") or ds.get("db_schema")
+            ds_table = ds.get("table_name") or ds.get("table") or ds.get("name")
+            if ds_schema != schema:
+                continue
+            if ds_table != table_name:
+                continue
+            value = ds.get("id") or ds.get("dataset_id")
+            try:
+                return int(value) if value is not None else None
+            except (TypeError, ValueError):
+                continue
+        if len(datasets) < page_size:
+            return None
+        page += 1
+        remaining -= len(datasets)
+    return None
+
+
 def _refresh_dataset(
     session: Any, base_url: str, dataset_id: int
 ) -> tuple[bool, list[str]]:
@@ -641,8 +707,39 @@ def sync_superset_dataset(
         updated = True
         dataset_id = dataset.get("id") or dataset.get("dataset_id")
 
+    def _recover_dataset_id() -> int | None:
+        recovered = _find_dataset_by_table(
+            session=session,
+            base_url=base_url,
+            database_id=request.database_id,
+            schema=request.schema_name,
+            table_name=request.table_name,
+        )
+        if isinstance(recovered, dict):
+            value = recovered.get("id") or recovered.get("dataset_id")
+            try:
+                if value is not None:
+                    return int(value)
+            except (TypeError, ValueError):
+                pass
+        by_owner = _find_dataset_id_by_username(
+            session=session,
+            base_url=base_url,
+            username=settings.superset_username or "",
+            database_id=request.database_id,
+            schema=request.schema_name,
+            table_name=request.table_name,
+            limit=200,
+        )
+        return by_owner
+
     if dataset_id is None:
-        warnings.append("dataset id not returned from Superset")
+        recovered_id = _recover_dataset_id()
+        if recovered_id is not None:
+            dataset_id = recovered_id
+            warnings.append("dataset id recovered via dataset lookup")
+        else:
+            warnings.append("dataset id not returned from Superset")
     else:
         if request.force_refresh or updated:
             ok, refresh_warnings = _refresh_dataset(session, base_url, int(dataset_id))
@@ -683,6 +780,19 @@ def sync_superset_dataset(
                             ds = result.get("result") or result
                             if isinstance(ds, dict):
                                 dataset_id = ds.get("id") or ds.get("dataset_id")
+                        if dataset_id is None:
+                            recovered_id = _recover_dataset_id()
+                            if recovered_id is not None:
+                                dataset_id = recovered_id
+                                warnings.append("dataset id recovered via dataset lookup")
+                            else:
+                                warnings.append("dataset recreate succeeded but id missing")
+
+    if dataset_id is None:
+        recovered_id = _recover_dataset_id()
+        if recovered_id is not None:
+            dataset_id = recovered_id
+            warnings.append("dataset id recovered via final lookup")
 
     status = "created" if created else "updated"
     return SupersetDatasetSyncResult(

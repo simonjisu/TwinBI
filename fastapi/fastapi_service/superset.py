@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import json
 import logging
 import re
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 
@@ -983,6 +985,46 @@ def fetch_dataset_data(
     return {"data": data, "raw": payload}
 
 
+def _decode_position_json(position_json: Any) -> dict[str, Any]:
+    if isinstance(position_json, str):
+        try:
+            position_json = json.loads(position_json)
+        except json.JSONDecodeError:
+            return {}
+    if isinstance(position_json, str):
+        try:
+            position_json = json.loads(position_json)
+        except json.JSONDecodeError:
+            return {}
+    if not isinstance(position_json, dict):
+        return {}
+    return position_json
+
+
+def _compact_layout(position_json: Any) -> dict[str, Any]:
+    position_json = _decode_position_json(position_json)
+    compact: dict[str, Any] = {}
+    for node_id, node in position_json.items():
+        if not isinstance(node, dict):
+            continue
+
+        node_type = node.get("type")
+        children = node.get("children")
+        compact_node: dict[str, Any] = {
+            "id": node.get("id") or node_id,
+            "type": node_type,
+            "children": children if isinstance(children, list) else [],
+        }
+
+        if node_type == "CHART":
+            meta = node.get("meta")
+            if isinstance(meta, dict) and "chartId" in meta:
+                compact_node["meta"] = {"chartId": meta.get("chartId")}
+
+        compact[str(node_id)] = compact_node
+    return compact
+
+
 def fetch_dashboard_layout(settings: Settings, dashboard_id: int) -> dict[str, Any]:
     session = _api_session_with_bearer(settings)
     base_url = _get_base_url(settings)
@@ -992,13 +1034,295 @@ def fetch_dashboard_layout(settings: Settings, dashboard_id: int) -> dict[str, A
     result = payload.get("result") if isinstance(payload, dict) else None
     if not isinstance(result, dict):
         raise RuntimeError("Superset dashboard response missing result")
-    layout = result.get("position_json") or {}
-    if isinstance(layout, str):
-        try:
-            layout = json.loads(layout)
-        except json.JSONDecodeError:
-            layout = {}
+    layout = _compact_layout(result.get("position_json") or {})
     return {"dashboard_id": dashboard_id, "layout": layout}
+
+
+def _find_path_to_node(layout: dict[str, Any], target_id: str) -> list[str]:
+    if target_id not in layout:
+        return []
+    root_id = "ROOT_ID" if "ROOT_ID" in layout else next(iter(layout.keys()), None)
+    if not root_id:
+        return []
+    queue: list[tuple[str, list[str]]] = [(root_id, [root_id])]
+    visited: set[str] = set()
+    while queue:
+        current_id, path = queue.pop(0)
+        if current_id in visited:
+            continue
+        visited.add(current_id)
+        if current_id == target_id:
+            return path
+        node = layout.get(current_id)
+        if not isinstance(node, dict):
+            continue
+        children = node.get("children")
+        if not isinstance(children, list):
+            continue
+        for child_id in children:
+            child_key = str(child_id)
+            if child_key in layout:
+                queue.append((child_key, [*path, child_key]))
+    return []
+
+
+def _resolve_target_container_id(
+    layout: dict[str, Any],
+    dashboard_charts: list[dict[str, Any]],
+    tab_id: str | None,
+    tab_name: str | None,
+) -> tuple[str, dict[str, Any] | None]:
+    if tab_id:
+        node = layout.get(tab_id)
+        if isinstance(node, dict) and node.get("type") == "TAB":
+            name = (node.get("meta") or {}).get("text") if isinstance(node.get("meta"), dict) else None
+            return tab_id, {"id": tab_id, "name": name}
+        raise ValueError(f"tab_id not found in layout: {tab_id}")
+
+    if tab_name:
+        want = tab_name.strip().lower()
+        for node_key, node in layout.items():
+            if not isinstance(node, dict) or node.get("type") != "TAB":
+                continue
+            meta = node.get("meta") or {}
+            name = meta.get("text") if isinstance(meta, dict) else None
+            if isinstance(name, str) and name.strip().lower() == want:
+                return str(node_key), {"id": str(node_key), "name": name}
+        raise ValueError(f"tab_name not found in layout: {tab_name}")
+
+    for chart in dashboard_charts:
+        tab = chart.get("tab")
+        if isinstance(tab, dict) and tab.get("id"):
+            tab_key = str(tab.get("id"))
+            node = layout.get(tab_key)
+            if isinstance(node, dict) and node.get("type") == "TAB":
+                return tab_key, {"id": tab_key, "name": tab.get("name")}
+
+    for node_key, node in layout.items():
+        if isinstance(node, dict) and node.get("type") == "TAB":
+            meta = node.get("meta") or {}
+            name = meta.get("text") if isinstance(meta, dict) else None
+            return str(node_key), {"id": str(node_key), "name": name}
+
+    if "GRID_ID" in layout:
+        return "GRID_ID", None
+    for node_key, node in layout.items():
+        if isinstance(node, dict) and node.get("type") == "GRID":
+            return str(node_key), None
+    raise RuntimeError("dashboard layout has no TAB/GRID container")
+
+
+def append_chart_to_dashboard_layout(
+    settings: Settings,
+    dashboard_id: int,
+    chart_id: int,
+    tab_id: str | None = None,
+    tab_name: str | None = None,
+    width: int = 4,
+    height: int = 50,
+) -> dict[str, Any]:
+    session = _api_session_with_bearer(settings)
+    base_url = _get_base_url(settings)
+    _ensure_csrf(session, base_url)
+
+    dashboard_resp = session.get(f"{base_url}/api/v1/dashboard/{dashboard_id}", timeout=30)
+    if dashboard_resp.status_code == 404:
+        raise LookupError("dashboard not found")
+    dashboard_resp.raise_for_status()
+    dashboard_payload = dashboard_resp.json()
+    dashboard_result = (
+        dashboard_payload.get("result") if isinstance(dashboard_payload, dict) else None
+    )
+    if not isinstance(dashboard_result, dict):
+        raise RuntimeError("Superset dashboard response missing result")
+
+    chart_detail = _fetch_chart_detail(session, base_url, chart_id)
+    if not chart_detail:
+        raise LookupError(f"chart {chart_id} not found")
+    slice_name = chart_detail.get("slice_name") or chart_detail.get("name") or f"Chart {chart_id}"
+
+    def _extract_dashboard_ids(value: Any) -> list[int]:
+        if not isinstance(value, list):
+            return []
+        out: list[int] = []
+        for item in value:
+            if isinstance(item, dict):
+                raw = item.get("id") or item.get("dashboard_id")
+            else:
+                raw = item
+            try:
+                if raw is not None:
+                    out.append(int(raw))
+            except (TypeError, ValueError):
+                continue
+        # Keep order stable and unique
+        deduped: list[int] = []
+        seen: set[int] = set()
+        for dashboard_value in out:
+            if dashboard_value in seen:
+                continue
+            seen.add(dashboard_value)
+            deduped.append(dashboard_value)
+        return deduped
+
+    def _assign_chart_to_dashboard() -> None:
+        existing_dashboard_ids = _extract_dashboard_ids(chart_detail.get("dashboards"))
+        if dashboard_id in existing_dashboard_ids:
+            return
+
+        # Preferred when supported by Superset version.
+        attach_resp = session.post(
+            f"{base_url}/api/v1/dashboard/{dashboard_id}/charts",
+            json={"chart_id": chart_id},
+            timeout=30,
+        )
+        if attach_resp.status_code in {200, 201, 202, 204}:
+            return
+
+        updated_dashboard_ids = sorted({*existing_dashboard_ids, int(dashboard_id)})
+        patch_resp = session.put(
+            f"{base_url}/api/v1/chart/{chart_id}",
+            json={"dashboards": updated_dashboard_ids},
+            timeout=30,
+        )
+        if patch_resp.status_code in {200, 201, 202, 204}:
+            return
+
+        # Some versions require full chart payload on update.
+        fallback_payload: dict[str, Any] = {
+            "slice_name": slice_name,
+            "viz_type": chart_detail.get("viz_type"),
+            "datasource_id": chart_detail.get("datasource_id"),
+            "datasource_type": chart_detail.get("datasource_type") or "table",
+            "dashboards": updated_dashboard_ids,
+        }
+        if chart_detail.get("params") is not None:
+            fallback_payload["params"] = chart_detail.get("params")
+        owners = chart_detail.get("owners")
+        if isinstance(owners, list):
+            owner_ids: list[int] = []
+            for owner in owners:
+                if isinstance(owner, dict):
+                    try:
+                        owner_id = int(owner.get("id"))
+                    except (TypeError, ValueError):
+                        continue
+                    owner_ids.append(owner_id)
+            if owner_ids:
+                fallback_payload["owners"] = owner_ids
+        full_resp = session.put(
+            f"{base_url}/api/v1/chart/{chart_id}",
+            json=fallback_payload,
+            timeout=30,
+        )
+        if full_resp.status_code in {200, 201, 202, 204}:
+            return
+
+        raise RuntimeError(
+            "failed to attach chart to dashboard: "
+            f"attach={attach_resp.status_code}, "
+            f"patch={patch_resp.status_code}, "
+            f"fallback={full_resp.status_code}"
+        )
+
+    _assign_chart_to_dashboard()
+
+    layout = _decode_position_json(dashboard_result.get("position_json") or {})
+
+    for node in layout.values():
+        if not isinstance(node, dict) or node.get("type") != "CHART":
+            continue
+        meta = node.get("meta")
+        if isinstance(meta, dict) and str(meta.get("chartId")) == str(chart_id):
+            return {
+                "status": "already_exists",
+                "dashboard_id": dashboard_id,
+                "chart_id": chart_id,
+                "container_id": None,
+                "row_id": None,
+                "chart_node_id": str(node.get("id")) if node.get("id") else None,
+                "tab": None,
+            }
+
+    dashboard_charts = fetch_dashboard_charts(settings, dashboard_id)
+    container_id, tab_info = _resolve_target_container_id(
+        layout=layout,
+        dashboard_charts=dashboard_charts,
+        tab_id=tab_id,
+        tab_name=tab_name,
+    )
+
+    container = layout.get(container_id)
+    if not isinstance(container, dict):
+        raise RuntimeError(f"invalid container node: {container_id}")
+    container_children = container.get("children")
+    if not isinstance(container_children, list):
+        container_children = []
+        container["children"] = container_children
+
+    row_id = f"ROW-{uuid.uuid4().hex[:20]}"
+    chart_node_id = f"CHART-{uuid.uuid4().hex[:20]}"
+
+    container_path = _find_path_to_node(layout, container_id)
+    row_parents = container_path[:] if container_path else [container_id]
+    chart_parents = [*row_parents, row_id]
+
+    container_children.append(row_id)
+    layout[row_id] = {
+        "id": row_id,
+        "type": "ROW",
+        "children": [chart_node_id],
+        "parents": row_parents,
+        "meta": {"background": "BACKGROUND_TRANSPARENT"},
+    }
+    normalized_width = max(int(width), 1)
+    # Superset dashboard layout height is grid-unit style (not px).
+    # Values like 4/6 make charts nearly unreadable; keep a sane minimum.
+    normalized_height = int(height)
+    if normalized_height < 20:
+        normalized_height = 50
+
+    layout[chart_node_id] = {
+        "id": chart_node_id,
+        "type": "CHART",
+        "children": [],
+        "parents": chart_parents,
+        "meta": {
+            "chartId": chart_id,
+            "sliceName": slice_name,
+            "uuid": str(uuid.uuid4()),
+            "width": normalized_width,
+            "height": normalized_height,
+        },
+    }
+
+    update_body: dict[str, Any] = {
+        "position_json": json.dumps(layout, ensure_ascii=False),
+    }
+    if "json_metadata" in dashboard_result:
+        update_body["json_metadata"] = dashboard_result.get("json_metadata")
+
+    update_resp = session.put(
+        f"{base_url}/api/v1/dashboard/{dashboard_id}",
+        json=update_body,
+        timeout=30,
+    )
+    if update_resp.status_code == 404:
+        raise LookupError("dashboard not found")
+    if update_resp.status_code >= 400:
+        raise RuntimeError(
+            f"Superset dashboard update error {update_resp.status_code}: {update_resp.text}"
+        )
+
+    return {
+        "status": "appended",
+        "dashboard_id": dashboard_id,
+        "chart_id": chart_id,
+        "container_id": container_id,
+        "row_id": row_id,
+        "chart_node_id": chart_node_id,
+        "tab": tab_info,
+    }
 
 
 def _extract_chart_id(node: dict[str, Any]) -> int | str | None:
@@ -1235,6 +1559,15 @@ class SupersetPoller:
         self._last_row_count: int | None = None
         self._last_error: str | None = None
         self._last_checkpoint_id: int | None = None
+        ignore_raw = os.getenv(
+            "SUPERSET_INGEST_IGNORE_ACTIONS",
+            "ChartDataRestApi.json_dumps,DashboardRestApi.get,_get_data_response,fetch_rows",
+        )
+        self._ignored_actions = {
+            item.strip()
+            for item in ignore_raw.split(",")
+            if item and item.strip()
+        }
 
     async def stop(self) -> None:
         self._stop.set()
@@ -1272,8 +1605,17 @@ class SupersetPoller:
                 self._conn, db.CHECKPOINT_KEY_SUPERSET_LAST_ID
             )
             checkpoint_id = int(last_id_raw) if last_id_raw else 0
-            table_max_id = db.get_max_superset_log_id(self._conn)
-            last_id = max(checkpoint_id, table_max_id)
+            # Keep poll cursor tied to upstream Superset ids only.
+            # Derived/UI rows use local ids and must not advance this cursor.
+            last_id = checkpoint_id
+            # If checkpoint is ahead of upstream logs (from older buggy runs),
+            # clamp it so polling can recover.
+            source_max_id = await asyncio.to_thread(self._fetch_source_max_id)
+            if source_max_id is not None and last_id > source_max_id:
+                last_id = source_max_id
+                await self._writer.enqueue_checkpoint(
+                    db.CHECKPOINT_KEY_SUPERSET_LAST_ID, str(last_id)
+                )
             self._last_checkpoint_id = last_id
 
             rows = await asyncio.to_thread(
@@ -1289,6 +1631,8 @@ class SupersetPoller:
 
             max_id = last_id
             for row in rows:
+                if row.get("action") in self._ignored_actions:
+                    continue
                 payload = self._normalize_row(row)
                 await self._writer.enqueue_superset_log(payload)
                 max_id = max(max_id, row["id"])
@@ -1317,7 +1661,10 @@ class SupersetPoller:
                     self._resolve_user_id, self._username
                 )
 
-            last_id = db.get_max_superset_log_id(self._conn)
+            last_id_raw = db.get_checkpoint(
+                self._conn, db.CHECKPOINT_KEY_SUPERSET_LAST_ID
+            )
+            last_id = int(last_id_raw) if last_id_raw else 0
             self._last_checkpoint_id = last_id
             while True:
                 rows = await asyncio.to_thread(
@@ -1331,6 +1678,8 @@ class SupersetPoller:
 
                 max_id = last_id
                 for row in rows:
+                    if row.get("action") in self._ignored_actions:
+                        continue
                     payload = self._normalize_row(row)
                     await self._writer.enqueue_superset_log(payload)
                     max_id = max(max_id, row["id"])
@@ -1371,6 +1720,20 @@ class SupersetPoller:
 
     def _resolve_user_id(self, username: str) -> int | None:
         return lookup_user_id(self._meta_db_uri, username)
+
+    def _fetch_source_max_id(self) -> int | None:
+        import psycopg2
+
+        with psycopg2.connect(self._meta_db_uri) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT COALESCE(MAX(id), 0) FROM logs")
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                try:
+                    return int(row[0])
+                except (TypeError, ValueError):
+                    return None
 
     def _build_query(
         self,
@@ -1416,7 +1779,6 @@ class SupersetPoller:
             ingested_at=datetime.now(timezone.utc),
         )
 
-
     def status(self) -> dict[str, Any]:
         return {
             "last_poll_at": self._last_poll_at.isoformat()
@@ -1430,6 +1792,7 @@ class SupersetPoller:
             "dashboard_id_filter": self._dashboard_id,
             "user_id_filter": self._user_id,
             "username_filter": self._username,
+            "ignored_actions": sorted(self._ignored_actions),
         }
 
 

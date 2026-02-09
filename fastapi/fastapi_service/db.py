@@ -31,7 +31,13 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
             response VARCHAR,
             response_raw VARCHAR,
             response_events VARCHAR,
-            latency_ms BIGINT
+            latency_ms BIGINT,
+            model_name VARCHAR,
+            prompt_tokens BIGINT,
+            completion_tokens BIGINT,
+            total_tokens BIGINT,
+            token_cost BIGINT,
+            usd_cost DOUBLE
         )
         """
     )
@@ -41,6 +47,30 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
         pass
     try:
         conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN response_events VARCHAR")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN model_name VARCHAR")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN prompt_tokens BIGINT")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN completion_tokens BIGINT")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN total_tokens BIGINT")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN token_cost BIGINT")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN usd_cost DOUBLE")
     except duckdb.CatalogException:
         pass
     conn.execute(
@@ -108,9 +138,10 @@ def insert_streamlit_chat_log(
     conn.execute(
         """
         INSERT INTO streamlit_chat_logs (
-            ts, session_id, request_id, user_id, message, response, response_raw, response_events, latency_ms
+            ts, session_id, request_id, user_id, message, response, response_raw, response_events,
+            latency_ms, model_name, prompt_tokens, completion_tokens, total_tokens, token_cost, usd_cost
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             payload["ts"],
@@ -122,6 +153,12 @@ def insert_streamlit_chat_log(
             payload.get("response_raw"),
             payload.get("response_events"),
             payload.get("latency_ms"),
+            payload.get("model_name"),
+            payload.get("prompt_tokens"),
+            payload.get("completion_tokens"),
+            payload.get("total_tokens"),
+            payload.get("token_cost"),
+            payload.get("usd_cost"),
         ],
     )
 

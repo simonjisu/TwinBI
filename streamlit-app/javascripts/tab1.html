@@ -7,12 +7,6 @@
   <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
     <span style="font-weight:600;">Status:</span>
     <span class="status" style="color:#2e7d32;">connecting</span>
-    <button
-      class="resume"
-      style="margin-left:auto; padding:4px 8px; background:#2a2a2a; color:#fff; border:1px solid #444; border-radius:4px; cursor:pointer;"
-    >
-      Resume
-    </button>
   </div>
   <div
     class="panel panel-sql"
@@ -24,31 +18,30 @@
 <script>
   const root = document.getElementById("{{SQL_CONTAINER_ID}}");
   const statusEl = root.querySelector(".status");
-  const resumeBtn = root.querySelector(".resume");
   const sqlList = root.querySelector(".sql-list");
-  const storageKey = "{{SQL_STORAGE_KEY}}";
-  const logStorageKey = "{{LOG_STORAGE_KEY}}";
-  const initialToken = localStorage.getItem(storageKey) || "0";
-  const logToken = localStorage.getItem(logStorageKey) || "0";
-  let initialId = Number(initialToken) || 0;
-  const logId = Number(logToken) || 0;
-  if (logId > 0 && (initialId === 0 || logId < initialId)) {
-    initialId = logId;
-  }
+  const initialId = 0;
   const streamUrl =
     "{{SQL_STREAM_BASE}}" +
     "&last_id=" +
     initialId;
   const chartsUrl = "{{CHARTS_URL}}";
+  const supersetUsername = "{{SUPERSET_USERNAME}}";
+  const supersetPassword = "{{SUPERSET_PASSWORD}}";
   const chartMap = new Map();
   const chartNames = new Map();
-  const idleMs = 20000;
-  let lastEventAt = Date.now();
+  const apiBase = "{{SQL_STREAM_BASE}}".split("/events/stream")[0];
   let source = null;
 
   function setStatus(text, color) {
     statusEl.textContent = text;
     statusEl.style.color = color;
+  }
+
+  function authHeaders() {
+    const headers = {};
+    if (supersetUsername) headers["X-Superset-Username"] = supersetUsername;
+    if (supersetPassword) headers["X-Superset-Password"] = supersetPassword;
+    return headers;
   }
 
   function renderRows() {
@@ -83,7 +76,7 @@
 
   async function loadCharts() {
     try {
-      const res = await fetch(chartsUrl);
+      const res = await fetch(chartsUrl, { headers: authHeaders() });
       if (!res.ok) return;
       const data = await res.json();
       const charts = data && data.charts ? data.charts : [];
@@ -127,14 +120,11 @@
           data.translated_sql ||
           (data.translated && data.translated.sql) ||
           "";
-        if (event.lastEventId) {
-          localStorage.setItem(storageKey, String(event.lastEventId));
-        }
+        // Always start from 0; do not persist last_event_id.
         const knownName = chartNames.get(data.slice_id) || "Chart " + data.slice_id;
         const row = chartMap.get(data.slice_id) || { name: knownName, sql: "" };
         row.sql = translatedSql || "No SQL yet.";
         chartMap.set(data.slice_id, row);
-        lastEventAt = Date.now();
         renderRows();
         setStatus("connected", "#2e7d32");
       } catch (err) {}
@@ -147,15 +137,7 @@
   loadCharts();
   openStream();
 
-  const idleTimer = setInterval(() => {
-    if (Date.now() - lastEventAt > idleMs) {
-      closeStream();
-      setStatus("idle", "#f9a825");
-    }
-  }, 2000);
+  // Keep last SQL visible; no filter-cleared reset.
 
-  resumeBtn.addEventListener("click", () => {
-    lastEventAt = Date.now();
-    openStream();
-  });
+  // Keep stream open; no idle auto-pause.
 </script>

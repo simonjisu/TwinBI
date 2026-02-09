@@ -1,0 +1,410 @@
+<div id="{{CONTAINER_ID}}" style="font-family: sans-serif; color:#ffffff; margin: 0 0 0.75rem 0;">
+  <span class="context-text">Checking active chart...</span>
+</div>
+<script>
+  (() => {
+    const root = document.getElementById("{{CONTAINER_ID}}");
+    if (!root) return;
+    const textEl = root.querySelector(".context-text");
+    const apiBase = "{{API_BASE}}";
+    const dashboardId = "{{DASHBOARD_ID}}";
+    const sessionId = "{{SESSION_ID}}";
+    const supersetUsername = "{{SUPERSET_USERNAME}}";
+    const supersetPassword = "{{SUPERSET_PASSWORD}}";
+    const desiredDashboardId = (() => {
+      const n = Number(dashboardId);
+      return Number.isFinite(n) ? Math.trunc(n) : null;
+    })();
+    const templates = [
+      "You are now looking into ${label}.",
+      "Currently viewing ${label}.",
+      "Exploring ${label} right now.",
+      "Focused on ${label}.",
+      "Taking a closer look at ${label}.",
+    ];
+    const templatesWithTab = [
+      "You are now looking into ${label} in the ${tab} tab.",
+      "Currently viewing ${label} in the ${tab} tab.",
+      "Exploring ${label} (tab: ${tab}).",
+      "Focused on ${label} within the ${tab} tab.",
+      "Taking a closer look at ${label} in the ${tab} tab.",
+    ];
+    const tabTemplates = [
+      "You are now looking into the ${tab} tab.",
+      "Currently on the ${tab} tab.",
+      "Exploring the ${tab} tab.",
+    ];
+    const idleMessages = [
+      "Select a chart to get started.",
+      "Click a chart to see what you are looking into.",
+      "Waiting for chart activity...",
+    ];
+    let lastKey = null;
+    let lastText = null;
+
+    function pickRandom(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function authHeaders() {
+      const headers = {};
+      if (supersetUsername) headers["X-Superset-Username"] = supersetUsername;
+      if (supersetPassword) headers["X-Superset-Password"] = supersetPassword;
+      return headers;
+    }
+
+    function formatChartLabel(chart) {
+      if (!chart) return "";
+      const name = chart.name || chart.chart_name || "";
+      const id = chart.slice_id || chart.chart_id || chart.id || "";
+      if (name && id) return `${name} (id=${id})`;
+      if (name) return name;
+      if (id) return `chart id=${id}`;
+      return "";
+    }
+
+    let currentTab = { id: "", name: "" };
+    let interactingChart = null;
+    const chartNameById = new Map();
+    let sawCurrentSessionUiEvent = false;
+    const sessionStorageKey = `active-context-session-${dashboardId || "all"}`;
+
+    function resetToIdle() {
+      currentTab = { id: "", name: "" };
+      interactingChart = null;
+      lastKey = null;
+      lastText = null;
+      updateText();
+    }
+
+    function extractContext() {
+      const label = formatChartLabel(interactingChart);
+      const tab = currentTab.name || currentTab.id || "";
+      const key = label || tab || "";
+      return { label, tab, key };
+    }
+
+    function updateText() {
+      const context = extractContext();
+      let text = "";
+      if (context.label) {
+        const base = context.tab ? pickRandom(templatesWithTab) : pickRandom(templates);
+        text = base.replace("${label}", context.label);
+        if (context.tab) {
+          text = text.replace("${tab}", context.tab);
+        }
+      } else if (context.tab) {
+        const base = pickRandom(tabTemplates);
+        text = base.replace("${tab}", context.tab);
+      } else {
+        text = pickRandom(idleMessages);
+      }
+      if (context.key !== lastKey || !lastText) {
+        textEl.textContent = text;
+        lastKey = context.key;
+        lastText = text;
+      }
+    }
+
+    function parseJsonSafely(value) {
+      try {
+        if (!value) return null;
+        if (typeof value === "object") return value;
+        return JSON.parse(value);
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function toInt(value) {
+      if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
+      if (typeof value === "string" && value.trim() !== "") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return Math.trunc(parsed);
+      }
+      return null;
+    }
+
+    function applyStreamEvent(raw) {
+      const payload = parseJsonSafely(raw.payload) || {};
+      const payloadInner = parseJsonSafely(payload.payload) || payload.payload || {};
+      const jsonObj = parseJsonSafely(raw.json) || {};
+      const jsonPayload = parseJsonSafely(jsonObj.payload) || jsonObj.payload || {};
+      const jsonPayloadInner = parseJsonSafely(jsonPayload.payload) || jsonPayload.payload || {};
+      const eventSessionId = String(
+        jsonObj.session_id ||
+        payload.session_id ||
+        payloadInner.session_id ||
+        jsonPayload.session_id ||
+        jsonPayloadInner.session_id ||
+        ""
+      );
+      const actionRaw = String(
+        raw.action ||
+        raw.action_label ||
+        jsonObj.event_type ||
+        jsonObj.event ||
+        payload.event_type ||
+        payload.event ||
+        payloadInner.event_type ||
+        payloadInner.event ||
+        jsonPayload.event_type ||
+        jsonPayload.event ||
+        jsonPayloadInner.event_type ||
+        jsonPayloadInner.event ||
+        ""
+      ).trim().toLowerCase();
+      const isUiEvent = String(jsonObj.source || "").toLowerCase() === "ui";
+
+      if (sessionId && isUiEvent && eventSessionId && eventSessionId !== sessionId) {
+        return;
+      }
+      if (sessionId && isUiEvent && eventSessionId === sessionId) {
+        sawCurrentSessionUiEvent = true;
+      }
+
+      const eventDashboardId =
+        toInt(raw.dashboard_id) ??
+        toInt(payload.dashboard_id) ??
+        toInt(payload.dashboardId) ??
+        toInt(payloadInner.dashboard_id) ??
+        toInt(payloadInner.dashboardId) ??
+        toInt(jsonObj.dashboard_id) ??
+        toInt(jsonPayload.dashboard_id) ??
+        toInt(jsonPayload.dashboardId);
+
+      // Do client-side dashboard filtering so we still receive chart events
+      // even when backend rows miss dashboard_id.
+      if (
+        desiredDashboardId !== null &&
+        eventDashboardId !== null &&
+        eventDashboardId !== desiredDashboardId
+      ) {
+        return;
+      }
+
+      const sliceId =
+        toInt(raw.slice_id) ??
+        toInt(raw.source_slice_id) ??
+        toInt(payload.slice_id) ??
+        toInt(payload.chart_id) ??
+        toInt(payload.source_slice_id) ??
+        toInt(payloadInner.slice_id) ??
+        toInt(payloadInner.chart_id) ??
+        toInt(payloadInner.source_slice_id) ??
+        toInt(jsonObj.slice_id) ??
+        toInt(jsonObj.source_slice_id) ??
+        toInt(jsonPayload.slice_id) ??
+        toInt(jsonPayload.chart_id) ??
+        toInt(jsonPayload.source_slice_id) ??
+        toInt(jsonPayloadInner.slice_id) ??
+        toInt(jsonPayloadInner.chart_id) ??
+        toInt(jsonPayloadInner.source_slice_id);
+
+      const chartName =
+        payloadInner.clicked_name ||
+        payloadInner.name ||
+        jsonPayloadInner.clicked_name ||
+        jsonPayloadInner.name ||
+        payload.chart_name ||
+        payloadInner.chart_name ||
+        jsonObj.chart_name ||
+        jsonPayload.chart_name ||
+        jsonPayloadInner.chart_name ||
+        "";
+
+      if (sliceId !== null && chartName) {
+        chartNameById.set(sliceId, String(chartName));
+      }
+
+      const isTabClick =
+        actionRaw === "superset_tab_click" ||
+        (!!(payloadInner.tab_id || payload.tab_id || jsonPayloadInner.tab_id || jsonPayload.tab_id) &&
+          actionRaw.includes("tab"));
+      const isChartClick =
+        actionRaw === "chart_click" ||
+        actionRaw === "legend_toggle" ||
+        actionRaw === "cross_filter_added" ||
+        actionRaw === "filter_added" ||
+        (actionRaw === "superset_ui_event" &&
+          (
+            payload.event === "chart_click" ||
+            payload.event === "legend_toggle" ||
+            payload.event === "cross_filter_added" ||
+            payloadInner.event === "chart_click" ||
+            payloadInner.event === "legend_toggle" ||
+            payloadInner.event === "cross_filter_added" ||
+            jsonPayload.event === "chart_click" ||
+            jsonPayload.event === "legend_toggle" ||
+            jsonPayload.event === "cross_filter_added" ||
+            jsonPayloadInner.event === "chart_click" ||
+            jsonPayloadInner.event === "legend_toggle" ||
+            jsonPayloadInner.event === "cross_filter_added"
+          )) ||
+        // fallback for legend payload shape
+        (sliceId !== null &&
+          (
+            (payloadInner && typeof payloadInner === "object" && "selected" in payloadInner) ||
+            (jsonPayloadInner && typeof jsonPayloadInner === "object" && "selected" in jsonPayloadInner)
+          )) ||
+        // Generic fallback: any UI row with a slice id is treated as active chart.
+        (
+          sliceId !== null &&
+          actionRaw !== "" &&
+          actionRaw !== "superset_tab_click" &&
+          actionRaw.indexOf("chartdatarestapi.") !== 0 &&
+          actionRaw.indexOf("queryobject.") !== 0 &&
+          actionRaw !== "execute_sql" &&
+          actionRaw !== "fetch_rows" &&
+          actionRaw !== "load_into_dataframe" &&
+          actionRaw !== "explore_json"
+        );
+
+      if (isTabClick) {
+        const nextTabId = String(
+          payloadInner.tab_id ||
+          payload.tab_id ||
+          jsonPayloadInner.tab_id ||
+          jsonPayload.tab_id ||
+          ""
+        );
+        const nextTabName = String(
+          payloadInner.tab_name ||
+          payload.tab_name ||
+          jsonPayloadInner.tab_name ||
+          jsonPayload.tab_name ||
+          ""
+        );
+        currentTab = { id: nextTabId, name: nextTabName };
+      } else if (isChartClick) {
+        if (sliceId !== null) {
+          interactingChart = {
+            slice_id: sliceId,
+            name: chartNameById.get(sliceId) || "",
+          };
+        }
+      } else if (actionRaw === "cross_filter_removed" || actionRaw === "filter_removed") {
+        interactingChart = null;
+      }
+
+      updateText();
+    }
+
+    function openEventStream() {
+      if (!apiBase || !window.EventSource) return;
+      // Keep stream unfiltered by dashboard_id so chart events with missing
+      // dashboard_id are not dropped by backend filtering.
+      const url = `${apiBase}/events/stream?source=superset`;
+      let syncTimer = null;
+      let syncing = false;
+
+      async function syncFromActiveApi() {
+        if (!apiBase || syncing) return;
+        syncing = true;
+        try {
+          let activeUrl = `${apiBase}/superset/charts/active`;
+          const params = [];
+          if (dashboardId) {
+            params.push(`dashboard_id=${encodeURIComponent(dashboardId)}`);
+          }
+          if (sessionId) {
+            params.push(`session_id=${encodeURIComponent(sessionId)}`);
+          }
+          if (params.length) {
+            activeUrl += `?${params.join("&")}`;
+          }
+          const res = await fetch(activeUrl, { headers: authHeaders() });
+          if (!res.ok) return;
+          const active = await res.json();
+          const tab = active && active.active_tab ? active.active_tab : {};
+          const chart = active && active.interacting_chart ? active.interacting_chart : null;
+          const lastUiEvent = active && active.last_ui_event ? active.last_ui_event : null;
+          const lastUiPayload = lastUiEvent && lastUiEvent.payload ? lastUiEvent.payload : null;
+          const lastUiInnerPayload = lastUiPayload && lastUiPayload.payload ? lastUiPayload.payload : null;
+          if (tab && (tab.id || tab.name)) {
+            currentTab = { id: String(tab.id || ""), name: String(tab.name || "") };
+          }
+          if (chart && (chart.slice_id || chart.chart_id || chart.id)) {
+            interactingChart = {
+              slice_id: toInt(chart.slice_id || chart.chart_id || chart.id),
+              name: String(chart.name || chart.chart_name || ""),
+            };
+          } else if (
+            lastUiEvent &&
+            !["cross_filter_removed", "filter_removed"].includes(
+              String(lastUiEvent.action || "").toLowerCase()
+            )
+          ) {
+            const fallbackSliceId = toInt(lastUiEvent.slice_id) ??
+              toInt(lastUiPayload && lastUiPayload.slice_id) ??
+              toInt(lastUiPayload && lastUiPayload.source_slice_id);
+            if (fallbackSliceId !== null) {
+              const fallbackName = String(
+                (lastUiInnerPayload && (lastUiInnerPayload.clicked_name || lastUiInnerPayload.name)) ||
+                ""
+              );
+              interactingChart = {
+                slice_id: fallbackSliceId,
+                name: fallbackName,
+              };
+            } else {
+              interactingChart = null;
+            }
+          } else if (active && active.interacting_chart === null) {
+            interactingChart = null;
+          }
+          updateText();
+        } catch (err) {
+        } finally {
+          syncing = false;
+        }
+      }
+
+      function scheduleSync() {
+        if (syncTimer) window.clearTimeout(syncTimer);
+        syncTimer = window.setTimeout(() => {
+          syncFromActiveApi();
+        }, 120);
+      }
+
+      try {
+        const source = new EventSource(url);
+        source.onopen = () => {
+          scheduleSync();
+        };
+        source.onmessage = (event) => {
+          const data = parseJsonSafely(event.data);
+          if (!data || typeof data !== "object") return;
+          try {
+            applyStreamEvent(data);
+            scheduleSync();
+          } catch (err) {
+            console.error("active_context stream parse error", err, data);
+          }
+        };
+        source.onerror = () => {
+          if (syncTimer) window.clearTimeout(syncTimer);
+          source.close();
+          setTimeout(openEventStream, 2000);
+        };
+      } catch (err) {}
+    }
+
+    if (sessionId) {
+      try {
+        const previous = window.sessionStorage.getItem(sessionStorageKey);
+        if (!previous || previous !== sessionId) {
+          window.sessionStorage.setItem(sessionStorageKey, sessionId);
+          resetToIdle();
+        } else {
+          updateText();
+        }
+      } catch (err) {
+        resetToIdle();
+      }
+    } else {
+      updateText();
+    }
+    openEventStream();
+  })();
+</script>

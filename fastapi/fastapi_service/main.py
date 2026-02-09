@@ -10,6 +10,9 @@ from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, Literal
 from pathlib import Path
+from dataclasses import replace
+import math
+import os
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,11 +32,15 @@ from fastapi_service.models import (
     SupersetDatasetSyncResult,
     ChartCreateRequest,
     ChartCreateResponse,
+    DashboardAppendChartRequest,
+    DashboardAppendChartResponse,
 )
 from fastapi_service.superset import (
     QueryTranslater,
     SupersetPoller,
+    append_chart_to_dashboard_layout,
     fetch_dashboard_charts,
+    fetch_dashboard_layout,
     fetch_dashboard_default_tab,
     fetch_dataset_schema,
     fetch_dataset_data,
@@ -172,6 +179,17 @@ def _fetch_latest_chart_log(
     }
 
 
+def _normalize_legend_interaction(payload: Any) -> dict[str, Any] | None:
+    if not isinstance(payload, dict):
+        return None
+    selected = payload.get("selected")
+    if isinstance(selected, dict) and selected:
+        # If everything is selected, treat as no interaction.
+        if all(bool(value) for value in selected.values()):
+            return None
+    return payload
+
+
 def _fetch_latest_active_chart(
     conn: duckdb.DuckDBPyConnection,
     dashboard_id: int | None = None,
@@ -204,13 +222,21 @@ def _fetch_latest_active_chart(
                 return True
         return False
 
+    latest_filters = []
+    latest_params: list[Any] = []
+    if dashboard_id is not None:
+        latest_filters.append("dashboard_id = ?")
+        latest_params.append(dashboard_id)
+    latest_where = f"WHERE {' AND '.join(latest_filters)}" if latest_filters else ""
     latest_row = conn.execute(
-        """
+        f"""
         SELECT superset_log_id, dttm, action, dashboard_id, slice_id, json
         FROM superset_action_logs
+        {latest_where}
         ORDER BY superset_log_id DESC
         LIMIT 1
-        """
+        """,
+        latest_params,
     ).fetchone()
     if latest_row:
         latest_action = latest_row[2]
@@ -259,16 +285,60 @@ def _fetch_latest_active_chart(
     }
 
 
-def _fetch_latest_ui_event(
+def _fetch_latest_chart_activity(
     conn: duckdb.DuckDBPyConnection,
     dashboard_id: int | None = None,
 ) -> dict[str, Any] | None:
-    ui_actions = ("superset_tab_click", "legend_toggle", "chart_click", "schema_highlight")
+    filters = ["action IN ('ChartDataRestApi.data', 'ChartDataRestApi.json_dumps')"]
+    params: list[Any] = []
+    if dashboard_id is not None:
+        filters.append("dashboard_id = ?")
+        params.append(dashboard_id)
+    where_clause = " AND ".join(filters)
+    row = conn.execute(
+        f"""
+        SELECT superset_log_id, dttm, action, dashboard_id, slice_id
+        FROM superset_action_logs
+        WHERE {where_clause}
+        ORDER BY superset_log_id DESC
+        LIMIT 1
+        """,
+        params,
+    ).fetchone()
+    if not row:
+        return None
+    return {
+        "superset_log_id": row[0],
+        "dttm": row[1].isoformat() if row[1] else None,
+        "action": row[2],
+        "dashboard_id": row[3],
+        "slice_id": row[4],
+    }
+
+
+def _fetch_latest_ui_event(
+    conn: duckdb.DuckDBPyConnection,
+    dashboard_id: int | None = None,
+    session_id: str | None = None,
+) -> dict[str, Any] | None:
+    ui_actions = (
+        "superset_tab_click",
+        "legend_toggle",
+        "chart_click",
+        "cross_filter_added",
+        "cross_filter_removed",
+        # backward compatibility with old UI event names
+        "filter_added",
+        "filter_removed",
+    )
     params: list[Any] = list(ui_actions)
     filters = [f"action IN ({','.join(['?'] * len(ui_actions))})"]
     if dashboard_id is not None:
         filters.append("dashboard_id = ?")
         params.append(dashboard_id)
+    if session_id:
+        filters.append("json_extract_string(json, '$.session_id') = ?")
+        params.append(session_id)
     where_clause = " AND ".join(filters)
     row = conn.execute(
         f"""
@@ -300,6 +370,222 @@ def _fetch_latest_ui_event(
     }
 
 
+def _normalize_filter_entry(entry: Any) -> dict[str, Any] | None:
+    if not isinstance(entry, dict):
+        return None
+    col = entry.get("col") or entry.get("subject")
+    if col is None:
+        return None
+    op = entry.get("op") or entry.get("operator") or "IN"
+    val = entry.get("val")
+    if val is None and "comparator" in entry:
+        val = entry.get("comparator")
+    if isinstance(val, str):
+        text = val.strip()
+        if not text or text.lower() == "no filter":
+            return None
+        val = text
+    elif isinstance(val, list):
+        cleaned: list[Any] = []
+        for item in val:
+            if isinstance(item, str):
+                text = item.strip()
+                if not text or text.lower() == "no filter":
+                    continue
+                cleaned.append(text)
+            elif item not in (None, ""):
+                cleaned.append(item)
+        if not cleaned:
+            return None
+        val = cleaned
+    elif val in (None, "", []):
+        return None
+    return {"col": str(col), "op": str(op), "val": val}
+
+
+def _looks_like_display_text_col(col: str) -> bool:
+    text = (col or "").strip()
+    if not text:
+        return True
+    # Reject value-label artifacts like "2023-07-01, 2022-07-01".
+    if "," in text and "_" not in text and "." not in text:
+        return True
+    return False
+
+
+def _filter_key(entry: dict[str, Any]) -> str:
+    return json.dumps(
+        {
+            "col": entry.get("col"),
+            "op": entry.get("op"),
+            "val": entry.get("val"),
+        },
+        sort_keys=True,
+        default=str,
+    )
+
+
+def _extract_filters_from_chart_payload(payload: Any) -> list[dict[str, Any]]:
+    if not isinstance(payload, dict):
+        return []
+    form_data = payload.get("form_data") or payload.get("from_data") or {}
+    if not isinstance(form_data, dict):
+        return []
+    filters = form_data.get("filters")
+    if not isinstance(filters, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for raw in filters:
+        normalized = _normalize_filter_entry(raw)
+        if normalized:
+            out.append(normalized)
+    dedup: dict[str, dict[str, Any]] = {}
+    for item in out:
+        dedup[_filter_key(item)] = item
+    return list(dedup.values())
+
+
+def _fetch_latest_chart_filters_by_slice(
+    conn: duckdb.DuckDBPyConnection,
+    slice_ids: list[int],
+    dashboard_id: int | None = None,
+) -> dict[int, list[dict[str, Any]]]:
+    if not slice_ids:
+        return {}
+    unique_slice_ids: list[int] = []
+    seen_slice_ids: set[int] = set()
+    for value in slice_ids:
+        try:
+            sid = int(value)
+        except Exception:
+            continue
+        if sid in seen_slice_ids:
+            continue
+        seen_slice_ids.add(sid)
+        unique_slice_ids.append(sid)
+    if not unique_slice_ids:
+        return {}
+    placeholders = ",".join(["?"] * len(unique_slice_ids))
+    params: list[Any] = []
+    where = [
+        "action IN ('ChartDataRestApi.data','ChartDataRestApi.json_dumps')",
+        f"slice_id IN ({placeholders})",
+    ]
+    params.extend(unique_slice_ids)
+    if dashboard_id is not None:
+        where.append("dashboard_id = ?")
+        params.append(dashboard_id)
+    rows = conn.execute(
+        f"""
+        SELECT superset_log_id, slice_id, json
+        FROM superset_action_logs
+        WHERE {' AND '.join(where)}
+        ORDER BY superset_log_id DESC
+        LIMIT 5000
+        """,
+        params,
+    ).fetchall()
+    out: dict[int, list[dict[str, Any]]] = {}
+    seen: set[int] = set()
+    for _, slice_id, raw_json in rows:
+        if slice_id is None:
+            continue
+        sid = int(slice_id)
+        if sid in seen:
+            continue
+        seen.add(sid)
+        payload = {}
+        if isinstance(raw_json, str) and raw_json:
+            try:
+                payload = json.loads(raw_json)
+            except json.JSONDecodeError:
+                payload = {}
+        out[sid] = _extract_filters_from_chart_payload(payload)
+        if len(seen) == len(unique_slice_ids):
+            break
+    return out
+
+
+def _fetch_current_global_filters(
+    conn: duckdb.DuckDBPyConnection,
+    dashboard_id: int | None = None,
+    session_id: str | None = None,
+) -> list[dict[str, Any]]:
+    params: list[Any] = ["global_filter_added", "global_filter_removed"]
+    where = ["action IN (?, ?)"]
+    if dashboard_id is not None:
+        where.append("dashboard_id = ?")
+        params.append(dashboard_id)
+    if session_id:
+        where.append("json_extract_string(json, '$.session_id') = ?")
+        params.append(session_id)
+    rows = conn.execute(
+        f"""
+        SELECT action, json
+        FROM superset_action_logs
+        WHERE {' AND '.join(where)}
+        ORDER BY superset_log_id ASC
+        """,
+        params,
+    ).fetchall()
+    active: dict[str, dict[str, Any]] = {}
+    for action, raw_json in rows:
+        payload_obj: dict[str, Any] = {}
+        if isinstance(raw_json, str) and raw_json:
+            try:
+                payload_obj = json.loads(raw_json)
+            except json.JSONDecodeError:
+                payload_obj = {}
+        payload = payload_obj.get("payload")
+        if isinstance(payload, dict) and isinstance(payload.get("payload"), dict):
+            payload = payload.get("payload")
+        if not isinstance(payload, dict):
+            payload = {}
+        normalized = _normalize_filter_entry(payload.get("filter"))
+        if not normalized:
+            continue
+        if _looks_like_display_text_col(str(normalized.get("col") or "")):
+            continue
+        key = _filter_key(normalized)
+        if action == "global_filter_added":
+            active[key] = normalized
+        elif action == "global_filter_removed":
+            active.pop(key, None)
+    return list(active.values())
+
+
+def _fetch_latest_ui_session_id(
+    conn: duckdb.DuckDBPyConnection,
+    dashboard_id: int | None = None,
+) -> str | None:
+    filters = [
+        "json_extract_string(json, '$.source') = 'ui'",
+        "json_extract_string(json, '$.session_id') IS NOT NULL",
+        "json_extract_string(json, '$.session_id') <> ''",
+    ]
+    params: list[Any] = []
+    if dashboard_id is not None:
+        filters.append("dashboard_id = ?")
+        params.append(dashboard_id)
+    where_clause = " AND ".join(filters)
+    row = conn.execute(
+        f"""
+        SELECT json_extract_string(json, '$.session_id') AS session_id
+        FROM superset_action_logs
+        WHERE {where_clause}
+        ORDER BY superset_log_id DESC
+        LIMIT 1
+        """,
+        params,
+    ).fetchone()
+    if not row:
+        return None
+    value = row[0]
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
 def _summarize_chart_log(log: dict[str, Any] | None) -> dict[str, Any]:
     if not log or not isinstance(log, dict):
         return {}
@@ -315,6 +601,24 @@ def _summarize_chart_log(log: dict[str, Any] | None) -> dict[str, Any]:
         "queries": queries,
         "datasource": datasource,
     }
+
+
+def _estimate_token_usage(message: str, response: str) -> dict[str, int]:
+    # Lightweight fallback estimate when model usage metadata is unavailable.
+    prompt_tokens = int(math.ceil(len(message or "") / 4)) if message else 0
+    completion_tokens = int(math.ceil(len(response or "") / 4)) if response else 0
+    total_tokens = prompt_tokens + completion_tokens
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+    }
+
+
+def _estimate_usd_cost(prompt_tokens: int, completion_tokens: int) -> float:
+    input_per_1k = float(os.getenv("AGENT_INPUT_COST_PER_1K_USD", "0"))
+    output_per_1k = float(os.getenv("AGENT_OUTPUT_COST_PER_1K_USD", "0"))
+    return round((prompt_tokens / 1000.0) * input_per_1k + (completion_tokens / 1000.0) * output_per_1k, 8)
 
 
 def _load_dialogue_history(
@@ -443,6 +747,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def get_writer() -> DuckDBWriter:
         return app.state.writer
+
+    def _resolve_superset_settings(
+        request: Request | None = None,
+        payload: ChatRequest | SupersetDatasetSyncRequest | None = None,
+    ) -> Settings:
+        base_settings = app.state.settings
+        header_username = None
+        header_password = None
+        if request is not None:
+            header_username = request.headers.get("X-Superset-Username")
+            header_password = request.headers.get("X-Superset-Password")
+        payload_username = payload.superset_username if payload is not None else None
+        payload_password = payload.superset_password if payload is not None else None
+
+        username = (
+            (payload_username.strip() if isinstance(payload_username, str) else None)
+            or (header_username.strip() if isinstance(header_username, str) else None)
+        )
+        password = (
+            payload_password
+            if isinstance(payload_password, str) and payload_password != ""
+            else (
+                header_password
+                if isinstance(header_password, str) and header_password != ""
+                else None
+            )
+        )
+        if username and password:
+            return replace(
+                base_settings,
+                superset_username=username,
+                superset_password=password,
+            )
+        return base_settings
 
     @app.get("/health", response_model=StatusResponse)
     def health() -> StatusResponse:
@@ -665,7 +1003,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     yield ": keepalive\n\n"
                 await asyncio.sleep(poll_interval_sec)
 
-        return StreamingResponse(event_generator(), media_type="text/event-stream")
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @app.get("/superset/logs/latest_sql")
     def superset_logs_latest_sql(
@@ -706,8 +1051,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     @app.get("/superset/datasets/{dataset_id}/schema")
-    def superset_dataset_schema(dataset_id: int) -> dict[str, Any]:
-        settings = app.state.settings
+    def superset_dataset_schema(dataset_id: int, request: Request) -> dict[str, Any]:
+        settings = _resolve_superset_settings(request=request)
         if not settings.superset_username or not settings.superset_password:
             raise HTTPException(
                 status_code=400,
@@ -729,12 +1074,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/superset/datasets")
     def superset_datasets(
+        request: Request,
         user_id: int | None = None,
         username: str | None = None,
         name: str | None = None,
         limit: int = 200,
     ) -> dict[str, Any]:
-        settings = app.state.settings
+        settings = _resolve_superset_settings(request=request)
         if not settings.superset_username or not settings.superset_password:
             raise HTTPException(
                 status_code=400,
@@ -851,8 +1197,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/superset/charts", response_model=ChartCreateResponse)
     def superset_chart_create(
         payload: ChartCreateRequest,
+        request: Request,
     ) -> ChartCreateResponse:
-        settings = app.state.settings
+        settings = _resolve_superset_settings(request=request)
         if not settings.superset_username or not settings.superset_password:
             raise HTTPException(
                 status_code=400,
@@ -1029,11 +1376,82 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail=f"Superset API error: {exc}",
             ) from exc
 
-        chart_id = None
-        if isinstance(result, dict):
-            res = result.get("result") or result
-            if isinstance(res, dict):
-                chart_id = res.get("id") or res.get("slice_id")
+        def _coerce_int(value: Any) -> int | None:
+            if value is None:
+                return None
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+
+        def _extract_chart_id(payload_obj: Any, depth: int = 0) -> int | None:
+            if depth > 6:
+                return None
+            if isinstance(payload_obj, dict):
+                for key in ("id", "slice_id", "chart_id", "sliceId", "chartId", "pk"):
+                    candidate = _coerce_int(payload_obj.get(key))
+                    if candidate is not None:
+                        return candidate
+                for child in payload_obj.values():
+                    found = _extract_chart_id(child, depth + 1)
+                    if found is not None:
+                        return found
+            elif isinstance(payload_obj, list):
+                for child in payload_obj:
+                    found = _extract_chart_id(child, depth + 1)
+                    if found is not None:
+                        return found
+            return None
+
+        chart_id = _extract_chart_id(result)
+        if chart_id is None:
+            # Some Superset versions return create success without explicit id.
+            # Fallback: find by (slice_name, datasource_id, datasource_type).
+            page = 0
+            page_size = 100
+            candidates: list[int] = []
+            while page < 10:
+                lookup_resp = session.get(
+                    f"{base_url}/api/v1/chart/",
+                    params={"page": page, "page_size": page_size},
+                    timeout=30,
+                )
+                if lookup_resp.status_code >= 400:
+                    warnings.append(
+                        f"chart lookup failed {lookup_resp.status_code}: {lookup_resp.text}"
+                    )
+                    break
+                lookup_payload = lookup_resp.json()
+                batch = lookup_payload.get("result") if isinstance(lookup_payload, dict) else []
+                if not isinstance(batch, list) or not batch:
+                    break
+                for entry in batch:
+                    if not isinstance(entry, dict):
+                        continue
+                    entry_name = entry.get("slice_name") or entry.get("name")
+                    if str(entry_name or "") != payload.slice_name:
+                        continue
+                    entry_ds_id = _coerce_int(entry.get("datasource_id"))
+                    entry_ds_type = str(entry.get("datasource_type") or "table")
+                    if entry_ds_id != payload.dataset_id:
+                        continue
+                    if entry_ds_type != payload.datasource_type:
+                        continue
+                    found_id = _coerce_int(
+                        entry.get("id")
+                        or entry.get("slice_id")
+                        or entry.get("chart_id")
+                    )
+                    if found_id is not None:
+                        candidates.append(found_id)
+                if len(batch) < page_size:
+                    break
+                page += 1
+            if candidates:
+                chart_id = max(candidates)
+                warnings.append("chart id recovered via chart lookup")
+            else:
+                warnings.append("chart id not returned from Superset")
 
         return ChartCreateResponse(
             status="created",
@@ -1317,8 +1735,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/superset/datasets/sync", response_model=SupersetDatasetSyncResult)
     def superset_dataset_sync(
         payload: SupersetDatasetSyncRequest,
+        request: Request,
     ) -> SupersetDatasetSyncResult:
-        settings = app.state.settings
+        settings = _resolve_superset_settings(request=request, payload=payload)
         if not settings.superset_username or not settings.superset_password:
             raise HTTPException(
                 status_code=400,
@@ -1367,19 +1786,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="user not found")
         return {"username": username, "user_id": user_id}
 
-    @app.get("/superset/dashboards/{dashboard_id}/charts")
-    def superset_dashboard_charts(dashboard_id: int) -> dict[str, Any]:
-        settings = app.state.settings
-        if not settings.superset_username or not settings.superset_password:
-            raise HTTPException(
-                status_code=400,
-                detail="Superset credentials not configured",
-            )
-        if not (settings.superset_internal_url or settings.superset_public_url):
-            raise HTTPException(
-                status_code=400,
-                detail="Superset URL not configured",
-            )
+    def _fetch_dashboard_charts_response(
+        settings: Settings,
+        dashboard_id: int,
+    ) -> dict[str, Any]:
         try:
             charts = fetch_dashboard_charts(settings, dashboard_id)
         except LookupError as exc:
@@ -1400,16 +1810,262 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         else:
             for chart in charts:
                 chart["description"] = None
-        return {"dashboard_id": dashboard_id, "charts": charts}
+        return {"dashboard_id": dashboard_id, "count": len(charts), "charts": charts}
+
+    def _resolve_target_user_id(
+        settings: Settings,
+        user_name: str | None,
+        user_id: int | None,
+    ) -> int | None:
+        if user_name and user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide either user_id or user_name, not both",
+            )
+        if user_id is not None:
+            return user_id
+        if not user_name:
+            return None
+        meta_db_uri = settings.superset_meta_db_uri
+        if not meta_db_uri:
+            raise HTTPException(status_code=400, detail="SUPERSET_META_DB_URI not set")
+        resolved_user_id = lookup_user_id(meta_db_uri, user_name)
+        if resolved_user_id is None:
+            raise HTTPException(status_code=404, detail="user not found")
+        return resolved_user_id
+
+    def _fetch_user_charts(
+        settings: Settings,
+        target_user_id: int,
+        limit: int,
+        dashboard_id: int | None = None,
+    ) -> list[dict[str, Any]]:
+        try:
+            session = _api_session_with_bearer(settings)
+            base_url = _get_base_url(settings)
+            _ensure_csrf(session, base_url)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+
+        page = 0
+        page_size = 100
+        remaining = max(1, limit)
+        charts: list[dict[str, Any]] = []
+        while remaining > 0:
+            response = session.get(
+                f"{base_url}/api/v1/chart/",
+                params={"page": page, "page_size": page_size},
+                timeout=30,
+            )
+            if response.status_code >= 400:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Superset API error: {response.text}",
+                )
+            payload = response.json()
+            batch = payload.get("result") if isinstance(payload, dict) else None
+            if not isinstance(batch, list) or not batch:
+                break
+
+            for entry in batch:
+                if not isinstance(entry, dict):
+                    continue
+                owners = entry.get("owners") or []
+                owner_ids = [
+                    owner.get("id")
+                    for owner in owners
+                    if isinstance(owner, dict) and owner.get("id") is not None
+                ]
+                if target_user_id not in owner_ids:
+                    continue
+                dashboards_raw = entry.get("dashboards") or []
+                dashboard_ids: list[int] = []
+                if isinstance(dashboards_raw, list):
+                    for dash in dashboards_raw:
+                        if isinstance(dash, dict) and dash.get("id") is not None:
+                            try:
+                                dashboard_ids.append(int(dash.get("id")))
+                            except (TypeError, ValueError):
+                                continue
+                        elif dash is not None:
+                            try:
+                                dashboard_ids.append(int(dash))
+                            except (TypeError, ValueError):
+                                continue
+                if dashboard_id is not None and int(dashboard_id) not in dashboard_ids:
+                    continue
+                charts.append(
+                    {
+                        "chart_id": entry.get("id") or entry.get("slice_id"),
+                        "slice_id": entry.get("slice_id") or entry.get("id"),
+                        "name": entry.get("slice_name")
+                        or entry.get("name")
+                        or entry.get("chart_name"),
+                        "viz_type": entry.get("viz_type"),
+                        "datasource_id": entry.get("datasource_id")
+                        or (entry.get("datasource") or {}).get("id"),
+                        "datasource_type": entry.get("datasource_type")
+                        or (entry.get("datasource") or {}).get("type"),
+                        "dashboard_ids": dashboard_ids,
+                        "owners": owners,
+                    }
+                )
+                remaining -= 1
+                if remaining <= 0:
+                    break
+            if len(batch) < page_size:
+                break
+            page += 1
+        return charts
+
+    @app.get("/superset/dashboards/charts")
+    def superset_dashboards_charts(
+        request: Request,
+        dashboard_id: int | None = None,
+        user_name: str | None = None,
+        # backward-compatible alias
+        username: str | None = None,
+        user_id: int | None = None,
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        settings = _resolve_superset_settings(request=request)
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        requested_user_name = user_name or username
+        if dashboard_id is None and requested_user_name is None and user_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide dashboard_id or user_name/user_id",
+            )
+
+        if dashboard_id is not None and requested_user_name is None and user_id is None:
+            return _fetch_dashboard_charts_response(settings=settings, dashboard_id=dashboard_id)
+
+        target_user_id = _resolve_target_user_id(
+            settings=settings,
+            user_name=requested_user_name,
+            user_id=user_id,
+        )
+        if target_user_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide user_name or user_id when dashboard_id is not set",
+            )
+        charts = _fetch_user_charts(
+            settings=settings,
+            target_user_id=target_user_id,
+            limit=limit,
+            dashboard_id=dashboard_id,
+        )
+        return {
+            "dashboard_id": dashboard_id,
+            "user_id": target_user_id,
+            "user_name": requested_user_name,
+            "count": len(charts),
+            "charts": charts,
+        }
+
+    @app.get("/superset/dashboards/{dashboard_id}/charts")
+    def superset_dashboard_charts(dashboard_id: int, request: Request) -> dict[str, Any]:
+        settings = _resolve_superset_settings(request=request)
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        return _fetch_dashboard_charts_response(settings=settings, dashboard_id=dashboard_id)
+
+    @app.get("/superset/dashboards/{dashboard_id}/layout")
+    def superset_dashboard_layout(dashboard_id: int, request: Request) -> dict[str, Any]:
+        settings = _resolve_superset_settings(request=request)
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        try:
+            return fetch_dashboard_layout(settings, dashboard_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+
+    @app.post(
+        "/superset/dashboards/{dashboard_id}/layout/append-chart",
+        response_model=DashboardAppendChartResponse,
+    )
+    def superset_dashboard_layout_append_chart(
+        dashboard_id: int,
+        payload: DashboardAppendChartRequest,
+        request: Request,
+    ) -> DashboardAppendChartResponse:
+        settings = _resolve_superset_settings(request=request)
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        try:
+            result = append_chart_to_dashboard_layout(
+                settings=settings,
+                dashboard_id=dashboard_id,
+                chart_id=payload.chart_id,
+                tab_id=payload.tab_id,
+                tab_name=payload.tab_name,
+                width=payload.width,
+                height=payload.height,
+            )
+            return DashboardAppendChartResponse(**result)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
 
     @app.get("/superset/charts/{chart_id}/data")
     def superset_chart_data(
         chart_id: int,
+        request: Request,
         dashboard_id: int | None = None,
         wait_sec: float = 5.0,
         poll_interval_sec: float = 0.5,
     ) -> dict[str, Any]:
-        settings = app.state.settings
+        settings = _resolve_superset_settings(request=request)
         if not settings.superset_username or not settings.superset_password:
             raise HTTPException(
                 status_code=400,
@@ -1431,7 +2087,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="chart log not found")
         try:
             response = fetch_chart_data_from_log(
-                app.state.settings,
+                settings,
                 log["payload"],
                 dashboard_id=dashboard_id,
             )
@@ -1461,8 +2117,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"chart_id": chart_id, "log": _summarize_chart_log(log)}
 
     @app.get("/superset/charts/{chart_id}/form-data")
-    def superset_chart_form_data(chart_id: int) -> dict[str, Any]:
-        settings = app.state.settings
+    def superset_chart_form_data(chart_id: int, request: Request) -> dict[str, Any]:
+        settings = _resolve_superset_settings(request=request)
         if not settings.superset_username or not settings.superset_password:
             raise HTTPException(
                 status_code=400,
@@ -1484,8 +2140,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from exc
 
     @app.get("/superset/charts/{chart_id}/queries")
-    def superset_chart_queries(chart_id: int) -> dict[str, Any]:
-        settings = app.state.settings
+    def superset_chart_queries(chart_id: int, request: Request) -> dict[str, Any]:
+        settings = _resolve_superset_settings(request=request)
         if not settings.superset_username or not settings.superset_password:
             raise HTTPException(
                 status_code=400,
@@ -1516,10 +2172,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def _build_superset_active_context(
         conn: duckdb.DuckDBPyConnection,
+        settings: Settings,
         dashboard_id: int | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
+        def _ui_payload(event: dict[str, Any] | None) -> dict[str, Any]:
+            if not isinstance(event, dict):
+                return {}
+            payload = event.get("payload")
+            if not isinstance(payload, dict):
+                return {}
+            inner = payload.get("payload")
+            if isinstance(inner, dict):
+                return inner
+            return payload
+
+        def _ui_slice_id(event: dict[str, Any] | None) -> Any:
+            if not isinstance(event, dict):
+                return None
+            if event.get("slice_id") is not None:
+                return event.get("slice_id")
+            payload = _ui_payload(event)
+            for key in ("slice_id", "sliceId", "chart_id", "chartId", "source_slice_id"):
+                value = payload.get(key)
+                if value is not None:
+                    return value
+            return None
+
+        effective_session_id = session_id or _fetch_latest_ui_session_id(
+            conn, dashboard_id=dashboard_id
+        )
         log = _fetch_latest_active_chart(conn, dashboard_id=dashboard_id)
-        ui_event = _fetch_latest_ui_event(conn, dashboard_id=dashboard_id)
+        ui_event = _fetch_latest_ui_event(
+            conn, dashboard_id=dashboard_id, session_id=effective_session_id
+        )
+        ui_event_ttl_sec = 30
+        if ui_event and ui_event.get("dttm"):
+            try:
+                event_ts = datetime.fromisoformat(str(ui_event.get("dttm")))
+                if event_ts.tzinfo is None:
+                    event_ts = event_ts.replace(tzinfo=timezone.utc)
+                age_sec = (datetime.now(timezone.utc) - event_ts).total_seconds()
+                if age_sec > ui_event_ttl_sec:
+                    ui_event = None
+            except Exception:
+                ui_event = None
         if not log and not ui_event and not dashboard_id:
             return {}
         chart_name = None
@@ -1533,23 +2230,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if effective_dashboard_id:
             try:
                 charts = fetch_dashboard_charts(
-                    app.state.settings, int(effective_dashboard_id)
+                    settings, int(effective_dashboard_id)
                 )
             except Exception:
                 charts = []
 
-        if log and log.get("slice_id"):
+        latest_chart = _fetch_latest_chart_activity(
+            conn, dashboard_id=effective_dashboard_id or dashboard_id
+        )
+        active_slice_id = None
+        ui_slice_id = _ui_slice_id(ui_event)
+        if ui_slice_id is not None:
+            active_slice_id = ui_slice_id
+        elif latest_chart and latest_chart.get("slice_id"):
+            active_slice_id = latest_chart.get("slice_id")
+        elif log and log.get("slice_id"):
+            active_slice_id = log.get("slice_id")
+
+        if active_slice_id:
             try:
                 chart_list = charts
-                if not chart_list:
+                if not chart_list and effective_dashboard_id:
                     chart_list = fetch_dashboard_charts(
-                        app.state.settings,
-                        int(log.get("dashboard_id") or dashboard_id or 0),
+                        settings,
+                        int(effective_dashboard_id),
                     )
             except Exception:
                 chart_list = []
             for chart in chart_list:
-                if str(chart.get("slice_id")) == str(log.get("slice_id")):
+                if str(chart.get("slice_id")) == str(active_slice_id):
                     chart_name = chart.get("name")
                     break
 
@@ -1562,15 +2271,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "id": payload.get("tab_id") or payload.get("tabId"),
                 "name": payload.get("tab_name") or payload.get("tabName"),
             }
-        elif charts and log and log.get("slice_id"):
+        elif charts and active_slice_id:
             for chart in charts:
-                if str(chart.get("slice_id")) == str(log.get("slice_id")):
+                if str(chart.get("slice_id")) == str(active_slice_id):
                     active_tab = chart.get("tab")
                     break
         if active_tab is None and effective_dashboard_id:
             try:
                 active_tab = fetch_dashboard_default_tab(
-                    app.state.settings, int(effective_dashboard_id)
+                    settings, int(effective_dashboard_id)
                 )
             except Exception:
                 active_tab = None
@@ -1597,16 +2306,60 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 for chart in charts
                 if _tab_matches(chart.get("tab"), active_tab)
             ]
+        active_slice_ids: list[int] = []
+        for chart in active_charts:
+            try:
+                active_slice_ids.append(int(chart.get("slice_id")))
+            except Exception:
+                continue
+        chart_filters_by_slice = _fetch_latest_chart_filters_by_slice(
+            conn,
+            slice_ids=active_slice_ids,
+            dashboard_id=int(effective_dashboard_id)
+            if effective_dashboard_id is not None
+            else None,
+        )
+        global_filters = _fetch_current_global_filters(
+            conn,
+            dashboard_id=int(effective_dashboard_id)
+            if effective_dashboard_id is not None
+            else None,
+            session_id=effective_session_id,
+        )
+        global_filter_map = {_filter_key(item): item for item in global_filters}
+        if active_charts:
+            for chart in active_charts:
+                merged_filters: dict[str, dict[str, Any]] = dict(global_filter_map)
+                try:
+                    sid = int(chart.get("slice_id"))
+                except Exception:
+                    sid = None
+                if sid is not None:
+                    for item in chart_filters_by_slice.get(sid, []):
+                        merged_filters[_filter_key(item)] = item
+                chart["filters"] = list(merged_filters.values())
 
         interaction_payload = None
         interaction_slice_id = None
-        if ui_event and ui_event.get("action") in ("legend_toggle", "chart_click"):
+        interaction_action = None
+        if ui_event and ui_event.get("action") in (
+            "legend_toggle",
+            "chart_click",
+            "cross_filter_added",
+            # backward compatibility
+            "filter_added",
+        ):
             interaction_payload = ui_event.get("payload")
+            interaction_action = ui_event.get("action")
             if isinstance(interaction_payload, dict) and isinstance(
                 interaction_payload.get("payload"), dict
             ):
                 interaction_payload = interaction_payload.get("payload")
-            interaction_slice_id = ui_event.get("slice_id")
+            if interaction_action == "legend_toggle":
+                interaction_payload = _normalize_legend_interaction(interaction_payload)
+                if interaction_payload is None:
+                    interaction_action = None
+            interaction_slice_id = _ui_slice_id(ui_event)
 
         if active_charts:
             for chart in active_charts:
@@ -1615,34 +2368,112 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     if str(chart.get("slice_id")) == str(interaction_slice_id):
                         chart["interaction"] = interaction_payload
 
+        interacting_chart = None
+        if ui_event and ui_event.get("action") in (
+            "legend_toggle",
+            "chart_click",
+            "cross_filter_added",
+            # backward compatibility
+            "filter_added",
+        ):
+            if interaction_action is not None:
+                interacting_chart = {"slice_id": _ui_slice_id(ui_event), "name": chart_name}
+        elif effective_session_id:
+            # Session-aware mode: when no UI event exists for this session yet,
+            # keep interaction empty instead of reusing stale global activity.
+            interacting_chart = None
+        elif latest_chart and latest_chart.get("slice_id"):
+            interacting_chart = {"slice_id": latest_chart.get("slice_id"), "name": chart_name}
+        elif log and log.get("slice_id"):
+            interacting_chart = {"slice_id": log.get("slice_id"), "name": chart_name}
+
         response = {
             "dashboard_id": log.get("dashboard_id") if log else effective_dashboard_id,
             "active_tab": active_tab,
             "active_charts": active_charts,
             "last_ui_event": ui_event,
-            "interacting_chart": {"slice_id": log.get("slice_id"), "name": chart_name}
-            if log and log.get("slice_id")
-            else None,
+            "interacting_chart": interacting_chart,
+            "session_id": effective_session_id,
         }
         return {key: value for key, value in response.items() if value is not None}
 
     @app.get("/superset/charts/active")
     def superset_active_chart(
+        request: Request,
         dashboard_id: int | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
+        poller = app.state.superset_poller
+        if poller:
+            try:
+                asyncio.run(poller.poll_once())
+            except RuntimeError:
+                # If we're already in an event loop, skip sync poll.
+                pass
+            try:
+                app.state.writer.flush_blocking(timeout=2.0)
+            except Exception:
+                pass
         conn = app.state.conn
-        return _build_superset_active_context(conn, dashboard_id=dashboard_id)
+        settings = _resolve_superset_settings(request=request)
+        return _build_superset_active_context(
+            conn, settings=settings, dashboard_id=dashboard_id, session_id=session_id
+        )
+
+    @app.get("/superset/charts/active/stream")
+    async def superset_active_chart_stream(
+        request: Request,
+        dashboard_id: int | None = None,
+        session_id: str | None = None,
+        poll_interval_sec: float = 1.0,
+    ) -> StreamingResponse:
+        settings = _resolve_superset_settings(request=request)
+        async def event_generator() -> Any:
+            last_payload = ""
+            while True:
+                if await request.is_disconnected():
+                    break
+                poller = app.state.superset_poller
+                if poller:
+                    try:
+                        await poller.poll_once()
+                        app.state.writer.flush_blocking(timeout=2.0)
+                    except Exception:
+                        pass
+                conn = app.state.conn
+                payload = _build_superset_active_context(
+                    conn, settings=settings, dashboard_id=dashboard_id, session_id=session_id
+                )
+                payload_text = json.dumps(payload, default=str, ensure_ascii=False)
+                if payload_text != last_payload:
+                    last_payload = payload_text
+                    yield f"data: {payload_text}\n\n"
+                else:
+                    yield ": keepalive\n\n"
+                await asyncio.sleep(poll_interval_sec)
+
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
 
     @app.post("/chat", response_model=ChatResponse)
     async def chat(
-        payload: ChatRequest, writer: DuckDBWriter = Depends(get_writer)
+        payload: ChatRequest,
+        request: Request,
+        writer: DuckDBWriter = Depends(get_writer),
     ) -> ChatResponse:
         request_id = uuid.uuid4().hex
         start = time.perf_counter()
         conn = app.state.conn
+        settings = _resolve_superset_settings(request=request, payload=payload)
         active_context = _build_superset_active_context(
-            conn, dashboard_id=payload.dashboard_id
+            conn, settings=settings, dashboard_id=payload.dashboard_id
         )
         if payload.active_chart_id is None:
             interacting = active_context.get("interacting_chart") or {}
@@ -1673,7 +2504,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if log and isinstance(log.get("payload"), dict):
                 try:
                     response = fetch_chart_data_from_log(
-                        app.state.settings,
+                        settings,
                         log["payload"],
                     )
                     chart_data = _summarize_chart_data(response)
@@ -1704,7 +2535,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     }
                 )
             chart_context_obj = AgentContext(
-                settings=app.state.settings,
+                settings=settings,
                 conn=app.state.conn,
                 chart_id=payload.active_chart_id,
                 chart_name=payload.active_chart_name,
@@ -1722,7 +2553,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.last_chat_context = None
             app.state.context_cleared = False
             chart_context_obj = AgentContext(
-                settings=app.state.settings,
+                settings=settings,
                 conn=conn,
                 active_chart=active_context,
             )
@@ -1732,6 +2563,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             context=chart_context,
             context_obj=chart_context_obj,
             debug=True,
+            model_name=payload.agent_model,
         )
         if payload.debug and agent_debug_items:
             debug_items.extend(agent_debug_items)
@@ -1753,6 +2585,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.last_chat_debug = None
 
         latency_ms = int((time.perf_counter() - start) * 1000)
+        usage = _estimate_token_usage(payload.message, answer)
+        usd_cost = _estimate_usd_cost(
+            usage["prompt_tokens"], usage["completion_tokens"]
+        )
         chat_payload = DuckDBWriter.build_streamlit_chat_payload(
             session_id=payload.session_id,
             request_id=request_id,
@@ -1762,6 +2598,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             response_raw=raw_output,
             response_events=_extract_response_events(agent_debug_items),
             latency_ms=latency_ms,
+            model_name=(payload.agent_model or os.getenv("AGENT_MODEL", "gpt-5-nano")),
+            prompt_tokens=usage["prompt_tokens"],
+            completion_tokens=usage["completion_tokens"],
+            total_tokens=usage["total_tokens"],
+            token_cost=usage["total_tokens"],
+            usd_cost=usd_cost,
         )
         await writer.enqueue_streamlit_chat_log(chat_payload)
 
@@ -1776,7 +2618,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/chat/stream")
     async def chat_stream(
-        payload: ChatRequest, writer: DuckDBWriter = Depends(get_writer)
+        payload: ChatRequest,
+        request: Request,
+        writer: DuckDBWriter = Depends(get_writer),
     ) -> StreamingResponse:
         request_id = uuid.uuid4().hex
         agent_runner = app.state.agent_runner
@@ -1784,8 +2628,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         chart_context = None
         chart_context_obj = None
         conn = app.state.conn
+        settings = _resolve_superset_settings(request=request, payload=payload)
         active_context = _build_superset_active_context(
-            conn, dashboard_id=payload.dashboard_id
+            conn, settings=settings, dashboard_id=payload.dashboard_id
         )
         if payload.active_chart_id is None:
             interacting = active_context.get("interacting_chart") or {}
@@ -1805,7 +2650,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if log and isinstance(log.get("payload"), dict):
                 try:
                     response = fetch_chart_data_from_log(
-                        app.state.settings,
+                        settings,
                         log["payload"],
                     )
                     chart_data = _summarize_chart_data(response)
@@ -1823,7 +2668,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 ensure_ascii=False,
             )
             chart_context_obj = AgentContext(
-                settings=app.state.settings,
+                settings=settings,
                 conn=conn,
                 chart_id=payload.active_chart_id,
                 chart_name=payload.active_chart_name,
@@ -1833,7 +2678,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.context_cleared = False
         else:
             chart_context_obj = AgentContext(
-                settings=app.state.settings,
+                settings=settings,
                 conn=conn,
                 active_chart=active_context,
             )
@@ -1843,12 +2688,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             final_answer = None
             final_raw = None
             response_events: list[dict[str, Any]] = []
+            start = time.perf_counter()
             async for event in agent_runner.respond_stream(
                 payload.message,
                 _load_dialogue_history(conn, payload.session_id, 20),
                 context=chart_context,
                 context_obj=chart_context_obj,
                 debug=payload.debug,
+                model_name=payload.agent_model,
             ):
                 if event.get("event") == "final":
                     final_answer = event.get("answer")
@@ -1859,6 +2706,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
             if final_answer is None:
                 final_answer = "No answer."
+            usage = _estimate_token_usage(payload.message, final_answer)
+            usd_cost = _estimate_usd_cost(
+                usage["prompt_tokens"], usage["completion_tokens"]
+            )
 
             chat_payload = DuckDBWriter.build_streamlit_chat_payload(
                 session_id=payload.session_id,
@@ -1868,7 +2719,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 response=final_answer,
                 response_raw=final_raw,
                 response_events=response_events,
-                latency_ms=0,
+                latency_ms=int((time.perf_counter() - start) * 1000),
+                model_name=(payload.agent_model or os.getenv("AGENT_MODEL", "gpt-5-nano")),
+                prompt_tokens=usage["prompt_tokens"],
+                completion_tokens=usage["completion_tokens"],
+                total_tokens=usage["total_tokens"],
+                token_cost=usage["total_tokens"],
+                usd_cost=usd_cost,
             )
             await writer.enqueue_streamlit_chat_log(chat_payload)
 

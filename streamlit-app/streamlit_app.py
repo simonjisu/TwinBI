@@ -27,20 +27,31 @@ SUPERSET_INTERNAL_URL = os.getenv("SUPERSET_INTERNAL_URL", "http://superset_app:
 FASTAPI_INTERNAL_URL = os.getenv("FASTAPI_INTERNAL_URL", "http://localhost:8000")
 FASTAPI_PUBLIC_URL = os.getenv("FASTAPI_PUBLIC_URL", FASTAPI_INTERNAL_URL)
 STREAMLIT_USER_ID = os.getenv("STREAMLIT_USER_ID", "streamlit_user")
+DEFAULT_EMBED_AUTH_MODE = os.getenv("SUPERSET_EMBED_AUTH_MODE", "session_iframe")
 
-SUPERSET_USERNAME = os.getenv("SUPERSET_USERNAME", "admin")
-SUPERSET_PASSWORD = os.getenv("SUPERSET_PASSWORD", "admin")
+DEFAULT_SUPERSET_USERNAME = os.getenv("SUPERSET_USERNAME", "admin")
+DEFAULT_SUPERSET_PASSWORD = os.getenv("SUPERSET_PASSWORD", "admin")
+MODEL_OPTIONS = [
+    "gpt-5-nano",
+    "gpt-5-mini",
+    "gpt-4.1-nano",
+    "gpt-4.1-mini",
+    "gpt-4o-mini",
+]
 
 GUEST_TOKEN_AUD = os.getenv("SUPERSET_GUEST_AUD", "superset")
 
 
-def _api_session_with_bearer() -> tuple[requests.Session, str]:
+def _api_session_with_bearer(
+    superset_username: str,
+    superset_password: str,
+) -> tuple[requests.Session, str]:
     s = requests.Session()
     r = s.post(
         f"{SUPERSET_INTERNAL_URL}/api/v1/security/login",
         json={
-            "username": SUPERSET_USERNAME,
-            "password": SUPERSET_PASSWORD,
+            "username": superset_username,
+            "password": superset_password,
             "provider": "db",
             "refresh": False,
         },
@@ -62,14 +73,18 @@ def _api_get_csrf(session: requests.Session) -> str:
 
 
 @st.cache_data(ttl=240)
-def get_guest_token(dashboard_uuid: str) -> str:
-    sess, _access = _api_session_with_bearer()
+def get_guest_token(
+    dashboard_uuid: str,
+    superset_username: str,
+    superset_password: str,
+) -> str:
+    sess, _access = _api_session_with_bearer(superset_username, superset_password)
     csrf = _api_get_csrf(sess)
 
     payload = {
         "resources": [{"type": "dashboard", "id": str(dashboard_uuid)}],
         "rls": [],
-        "user": {"username": "streamlit-guest"},
+        "user": {"username": str(superset_username or "streamlit-guest")},
         "aud": os.getenv("SUPERSET_GUEST_AUD", "superset"),
     }
 
@@ -312,6 +327,10 @@ def render_schema_graph(path: str):
         """
     )
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
+st.session_state.setdefault("superset_username", DEFAULT_SUPERSET_USERNAME)
+st.session_state.setdefault("superset_password", DEFAULT_SUPERSET_PASSWORD)
+st.session_state.setdefault("agent_model", "gpt-5-mini")
+st.session_state.setdefault("embed_auth_mode", DEFAULT_EMBED_AUTH_MODE)
 st.markdown("""
 <style>
 /* Expander title text */
@@ -327,6 +346,9 @@ with st.sidebar:
     st.session_state.setdefault("session_id", uuid.uuid4().hex)
     chat_container_id = f"chat-component-{uuid.uuid4().hex}"
     dashboard_id_value = str(st.session_state.get("dashboard_id") or "")
+    superset_username_value = str(st.session_state.get("superset_username") or "")
+    superset_password_value = str(st.session_state.get("superset_password") or "")
+    agent_model_value = str(st.session_state.get("agent_model") or "gpt-5-nano")
     chat_html = (
         _load_html_template("chat.html")
         .replace("{{CHAT_CONTAINER_ID}}", chat_container_id)
@@ -334,6 +356,9 @@ with st.sidebar:
         .replace("{{SESSION_ID}}", st.session_state["session_id"])
         .replace("{{USER_ID}}", STREAMLIT_USER_ID)
         .replace("{{DASHBOARD_ID}}", dashboard_id_value)
+        .replace("{{SUPERSET_USERNAME}}", superset_username_value)
+        .replace("{{SUPERSET_PASSWORD}}", superset_password_value)
+        .replace("{{AGENT_MODEL}}", agent_model_value)
     )
     components.html(chat_html, height=830)
 
@@ -347,20 +372,42 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 st.title("TwinBI 🐝")
+active_context_container_id = f"superset-active-context-{uuid.uuid4().hex}"
+active_context_dashboard_id = str(st.session_state.get("dashboard_id") or "")
+active_context_superset_username = str(st.session_state.get("superset_username") or "")
+active_context_superset_password = str(st.session_state.get("superset_password") or "")
+active_context_html = (
+    _load_html_template("active_context.html")
+    .replace("{{CONTAINER_ID}}", active_context_container_id)
+    .replace("{{API_BASE}}", FASTAPI_PUBLIC_URL)
+    .replace("{{DASHBOARD_ID}}", active_context_dashboard_id)
+    .replace("{{SESSION_ID}}", st.session_state.get("session_id", ""))
+    .replace("{{SUPERSET_USERNAME}}", active_context_superset_username)
+    .replace("{{SUPERSET_PASSWORD}}", active_context_superset_password)
+)
+components.html(active_context_html, height=60)
 
-def get_dashboard_uuid_by_id(dashboard_id: str) -> str:
+def get_dashboard_uuid_by_id(
+    dashboard_id: str,
+    superset_username: str,
+    superset_password: str,
+) -> str:
     if not dashboard_id:
         return ""
-    sess, access_token = _api_session_with_bearer()
+    sess, _access_token = _api_session_with_bearer(superset_username, superset_password)
     r = sess.get(f"{SUPERSET_INTERNAL_URL}/api/v1/dashboard/{dashboard_id}", timeout=30)
     r.raise_for_status()
     return r.json()["result"]["uuid"]
 
 # @st.cache_data(ttl=240)
-def get_embed_uuid_by_dashboard_id(dashboard_id: str) -> str:
+def get_embed_uuid_by_dashboard_id(
+    dashboard_id: str,
+    superset_username: str,
+    superset_password: str,
+) -> str:
     if not dashboard_id:
         return ""
-    sess, access_token = _api_session_with_bearer()
+    sess, _access_token = _api_session_with_bearer(superset_username, superset_password)
     r = sess.get(f"{SUPERSET_INTERNAL_URL}/api/v1/dashboard/{dashboard_id}/embedded", timeout=30)
     if r.status_code == 404:
         return ""
@@ -368,14 +415,62 @@ def get_embed_uuid_by_dashboard_id(dashboard_id: str) -> str:
     return r.json()["result"]["uuid"]
 
 with st.sidebar:
+    AGENT_MODEL = st.selectbox(
+        "OpenAI Model",
+        options=MODEL_OPTIONS,
+        index=MODEL_OPTIONS.index(st.session_state.get("agent_model", "gpt-5-mini"))
+        if st.session_state.get("agent_model", "gpt-5-mini") in MODEL_OPTIONS
+        else 0,
+        key="agent_model",
+    )
     DASHBOARD_ID = st.text_input(
         "Dashboard ID",
         value=st.session_state.get("dashboard_id", "12"),
         help="Superset Dashboard Numeric ID",
         key="dashboard_id",
     )
-    DASHBOARD_UUID = get_dashboard_uuid_by_id(DASHBOARD_ID) if DASHBOARD_ID else ""
-    EMBED_UUID = get_embed_uuid_by_dashboard_id(DASHBOARD_ID) if DASHBOARD_ID else ""
+    SUPERSET_USERNAME = str(st.session_state.get("superset_username", DEFAULT_SUPERSET_USERNAME))
+    SUPERSET_PASSWORD = str(st.session_state.get("superset_password", DEFAULT_SUPERSET_PASSWORD))
+    EMBED_AUTH_MODE = st.selectbox(
+        "Embed Auth Mode",
+        options=["session_iframe", "guest_token"],
+        index=0
+        if st.session_state.get("embed_auth_mode", DEFAULT_EMBED_AUTH_MODE) == "session_iframe"
+        else 1,
+        key="embed_auth_mode",
+        help="session_iframe uses your browser Superset login session (non-guest behavior).",
+    )
+    if EMBED_AUTH_MODE == "session_iframe":
+        st.caption(
+            "Session iframe mode: login to Superset in this browser first. "
+            "If dashboard does not load, open Superset and authenticate, then rerun."
+        )
+        st.link_button("open superset", f"{SUPERSET_PUBLIC_URL}/login/")
+        if st.button("logout superset", key="logout_superset_btn", use_container_width=True):
+            logout_url = f"{SUPERSET_PUBLIC_URL}/logout/"
+            components.html(
+                f"""
+                <script>
+                (async function() {{
+                  try {{
+                    await fetch("{logout_url}", {{ credentials: "include", mode: "no-cors" }});
+                  }} catch (e) {{}}
+                }})();
+                </script>
+                """,
+                height=0,
+            )
+            st.success("Superset logout request sent. Rerun if needed.")
+    DASHBOARD_UUID = (
+        get_dashboard_uuid_by_id(DASHBOARD_ID, SUPERSET_USERNAME, SUPERSET_PASSWORD)
+        if DASHBOARD_ID and SUPERSET_USERNAME and SUPERSET_PASSWORD
+        else ""
+    )
+    EMBED_UUID = (
+        get_embed_uuid_by_dashboard_id(DASHBOARD_ID, SUPERSET_USERNAME, SUPERSET_PASSWORD)
+        if DASHBOARD_ID and SUPERSET_USERNAME and SUPERSET_PASSWORD
+        else ""
+    )
     # st.write("USERNAME:", SUPERSET_USERNAME)
     # st.write("PASSWORD:", SUPERSET_PASSWORD)
     # st.write("DASHBOARD_ID:", DASHBOARD_ID)
@@ -384,12 +479,37 @@ with st.sidebar:
     st.write("SESSION_ID:", st.session_state.get("session_id"))
     # st.write("--------------------------------")
     
-token = get_guest_token(DASHBOARD_ID) if DASHBOARD_ID else ""
-if not token:
-    st.error(f"Failed to get guest token for Superset dashboard. Maybe the UUID is not reachable? EMBED_UUID={bool(EMBED_UUID)} or DASHBOARD_UUID={bool(DASHBOARD_UUID)} is invalid or embedding is not enabled.")
-    st.stop()
+dashboard_height = 650
+refresh_counter = st.session_state.get("embed_refresh_counter", 0)
+try:
+    refresh_counter = int(refresh_counter)
+except Exception:
+    refresh_counter = 0
+st.session_state["embed_refresh_counter"] = refresh_counter + 1
+
+if EMBED_AUTH_MODE == "session_iframe":
+    if not DASHBOARD_ID:
+        st.error("Dashboard ID is required for session iframe embed.")
+        st.stop()
+    iframe_src = (
+        f"{SUPERSET_PUBLIC_URL}/superset/dashboard/{urllib.parse.quote(str(DASHBOARD_ID))}/"
+        "?standalone=1&show_filters=1&expand_filters=0"
+        f"&_r={st.session_state['embed_refresh_counter']}"
+    )
+    components.iframe(iframe_src, height=dashboard_height, scrolling=True)
 else:
-    dashboard_height = 650
+    token = (
+        get_guest_token(DASHBOARD_ID, SUPERSET_USERNAME, SUPERSET_PASSWORD)
+        if DASHBOARD_ID and SUPERSET_USERNAME and SUPERSET_PASSWORD
+        else ""
+    )
+    if not token:
+        st.error(
+            "Failed to get guest token for Superset dashboard. "
+            f"EMBED_UUID={bool(EMBED_UUID)} DASHBOARD_UUID={bool(DASHBOARD_UUID)}"
+        )
+        st.stop()
+
     superset_embed(
         dashboard_id=EMBED_UUID,
         superset_domain=SUPERSET_PUBLIC_URL,
@@ -398,7 +518,7 @@ else:
         session_id=st.session_state.get("session_id"),
         user_id=STREAMLIT_USER_ID,
         height=dashboard_height,
-        key="dash_2",
+        key=f"dash_{DASHBOARD_ID}_{st.session_state['embed_refresh_counter']}",
     )
 
 
@@ -470,6 +590,8 @@ with st.expander("Output", expanded=True):
             .replace("{{LOG_STORAGE_KEY}}", log_storage_key)
             .replace("{{SQL_STREAM_BASE}}", sql_stream_base)
             .replace("{{CHARTS_URL}}", charts_url)
+            .replace("{{SUPERSET_USERNAME}}", SUPERSET_USERNAME or "")
+            .replace("{{SUPERSET_PASSWORD}}", SUPERSET_PASSWORD or "")
         )
         components.html(sql_html, height=560) # 560
 

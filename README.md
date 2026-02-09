@@ -144,6 +144,15 @@ docker compose -f docker-compose.sales.yml -f docker-compose.streamlit.yml -f do
 (TwinBI) superset $ docker compose -f docker-compose.superset.yml up -d --build
 ```
 
+### Apply superset-embeded-component changes
+
+```bash
+# build frontend assets
+(TwinBI) $ cd streamlit-app/superset_embed_component/frontend
+(TwinBI) streamlit-app/superset_embed_component/frontend $ npm install
+(TwinBI) streamlit-app/superset_embed_component/frontend $ npm run build
+```
+
 ### Reset logs in superset
 
 ```bash
