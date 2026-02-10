@@ -15,6 +15,7 @@ import duckdb  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from fastapi_service.config import Settings  # noqa: E402
+from fastapi_service import db as fastapi_db  # noqa: E402
 from fastapi_service.main import create_app  # noqa: E402
 
 
@@ -116,7 +117,8 @@ class FastAPITestCase(unittest.TestCase):
                 client.app.state.writer.flush_blocking()
                 client.app.state.writer.flush_blocking()
 
-            conn = duckdb.connect(str(db_path))
+            user_db_path = fastapi_db.resolve_user_duckdb_path(str(db_path), "u_1")
+            conn = duckdb.connect(str(user_db_path))
             rows = conn.execute(
                 "SELECT COUNT(*) FROM superset_action_logs WHERE action = 'chart_click'"
             ).fetchone()
@@ -141,7 +143,8 @@ class FastAPITestCase(unittest.TestCase):
                 self.assertIn("request_id", body)
                 client.app.state.writer.flush_blocking()
 
-            conn = duckdb.connect(str(db_path))
+            user_db_path = fastapi_db.resolve_user_duckdb_path(str(db_path), "u_2")
+            conn = duckdb.connect(str(user_db_path))
             rows = conn.execute("SELECT COUNT(*) FROM streamlit_chat_logs").fetchone()
             conn.close()
             self.assertEqual(rows[0], 1)

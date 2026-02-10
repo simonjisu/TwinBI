@@ -347,6 +347,7 @@ with st.sidebar:
     chat_container_id = f"chat-component-{uuid.uuid4().hex}"
     dashboard_id_value = str(st.session_state.get("dashboard_id") or "")
     superset_username_value = str(st.session_state.get("superset_username") or "")
+    effective_user_id = superset_username_value or STREAMLIT_USER_ID
     superset_password_value = str(st.session_state.get("superset_password") or "")
     agent_model_value = str(st.session_state.get("agent_model") or "gpt-5-nano")
     chat_html = (
@@ -354,7 +355,7 @@ with st.sidebar:
         .replace("{{CHAT_CONTAINER_ID}}", chat_container_id)
         .replace("{{FASTAPI_PUBLIC_URL}}", FASTAPI_PUBLIC_URL)
         .replace("{{SESSION_ID}}", st.session_state["session_id"])
-        .replace("{{USER_ID}}", STREAMLIT_USER_ID)
+        .replace("{{USER_ID}}", effective_user_id)
         .replace("{{DASHBOARD_ID}}", dashboard_id_value)
         .replace("{{SUPERSET_USERNAME}}", superset_username_value)
         .replace("{{SUPERSET_PASSWORD}}", superset_password_value)
@@ -516,7 +517,7 @@ else:
         guest_token=token,
         event_api_base=FASTAPI_PUBLIC_URL,
         session_id=st.session_state.get("session_id"),
-        user_id=STREAMLIT_USER_ID,
+        user_id=(SUPERSET_USERNAME or STREAMLIT_USER_ID),
         height=dashboard_height,
         key=f"dash_{DASHBOARD_ID}_{st.session_state['embed_refresh_counter']}",
     )

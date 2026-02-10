@@ -14,7 +14,7 @@ from dataclasses import replace
 import math
 import os
 
-from fastapi import Body, Depends, FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -70,6 +70,42 @@ from fastapi_service.writer import DuckDBWriter
 logger = logging.getLogger(__name__)
 _CHART_DESC_PATH = Path(__file__).resolve().parents[1] / "chart_desc.json"
 _CHART_TEMPLATES_PATH = Path(__file__).resolve().parents[1] / "chart_templates.json"
+
+
+class UserDuckDBStore:
+    def __init__(self, base_path: str) -> None:
+        self._base_path = base_path
+        self._entries: dict[str, tuple[duckdb.DuckDBPyConnection, DuckDBWriter]] = {}
+        self._lock = asyncio.Lock()
+
+    async def get_or_create(
+        self, user_key: str | None
+    ) -> tuple[duckdb.DuckDBPyConnection, DuckDBWriter, str]:
+        path = db.resolve_user_duckdb_path(self._base_path, user_key)
+        existing = self._entries.get(path)
+        if existing:
+            conn, writer = existing
+            return conn, writer, path
+
+        async with self._lock:
+            existing = self._entries.get(path)
+            if existing:
+                conn, writer = existing
+                return conn, writer, path
+            conn = db.connect(path)
+            db.init_schema(conn)
+            writer = DuckDBWriter(conn)
+            await writer.start()
+            self._entries[path] = (conn, writer)
+            return conn, writer, path
+
+    async def stop_all(self) -> None:
+        for _path, (conn, writer) in list(self._entries.items()):
+            try:
+                await writer.stop()
+            finally:
+                conn.close()
+        self._entries.clear()
 
 
 def _load_chart_templates() -> dict[str, Any]:
@@ -689,10 +725,9 @@ def _decorate_superset_log(row: dict[str, Any]) -> dict[str, Any]:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = app.state.settings
-    conn = db.connect(settings.duckdb_path)
-    db.init_schema(conn)
-    writer = DuckDBWriter(conn)
-    await writer.start()
+    db_store = UserDuckDBStore(settings.duckdb_path)
+    conn, writer, _ = await db_store.get_or_create(None)
+    app.state.db_store = db_store
     app.state.conn = conn
     app.state.writer = writer
     app.state.superset_poller = None
@@ -724,9 +759,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         superset_task = app.state.superset_task
         if superset_task:
             await superset_task
-        writer = app.state.writer
-        await writer.stop()
-        conn.close()
+        db_store = app.state.db_store
+        await db_store.stop_all()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -744,9 +778,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.last_chat_context = None
     app.state.last_chat_debug = None
     app.state.context_cleared = False
-
-    def get_writer() -> DuckDBWriter:
-        return app.state.writer
 
     def _resolve_superset_settings(
         request: Request | None = None,
@@ -2466,11 +2497,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def chat(
         payload: ChatRequest,
         request: Request,
-        writer: DuckDBWriter = Depends(get_writer),
     ) -> ChatResponse:
         request_id = uuid.uuid4().hex
         start = time.perf_counter()
-        conn = app.state.conn
+        conn, writer, _ = await app.state.db_store.get_or_create(payload.user_id)
         settings = _resolve_superset_settings(request=request, payload=payload)
         active_context = _build_superset_active_context(
             conn, settings=settings, dashboard_id=payload.dashboard_id
@@ -2536,7 +2566,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 )
             chart_context_obj = AgentContext(
                 settings=settings,
-                conn=app.state.conn,
+                conn=conn,
                 chart_id=payload.active_chart_id,
                 chart_name=payload.active_chart_name,
                 chart_data=chart_data,
@@ -2620,14 +2650,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def chat_stream(
         payload: ChatRequest,
         request: Request,
-        writer: DuckDBWriter = Depends(get_writer),
     ) -> StreamingResponse:
         request_id = uuid.uuid4().hex
         agent_runner = app.state.agent_runner
         await agent_runner.startup()
         chart_context = None
         chart_context_obj = None
-        conn = app.state.conn
+        conn, writer, _ = await app.state.db_store.get_or_create(payload.user_id)
         settings = _resolve_superset_settings(request=request, payload=payload)
         active_context = _build_superset_active_context(
             conn, settings=settings, dashboard_id=payload.dashboard_id
@@ -2850,11 +2879,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return StatusResponse(status="cleared")
 
     @app.post("/events", response_model=StatusResponse)
-    async def events(
-        payload: EventRequest, writer: DuckDBWriter = Depends(get_writer)
-    ) -> StatusResponse:
+    async def events(payload: EventRequest) -> StatusResponse:
         event_id = time.time_ns()
         event_ts = payload.ts or datetime.now(timezone.utc)
+        _conn, writer, _ = await app.state.db_store.get_or_create(payload.user_id)
         ui_payload = DuckDBWriter.build_ui_payload(
             event_id=event_id,
             ts=event_ts,

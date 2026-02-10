@@ -1,17 +1,40 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
+from pathlib import Path
 
 import duckdb
 
 CHECKPOINT_KEY_SUPERSET_LAST_ID = "superset_last_id"
+_SAFE_IDENTIFIER_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def _ensure_parent_dir(path: str) -> None:
     directory = os.path.dirname(path)
     if directory:
         os.makedirs(directory, exist_ok=True)
+
+
+def sanitize_identifier(value: str | None) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    safe = _SAFE_IDENTIFIER_PATTERN.sub("-", text).strip("-")
+    return safe or None
+
+
+def resolve_user_duckdb_path(base_path: str, user_key: str | None) -> str:
+    safe_user = sanitize_identifier(user_key)
+    if not safe_user:
+        return base_path
+    path = Path(base_path)
+    stem = path.stem or "events"
+    suffix = path.suffix or ".duckdb"
+    return str(path.with_name(f"{stem}-{safe_user}{suffix}"))
 
 
 def connect(path: str, read_only: bool = False) -> duckdb.DuckDBPyConnection:
