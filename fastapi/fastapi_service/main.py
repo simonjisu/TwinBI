@@ -68,7 +68,6 @@ from fastapi_service.semantic import (
 from fastapi_service.writer import DuckDBWriter
 
 logger = logging.getLogger(__name__)
-_CHART_DESC_PATH = Path(__file__).resolve().parents[1] / "chart_desc.json"
 _CHART_TEMPLATES_PATH = Path(__file__).resolve().parents[1] / "chart_templates.json"
 
 
@@ -128,34 +127,6 @@ def _load_chart_templates() -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return payload if isinstance(payload, dict) else {}
-
-
-def _load_chart_descriptions(dashboard_id: int) -> dict[str, str]:
-    try:
-        payload = json.loads(_CHART_DESC_PATH.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return {}
-    except json.JSONDecodeError:
-        return {}
-    if not isinstance(payload, dict):
-        return {}
-    payload_dashboard_id = payload.get("dashboard_id")
-    if payload_dashboard_id is not None and int(payload_dashboard_id) != int(dashboard_id):
-        return {}
-    charts = payload.get("charts")
-    if not isinstance(charts, list):
-        return {}
-    desc_map: dict[str, str] = {}
-    for chart in charts:
-        if not isinstance(chart, dict):
-            continue
-        chart_id = chart.get("chart_id")
-        description = chart.get("description")
-        if chart_id is None or not description:
-            continue
-        desc_map[str(chart_id)] = str(description)
-    return desc_map
-
 
 
 def _summarize_chart_data(chart_data: Any | None) -> dict[str, Any]:
@@ -1832,15 +1803,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=502,
                 detail=f"Superset API error: {exc}",
             ) from exc
-        desc_map = _load_chart_descriptions(dashboard_id)
-        if desc_map:
-            for chart in charts:
-                chart_id = chart.get("chart_id") or chart.get("slice_id")
-                description = desc_map.get(str(chart_id)) if chart_id is not None else None
-                chart["description"] = description
-        else:
-            for chart in charts:
-                chart["description"] = None
         return {"dashboard_id": dashboard_id, "count": len(charts), "charts": charts}
 
     def _resolve_target_user_id(
