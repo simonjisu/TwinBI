@@ -1,0 +1,40 @@
+views:
+  - name: view_pricing_premium_products
+    description: "Pricing: Premium-positioned products (product avg revenue/unit vs type typical avg)"
+    cubes:
+      # anchor measures (fact)
+      - join_path: fact_sales
+        includes:
+          - total_receipts       # revenue numerator
+          - total_units_sold     # unit denominator
+          - revenue_per_unit     # SUM(total_receipts) / SUM(units_sold)
+          - total_transactions   # optional (drill/QA)
+          - average_unit_price   # optional (sanity check)
+
+      # product dimensions (what pricing filters/drills by)
+      - join_path: fact_sales.dim_product
+        prefix: true
+        includes:
+          - department
+          - category
+          - type               
+          - product_name
+          - brand
+          - marketing_group
+
+      # date dimensions (optional, but recommended so pricing can time-slice)
+      - join_path: fact_sales.dim_date
+        prefix: true
+        includes:
+          - date
+          - year
+          - quarter
+          - quarter_start
+
+      # store dimensions (optional; only include if you want to check regional price differences)
+      - join_path: fact_sales.dim_store
+        prefix: true
+        includes:
+          - sales_district
+          - city
+          - state
