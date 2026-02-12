@@ -71,7 +71,7 @@ Create the sales.db database in superset:
 (TwinBI) $ docker-compose -f ./docker-compose.sales.yml -d --build
 
 # Create Cube schema graphs
-(TwinBI) $ uv run src/schema_processor.py --create_graphs
+(TwinBI) $ uv run src/schema_processor.py --db_type sales --create_graphs
 (TwinBI) $ uv run src/hierarchy_duckdb.py --db_type sales
 ```
 
