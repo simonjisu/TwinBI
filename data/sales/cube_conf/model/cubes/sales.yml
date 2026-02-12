@@ -80,7 +80,30 @@ cubes:
           / NULLIF({previous_units}, 0)
         type: number
 
-    dimensions: 
+      # portfolio-wide benchmark (same value for every row)
+      - name: portfolio_avg_price_per_unit
+        type: number
+        sql: |
+          (
+            SELECT
+              SUM(fs2.total_receipts) * 1.0 / NULLIF(SUM(fs2.units_sold), 0)
+            FROM main.fact_sales fs2
+          )
+
+      # optional: type premium delta vs portfolio average
+      - name: type_premium_delta
+        multi_stage: true
+        type: number
+        sql: "{revenue_per_unit} - {portfolio_avg_price_per_unit}"
+
+      # optional: type premium index (ratio)
+      - name: type_premium_index
+        multi_stage: true
+        type: number
+        sql: "{revenue_per_unit} / NULLIF({portfolio_avg_price_per_unit}, 0)"
+
+
+    dimensions:
       - name: units_sold
         sql: "units_sold"
         type: number
@@ -100,6 +123,12 @@ cubes:
       - name: growth_15_flag
         type: number
         sql: "CASE WHEN {qoq_growth_rate} >= 0.15 THEN 1 ELSE 0 END"
+      - name: product_type
+        type: string
+        sql: "{dim_product.type}"
+      - name: product_name
+        type: string
+        sql: "{dim_product.product_name}"
 
   - name: dim_date
     sql_table: main.dim_date
