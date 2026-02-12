@@ -60,6 +60,9 @@ class DuckDBWriter:
     async def enqueue_checkpoint(self, key: str, value: str) -> None:
         await self._queue.put({"type": "checkpoint", "key": key, "value": value})
 
+    async def flush(self) -> None:
+        await self._flush_async()
+
     def flush_blocking(self, timeout: float = 2.0) -> None:
         if not self._loop:
             return
@@ -107,6 +110,7 @@ class DuckDBWriter:
         ts: datetime,
         session_id: str,
         user_id: str | None,
+        device_id: str | None,
         event_type: str,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
@@ -115,6 +119,7 @@ class DuckDBWriter:
             "ts": ts,
             "session_id": session_id,
             "user_id": user_id,
+            "device_id": device_id,
             "event_type": event_type,
             "payload_json": json.dumps(payload, ensure_ascii=True),
         }
@@ -148,6 +153,7 @@ class DuckDBWriter:
                 "source": "ui",
                 "session_id": payload.get("session_id"),
                 "user_id": user_id,
+                "device_id": payload.get("device_id"),
                 "event_type": payload.get("event_type"),
                 "payload": parsed_payload,
             },
@@ -173,6 +179,7 @@ class DuckDBWriter:
         session_id: str,
         request_id: str,
         user_id: str | None,
+        device_id: str | None,
         message: str,
         response: str,
         response_raw: str | None = None,
@@ -196,6 +203,7 @@ class DuckDBWriter:
             "session_id": session_id,
             "request_id": request_id,
             "user_id": user_id,
+            "device_id": device_id,
             "message": safe_message,
             "response": safe_response,
             "response_raw": safe_response_raw,

@@ -27,19 +27,29 @@ def sanitize_identifier(value: str | None) -> str | None:
     return safe or None
 
 
+def normalize_duckdb_base_path(base_path: str) -> str:
+    path = Path(base_path)
+    # Support directory-style config (e.g. "/logs/") by using events.duckdb inside it.
+    if base_path.endswith("/") or path.is_dir():
+        return str(path / "events.duckdb")
+    return str(path)
+
+
 def resolve_user_duckdb_path(base_path: str, user_key: str | None) -> str:
+    base = normalize_duckdb_base_path(base_path)
     safe_user = sanitize_identifier(user_key)
     if not safe_user:
-        return base_path
-    path = Path(base_path)
+        return base
+    path = Path(base)
     stem = path.stem or "events"
     suffix = path.suffix or ".duckdb"
     return str(path.with_name(f"{stem}-{safe_user}{suffix}"))
 
 
 def connect(path: str, read_only: bool = False) -> duckdb.DuckDBPyConnection:
-    _ensure_parent_dir(path)
-    return duckdb.connect(path, read_only=read_only)
+    normalized = normalize_duckdb_base_path(path)
+    _ensure_parent_dir(normalized)
+    return duckdb.connect(normalized, read_only=read_only)
 
 
 def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
@@ -50,6 +60,7 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
             session_id VARCHAR,
             request_id VARCHAR,
             user_id VARCHAR,
+            device_id VARCHAR,
             message VARCHAR,
             response VARCHAR,
             response_raw VARCHAR,
@@ -66,6 +77,10 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     )
     try:
         conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN response_raw VARCHAR")
+    except duckdb.CatalogException:
+        pass
+    try:
+        conn.execute("ALTER TABLE streamlit_chat_logs ADD COLUMN device_id VARCHAR")
     except duckdb.CatalogException:
         pass
     try:
@@ -161,16 +176,17 @@ def insert_streamlit_chat_log(
     conn.execute(
         """
         INSERT INTO streamlit_chat_logs (
-            ts, session_id, request_id, user_id, message, response, response_raw, response_events,
+            ts, session_id, request_id, user_id, device_id, message, response, response_raw, response_events,
             latency_ms, model_name, prompt_tokens, completion_tokens, total_tokens, token_cost, usd_cost
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [
             payload["ts"],
             payload.get("session_id"),
             payload.get("request_id"),
             payload.get("user_id"),
+            payload.get("device_id"),
             payload.get("message"),
             payload.get("response"),
             payload.get("response_raw"),

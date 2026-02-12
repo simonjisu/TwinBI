@@ -7,13 +7,13 @@
       "node_type": "attribute",
       "label": "Identity",
       "stats": {
-        "count": 365,
+        "count": 1095,
         "null_count": 0,
-        "distinct_count": 365,
-        "min": 20240101,
+        "distinct_count": 1095,
+        "min": 20220101,
         "max": 20241230,
         "range": [
-          20240101,
+          20220101,
           20241230
         ],
         "dtype": "integer",
@@ -29,13 +29,13 @@
       "node_type": "attribute",
       "label": "Date",
       "stats": {
-        "count": 365,
+        "count": 1095,
         "null_count": 0,
-        "distinct_count": 365,
-        "min": "2024-01-01",
+        "distinct_count": 1095,
+        "min": "2022-01-01",
         "max": "2024-12-30",
         "range": [
-          "2024-01-01",
+          "2022-01-01",
           "2024-12-30"
         ],
         "dtype": "date",
@@ -50,7 +50,7 @@
           "node_type": "attribute",
           "label": "Week",
           "stats": {
-            "count": 365,
+            "count": 1095,
             "null_count": 0,
             "distinct_count": 52,
             "min": 1,
@@ -72,7 +72,7 @@
           "node_type": "attribute",
           "label": "Month",
           "stats": {
-            "count": 365,
+            "count": 1095,
             "null_count": 0,
             "distinct_count": 12,
             "min": 1,
@@ -106,7 +106,7 @@
               "node_type": "attribute",
               "label": "Quarter",
               "stats": {
-                "count": 365,
+                "count": 1095,
                 "null_count": 0,
                 "distinct_count": 4,
                 "min": 1,
@@ -132,19 +132,21 @@
                   "node_type": "attribute",
                   "label": "Year",
                   "stats": {
-                    "count": 365,
+                    "count": 1095,
                     "null_count": 0,
-                    "distinct_count": 1,
-                    "min": 2024,
+                    "distinct_count": 3,
+                    "min": 2022,
                     "max": 2024,
                     "range": [
-                      2024,
+                      2022,
                       2024
                     ],
                     "dtype": "integer",
                     "unique_values": {
                       "type": "list",
                       "values": [
+                        2022,
+                        2023,
                         2024
                       ]
                     }

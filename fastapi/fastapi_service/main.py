@@ -330,8 +330,11 @@ def _fetch_latest_ui_event(
 ) -> dict[str, Any] | None:
     ui_actions = (
         "superset_tab_click",
+        "superset_tab_active",
         "legend_toggle",
         "chart_click",
+        "chart_activity",
+        "superset_ui_event",
         "cross_filter_added",
         "cross_filter_removed",
         # backward compatibility with old UI event names
@@ -697,12 +700,21 @@ def _decorate_superset_log(row: dict[str, Any]) -> dict[str, Any]:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = app.state.settings
     db_store = UserDuckDBStore(settings.duckdb_path)
-    conn, writer, _ = await db_store.get_or_create(None)
+    # Keep default app-level logs/checkpoints in memory so a base events.duckdb
+    # is not created when DUCKDB_PATH points to a directory (e.g. /logs/).
+    conn = db.connect(":memory:")
+    db.init_schema(conn)
+    writer = DuckDBWriter(conn)
+    await writer.start()
     app.state.db_store = db_store
     app.state.conn = conn
     app.state.writer = writer
     app.state.superset_poller = None
     app.state.superset_task = None
+
+    async def _writer_for_user(user_key: str | None) -> DuckDBWriter:
+        _conn, user_writer, _path = await db_store.get_or_create(user_key)
+        return user_writer
 
     if settings.superset_meta_db_uri:
         poller = SupersetPoller(
@@ -714,12 +726,43 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             username=settings.superset_log_username,
             writer=writer,
             conn=conn,
+            writer_for_user=_writer_for_user,
         )
         app.state.superset_poller = poller
         app.state.superset_task = asyncio.create_task(poller.run())
         logger.info("Superset poller started")
     else:
         logger.info("Superset poller disabled (SUPERSET_META_DB_URI not set)")
+
+    precreate_raw = os.getenv("PRECREATE_USER_KEYS", "")
+    precreate_users = [
+        item.strip()
+        for item in precreate_raw.split(",")
+        if isinstance(item, str) and item.strip()
+    ]
+    if precreate_users:
+        for user_key in precreate_users:
+            try:
+                _conn, user_writer, _path = await db_store.get_or_create(user_key)
+                bootstrap_payload = DuckDBWriter.build_ui_payload(
+                    event_id=time.time_ns(),
+                    ts=datetime.now(timezone.utc),
+                    session_id="bootstrap",
+                    user_id=user_key,
+                    device_id="server-init",
+                    event_type="bootstrap_init",
+                    payload={
+                        "source": "fastapi_startup",
+                        "user_key": user_key,
+                    },
+                )
+                await user_writer.enqueue_ui_event(bootstrap_payload)
+                try:
+                    await user_writer.flush()
+                except Exception:
+                    logger.exception("Bootstrap flush failed for user=%s", user_key)
+            except Exception:
+                logger.exception("Failed to precreate user DB for user=%s", user_key)
 
     try:
         yield
@@ -730,6 +773,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         superset_task = app.state.superset_task
         if superset_task:
             await superset_task
+        try:
+            await app.state.writer.stop()
+        finally:
+            app.state.conn.close()
         db_store = app.state.db_store
         await db_store.stop_all()
 
@@ -784,6 +831,49 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         return base_settings
 
+    def _resolve_log_db_path(user_key: str | None) -> str:
+        base_path = app.state.settings.duckdb_path
+        if user_key:
+            return db.resolve_user_duckdb_path(base_path, user_key)
+        return db.normalize_duckdb_base_path(base_path)
+
+    def _extract_client_ip(request: Request) -> str | None:
+        xff = request.headers.get("x-forwarded-for")
+        if isinstance(xff, str) and xff.strip():
+            first = xff.split(",")[0].strip()
+            if first:
+                return first
+        xrip = request.headers.get("x-real-ip")
+        if isinstance(xrip, str) and xrip.strip():
+            return xrip.strip()
+        if request.client and request.client.host:
+            return request.client.host
+        return None
+
+    def _resolve_scoped_user_key(
+        request: Request,
+        *,
+        user_name: str | None = None,
+        user_key: str | None = None,
+        device_id: str | None = None,
+        session_id: str | None = None,
+    ) -> str:
+        _ = (request, device_id, session_id)
+        resolved_user_name = user_name or user_key
+        return db.sanitize_identifier(resolved_user_name) or "anon"
+
+    def _connect_log_db(user_key: str | None) -> duckdb.DuckDBPyConnection:
+        path = _resolve_log_db_path(user_key)
+        return db.connect(path, read_only=False)
+
+    def _connect_existing_log_db(
+        user_key: str | None,
+    ) -> duckdb.DuckDBPyConnection | None:
+        path = _resolve_log_db_path(user_key)
+        if not Path(path).exists():
+            return None
+        return db.connect(path, read_only=False)
+
     @app.get("/health", response_model=StatusResponse)
     def health() -> StatusResponse:
         return StatusResponse(status="ok")
@@ -819,12 +909,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/superset/logs/latest")
     def superset_logs_latest(
+        request: Request,
         dashboard_id: int | None = None,
         user_id: int | None = None,
+        user_name: str | None = None,
+        user_key: str | None = None,
+        device_id: str | None = None,
         action: str | None = None,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
-        conn = db.connect(app.state.settings.duckdb_path, read_only=False)
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_name=user_name,
+            user_key=user_key,
+            device_id=device_id,
+        )
+        conn = _connect_log_db(scoped_user_key)
         try:
             filters = []
             params: list[Any] = []
@@ -873,10 +973,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         last_id: int,
         dashboard_id: int | None,
         user_id: int | None,
+        scoped_user_key: str | None,
         action: str | None,
         limit: int,
     ) -> list[dict[str, Any]]:
-        conn = db.connect(app.state.settings.duckdb_path, read_only=False)
+        path = _resolve_log_db_path(scoped_user_key)
+        if not Path(path).exists():
+            return []
+        conn = db.connect(path, read_only=False)
         try:
             filters = ["superset_log_id > ?"]
             params: list[Any] = [last_id]
@@ -935,11 +1039,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         source: str | None = None,
         dashboard_id: int | None = None,
         user_id: int | None = None,
+        user_name: str | None = None,
+        user_key: str | None = None,
+        device_id: str | None = None,
         action: str | None = None,
         last_id: int = 0,
         limit: int = 100,
         poll_interval_sec: float = 1.0,
     ) -> StreamingResponse:
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_name=user_name,
+            user_key=user_key,
+            device_id=device_id,
+        )
         translator = QueryTranslater(settings=app.state.settings)
         header_last_id = request.headers.get("Last-Event-ID") or request.headers.get(
             "last-event-id"
@@ -964,6 +1077,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             last_id=current_superset_id,
                             dashboard_id=dashboard_id,
                             user_id=user_id,
+                            scoped_user_key=scoped_user_key,
                             action=action,
                             limit=limit,
                         )
@@ -1016,10 +1130,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/superset/logs/latest_sql")
     def superset_logs_latest_sql(
+        request: Request,
         dashboard_id: int | None = None,
         slice_id: int | None = None,
+        user_name: str | None = None,
+        user_key: str | None = None,
+        device_id: str | None = None,
     ) -> dict[str, Any]:
-        conn = db.connect(app.state.settings.duckdb_path, read_only=False)
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_name=user_name,
+            user_key=user_key,
+            device_id=device_id,
+        )
+        conn = _connect_existing_log_db(scoped_user_key)
+        if conn is None:
+            raise HTTPException(status_code=404, detail="no chart data logs found")
         try:
             filters = [
                 "action IN ('ChartDataRestApi.data','ChartDataRestApi.json_dumps')"
@@ -1777,16 +1903,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return StatusResponse(status="ok")
 
     @app.get("/superset/users/lookup")
-    def superset_user_lookup(username: str) -> dict[str, Any]:
-        if not username:
-            raise HTTPException(status_code=400, detail="username is required")
+    def superset_user_lookup(
+        user_name: str,
+    ) -> dict[str, Any]:
         meta_db_uri = app.state.settings.superset_meta_db_uri
         if not meta_db_uri:
             raise HTTPException(status_code=400, detail="SUPERSET_META_DB_URI not set")
-        user_id = lookup_user_id(meta_db_uri, username)
+        user_id = lookup_user_id(meta_db_uri, user_name)
         if user_id is None:
             raise HTTPException(status_code=404, detail="user not found")
-        return {"username": username, "user_id": user_id}
+        return {"user_name": user_name, "user_id": user_id}
 
     def _fetch_dashboard_charts_response(
         settings: Settings,
@@ -1914,13 +2040,83 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             page += 1
         return charts
 
+    def _fetch_user_dashboards(
+        settings: Settings,
+        target_user_id: int,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        try:
+            session = _api_session_with_bearer(settings)
+            base_url = _get_base_url(settings)
+            _ensure_csrf(session, base_url)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Superset API error: {exc}",
+            ) from exc
+
+        page = 0
+        page_size = 100
+        remaining = max(1, limit)
+        dashboards: list[dict[str, Any]] = []
+        while remaining > 0:
+            response = session.get(
+                f"{base_url}/api/v1/dashboard/",
+                params={"page": page, "page_size": page_size},
+                timeout=30,
+            )
+            if response.status_code >= 400:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Superset API error: {response.text}",
+                )
+            payload = response.json()
+            batch = payload.get("result") if isinstance(payload, dict) else None
+            if not isinstance(batch, list) or not batch:
+                break
+
+            for entry in batch:
+                if not isinstance(entry, dict):
+                    continue
+                owners = entry.get("owners") or []
+                owner_ids = [
+                    owner.get("id")
+                    for owner in owners
+                    if isinstance(owner, dict) and owner.get("id") is not None
+                ]
+                if target_user_id not in owner_ids:
+                    continue
+                dashboard_id = entry.get("id")
+                if dashboard_id is None:
+                    continue
+                dashboards.append(
+                    {
+                        "dashboard_id": dashboard_id,
+                        "title": entry.get("dashboard_title") or entry.get("title"),
+                        "slug": entry.get("slug"),
+                        "url": entry.get("url"),
+                        "published": entry.get("published"),
+                        "status": entry.get("status"),
+                        "changed_on": entry.get("changed_on"),
+                        "changed_on_delta_humanized": entry.get(
+                            "changed_on_delta_humanized"
+                        ),
+                        "owners": owners,
+                    }
+                )
+                remaining -= 1
+                if remaining <= 0:
+                    break
+            if len(batch) < page_size:
+                break
+            page += 1
+        return dashboards
+
     @app.get("/superset/dashboards/charts")
     def superset_dashboards_charts(
         request: Request,
         dashboard_id: int | None = None,
         user_name: str | None = None,
-        # backward-compatible alias
-        username: str | None = None,
         user_id: int | None = None,
         limit: int = 200,
     ) -> dict[str, Any]:
@@ -1935,19 +2131,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=400,
                 detail="Superset URL not configured",
             )
-        requested_user_name = user_name or username
-        if dashboard_id is None and requested_user_name is None and user_id is None:
+        if dashboard_id is None and user_name is None and user_id is None:
             raise HTTPException(
                 status_code=400,
                 detail="Provide dashboard_id or user_name/user_id",
             )
 
-        if dashboard_id is not None and requested_user_name is None and user_id is None:
+        if dashboard_id is not None and user_name is None and user_id is None:
             return _fetch_dashboard_charts_response(settings=settings, dashboard_id=dashboard_id)
 
         target_user_id = _resolve_target_user_id(
             settings=settings,
-            user_name=requested_user_name,
+            user_name=user_name,
             user_id=user_id,
         )
         if target_user_id is None:
@@ -1964,9 +2159,49 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {
             "dashboard_id": dashboard_id,
             "user_id": target_user_id,
-            "user_name": requested_user_name,
+            "user_name": user_name,
             "count": len(charts),
             "charts": charts,
+        }
+
+    @app.get("/superset/dashboards")
+    def superset_dashboards(
+        request: Request,
+        user_name: str | None = None,
+        user_id: int | None = None,
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        settings = _resolve_superset_settings(request=request)
+        if not settings.superset_username or not settings.superset_password:
+            raise HTTPException(
+                status_code=400,
+                detail="Superset credentials not configured",
+            )
+        if not (settings.superset_internal_url or settings.superset_public_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Superset URL not configured",
+            )
+        target_user_id = _resolve_target_user_id(
+            settings=settings,
+            user_name=user_name,
+            user_id=user_id,
+        )
+        if target_user_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Provide user_name or user_id",
+            )
+        dashboards = _fetch_user_dashboards(
+            settings=settings,
+            target_user_id=target_user_id,
+            limit=limit,
+        )
+        return {
+            "user_id": target_user_id,
+            "user_name": user_name,
+            "count": len(dashboards),
+            "dashboards": dashboards,
         }
 
     @app.get("/superset/dashboards/{dashboard_id}/charts")
@@ -2055,6 +2290,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         chart_id: int,
         request: Request,
         dashboard_id: int | None = None,
+        user_name: str | None = None,
+        user_key: str | None = None,
+        device_id: str | None = None,
         wait_sec: float = 5.0,
         poll_interval_sec: float = 0.5,
     ) -> dict[str, Any]:
@@ -2071,11 +2309,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         deadline = time.monotonic() + max(wait_sec, 0.0)
         log = None
-        while time.monotonic() <= deadline:
-            log = _fetch_latest_chart_log(app.state.conn, chart_id)
-            if log:
-                break
-            time.sleep(max(poll_interval_sec, 0.1))
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_name=user_name,
+            user_key=user_key,
+            device_id=device_id,
+        )
+        conn = _connect_existing_log_db(scoped_user_key)
+        if conn is None:
+            raise HTTPException(status_code=404, detail="chart log not found")
+        try:
+            while time.monotonic() <= deadline:
+                log = _fetch_latest_chart_log(conn, chart_id)
+                if log:
+                    break
+                time.sleep(max(poll_interval_sec, 0.1))
+        finally:
+            conn.close()
         if not log or not isinstance(log.get("payload"), dict):
             raise HTTPException(status_code=404, detail="chart log not found")
         try:
@@ -2102,9 +2352,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"chart_id": chart_id, "data": data, "raw": response}
 
     @app.get("/superset/charts/{chart_id}/log-context")
-    def superset_chart_log_context(chart_id: int) -> dict[str, Any]:
-        conn = app.state.conn
-        log = _fetch_latest_chart_log(conn, chart_id)
+    def superset_chart_log_context(
+        chart_id: int,
+        request: Request,
+        user_name: str | None = None,
+        user_key: str | None = None,
+        device_id: str | None = None,
+    ) -> dict[str, Any]:
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_name=user_name,
+            user_key=user_key,
+            device_id=device_id,
+        )
+        conn = _connect_existing_log_db(scoped_user_key)
+        if conn is None:
+            raise HTTPException(status_code=404, detail="chart log not found")
+        try:
+            log = _fetch_latest_chart_log(conn, chart_id)
+        finally:
+            conn.close()
         if not log:
             raise HTTPException(status_code=404, detail="chart log not found")
         return {"chart_id": chart_id, "log": _summarize_chart_log(log)}
@@ -2133,7 +2400,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from exc
 
     @app.get("/superset/charts/{chart_id}/queries")
-    def superset_chart_queries(chart_id: int, request: Request) -> dict[str, Any]:
+    def superset_chart_queries(
+        chart_id: int,
+        request: Request,
+        user_name: str | None = None,
+        user_key: str | None = None,
+        device_id: str | None = None,
+    ) -> dict[str, Any]:
         settings = _resolve_superset_settings(request=request)
         if not settings.superset_username or not settings.superset_password:
             raise HTTPException(
@@ -2155,7 +2428,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail=f"Superset API error: {exc}",
             ) from exc
         if result.get("queries") is None:
-            log = _fetch_latest_chart_log(app.state.conn, chart_id)
+            scoped_user_key = _resolve_scoped_user_key(
+                request,
+                user_name=user_name,
+                user_key=user_key,
+                device_id=device_id,
+            )
+            conn = _connect_existing_log_db(scoped_user_key)
+            if conn is None:
+                log = None
+            else:
+                try:
+                    log = _fetch_latest_chart_log(conn, chart_id)
+                finally:
+                    conn.close()
             payload = log.get("payload") if isinstance(log, dict) else None
             if isinstance(payload, dict):
                 result["queries"] = payload.get("queries")
@@ -2256,7 +2542,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     break
 
         active_tab = None
-        if ui_event and ui_event.get("action") == "superset_tab_click":
+        if ui_event and ui_event.get("action") in ("superset_tab_click", "superset_tab_active"):
             payload = ui_event.get("payload") or {}
             if isinstance(payload, dict) and isinstance(payload.get("payload"), dict):
                 payload = payload.get("payload") or {}
@@ -2338,6 +2624,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if ui_event and ui_event.get("action") in (
             "legend_toggle",
             "chart_click",
+            "chart_activity",
+            "superset_ui_event",
             "cross_filter_added",
             # backward compatibility
             "filter_added",
@@ -2365,16 +2653,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if ui_event and ui_event.get("action") in (
             "legend_toggle",
             "chart_click",
+            "chart_activity",
+            "superset_ui_event",
             "cross_filter_added",
             # backward compatibility
             "filter_added",
         ):
             if interaction_action is not None:
                 interacting_chart = {"slice_id": _ui_slice_id(ui_event), "name": chart_name}
-        elif effective_session_id:
-            # Session-aware mode: when no UI event exists for this session yet,
-            # keep interaction empty instead of reusing stale global activity.
-            interacting_chart = None
         elif latest_chart and latest_chart.get("slice_id"):
             interacting_chart = {"slice_id": latest_chart.get("slice_id"), "name": chart_name}
         elif log and log.get("slice_id"):
@@ -2395,6 +2681,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request: Request,
         dashboard_id: int | None = None,
         session_id: str | None = None,
+        user_name: str | None = None,
+        user_key: str | None = None,
+        device_id: str | None = None,
     ) -> dict[str, Any]:
         poller = app.state.superset_poller
         if poller:
@@ -2407,20 +2696,45 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 app.state.writer.flush_blocking(timeout=2.0)
             except Exception:
                 pass
-        conn = app.state.conn
-        settings = _resolve_superset_settings(request=request)
-        return _build_superset_active_context(
-            conn, settings=settings, dashboard_id=dashboard_id, session_id=session_id
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_name=user_name,
+            user_key=user_key,
+            device_id=device_id,
+            session_id=session_id,
         )
+        conn = _connect_existing_log_db(scoped_user_key)
+        settings = _resolve_superset_settings(request=request)
+        if conn is None:
+            return {}
+        try:
+            return _build_superset_active_context(
+                conn,
+                settings=settings,
+                dashboard_id=dashboard_id,
+                session_id=session_id,
+            )
+        finally:
+            conn.close()
 
     @app.get("/superset/charts/active/stream")
     async def superset_active_chart_stream(
         request: Request,
         dashboard_id: int | None = None,
         session_id: str | None = None,
+        user_name: str | None = None,
+        user_key: str | None = None,
+        device_id: str | None = None,
         poll_interval_sec: float = 1.0,
     ) -> StreamingResponse:
         settings = _resolve_superset_settings(request=request)
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_name=user_name,
+            user_key=user_key,
+            device_id=device_id,
+            session_id=session_id,
+        )
         async def event_generator() -> Any:
             last_payload = ""
             while True:
@@ -2433,10 +2747,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         app.state.writer.flush_blocking(timeout=2.0)
                     except Exception:
                         pass
-                conn = app.state.conn
-                payload = _build_superset_active_context(
-                    conn, settings=settings, dashboard_id=dashboard_id, session_id=session_id
-                )
+                conn = _connect_existing_log_db(scoped_user_key)
+                if conn is None:
+                    payload = {}
+                else:
+                    try:
+                        payload = _build_superset_active_context(
+                            conn,
+                            settings=settings,
+                            dashboard_id=dashboard_id,
+                            session_id=session_id,
+                        )
+                    finally:
+                        conn.close()
                 payload_text = json.dumps(payload, default=str, ensure_ascii=False)
                 if payload_text != last_payload:
                     last_payload = payload_text
@@ -2462,7 +2785,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> ChatResponse:
         request_id = uuid.uuid4().hex
         start = time.perf_counter()
-        conn, writer, _ = await app.state.db_store.get_or_create(payload.user_id)
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_key=payload.user_id,
+            device_id=payload.device_id,
+            session_id=payload.session_id,
+        )
+        conn, writer, _ = await app.state.db_store.get_or_create(scoped_user_key)
         settings = _resolve_superset_settings(request=request, payload=payload)
         active_context = _build_superset_active_context(
             conn, settings=settings, dashboard_id=payload.dashboard_id
@@ -2585,6 +2914,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             session_id=payload.session_id,
             request_id=request_id,
             user_id=payload.user_id,
+            device_id=payload.device_id,
             message=payload.message,
             response=answer,
             response_raw=raw_output,
@@ -2618,7 +2948,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await agent_runner.startup()
         chart_context = None
         chart_context_obj = None
-        conn, writer, _ = await app.state.db_store.get_or_create(payload.user_id)
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_key=payload.user_id,
+            device_id=payload.device_id,
+            session_id=payload.session_id,
+        )
+        conn, writer, _ = await app.state.db_store.get_or_create(scoped_user_key)
         settings = _resolve_superset_settings(request=request, payload=payload)
         active_context = _build_superset_active_context(
             conn, settings=settings, dashboard_id=payload.dashboard_id
@@ -2706,6 +3042,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 session_id=payload.session_id,
                 request_id=request_id,
                 user_id=payload.user_id,
+                device_id=payload.device_id,
                 message=payload.message,
                 response=final_answer,
                 response_raw=final_raw,
@@ -2723,26 +3060,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     @app.get("/chat/context/latest")
-    def chat_context_latest() -> dict[str, Any]:
+    def chat_context_latest(
+        request: Request,
+        user_id: str | None = None,
+        device_id: str | None = None,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
         ctx = app.state.last_chat_context
         if app.state.context_cleared:
             return {"context": None}
         if ctx:
             return {"context": ctx}
-        conn = app.state.conn
-        latest = _fetch_latest_active_chart(conn)
-        if not latest or not latest.get("slice_id"):
-            return {"context": None}
-        log = _fetch_latest_chart_log(conn, int(latest["slice_id"]))
-        summary = _summarize_chart_log(log) if log else {"chart_log": "unavailable"}
-        return {
-            "context": {
-                "chart_id": latest.get("slice_id"),
-                "chart_name": None,
-                "chart_log": summary,
-                "chart_data": None,
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_key=user_id,
+            device_id=device_id,
+            session_id=session_id,
+        )
+        conn = _connect_log_db(scoped_user_key)
+        try:
+            latest = _fetch_latest_active_chart(conn)
+            if not latest or not latest.get("slice_id"):
+                return {"context": None}
+            log = _fetch_latest_chart_log(conn, int(latest["slice_id"]))
+            summary = _summarize_chart_log(log) if log else {"chart_log": "unavailable"}
+            return {
+                "context": {
+                    "chart_id": latest.get("slice_id"),
+                    "chart_name": None,
+                    "chart_log": summary,
+                    "chart_data": None,
+                }
             }
-        }
+        finally:
+            conn.close()
 
     @app.get("/chat/debug/latest")
     def chat_debug_latest() -> dict[str, Any]:
@@ -2753,24 +3104,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/chat/dialogue")
     def chat_dialogue(
+        request: Request,
         session_id: str,
+        user_id: str | None = None,
+        device_id: str | None = None,
         limit: int = 50,
     ) -> dict[str, Any]:
         if limit <= 0:
             raise HTTPException(status_code=400, detail="limit must be > 0")
-        conn = app.state.conn
-        rows = conn.execute(
-            """
-            SELECT ts, user_id, message, response, response_raw, response_events
-            FROM streamlit_chat_logs
-            WHERE session_id = ?
-            ORDER BY ts DESC
-            LIMIT ?
-            """,
-            [session_id, limit],
-        ).fetchall()
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_key=user_id,
+            device_id=device_id,
+            session_id=session_id,
+        )
+        conn = _connect_log_db(scoped_user_key)
+        try:
+            rows = conn.execute(
+                """
+                SELECT ts, user_id, device_id, message, response, response_raw, response_events
+                FROM streamlit_chat_logs
+                WHERE session_id = ?
+                ORDER BY ts DESC
+                LIMIT ?
+                """,
+                [session_id, limit],
+            ).fetchall()
+        finally:
+            conn.close()
         dialogue = []
-        for ts, user_id, message, response, response_raw, response_events in reversed(rows):
+        for ts, user_id, device_id, message, response, response_raw, response_events in reversed(rows):
             if message:
                 dialogue.append(
                     {
@@ -2778,6 +3141,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         "content": message,
                         "ts": ts.isoformat() if ts else None,
                         "user_id": user_id,
+                        "device_id": device_id,
                     }
                 )
             if response_events:
@@ -2795,6 +3159,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                                 "content": "",
                                 "ts": ts.isoformat() if ts else None,
                                 "user_id": user_id,
+                                "device_id": device_id,
                             }
                         )
             if response:
@@ -2803,6 +3168,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "content": response,
                     "ts": ts.isoformat() if ts else None,
                     "user_id": user_id,
+                    "device_id": device_id,
                 }
                 if response_raw:
                     item["content_raw"] = response_raw
@@ -2823,15 +3189,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.delete("/chat/dialogue")
     def clear_chat_dialogue(
+        request: Request,
         session_id: str,
+        user_id: str | None = None,
+        device_id: str | None = None,
     ) -> StatusResponse:
         if not session_id:
             raise HTTPException(status_code=400, detail="session_id is required")
-        conn = app.state.conn
-        conn.execute(
-            "DELETE FROM streamlit_chat_logs WHERE session_id = ?",
-            [session_id],
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_key=user_id,
+            device_id=device_id,
+            session_id=session_id,
         )
+        conn = _connect_log_db(scoped_user_key)
+        try:
+            conn.execute(
+                "DELETE FROM streamlit_chat_logs WHERE session_id = ?",
+                [session_id],
+            )
+        finally:
+            conn.close()
         return StatusResponse(status="cleared")
 
     @app.delete("/chat/context")
@@ -2841,15 +3219,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return StatusResponse(status="cleared")
 
     @app.post("/events", response_model=StatusResponse)
-    async def events(payload: EventRequest) -> StatusResponse:
+    async def events(payload: EventRequest, request: Request) -> StatusResponse:
         event_id = time.time_ns()
         event_ts = payload.ts or datetime.now(timezone.utc)
-        _conn, writer, _ = await app.state.db_store.get_or_create(payload.user_id)
+        scoped_user_key = _resolve_scoped_user_key(
+            request,
+            user_key=payload.user_id,
+            device_id=payload.device_id,
+            session_id=payload.session_id,
+        )
+        _conn, writer, _ = await app.state.db_store.get_or_create(scoped_user_key)
         ui_payload = DuckDBWriter.build_ui_payload(
             event_id=event_id,
             ts=event_ts,
             session_id=payload.session_id,
             user_id=payload.user_id,
+            device_id=payload.device_id,
             event_type=payload.event_type,
             payload=payload.payload,
         )

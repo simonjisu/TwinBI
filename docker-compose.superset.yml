@@ -69,7 +69,7 @@ services:
     user: "root"
     restart: unless-stopped
     ports:
-      - 8088:8088
+      - 58088:8088
     depends_on:
       superset-init:
         condition: service_completed_successfully

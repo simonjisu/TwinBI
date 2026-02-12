@@ -9,14 +9,14 @@ services:
     env_file:
       - ./fastapi/.env
     environment:
-      - DUCKDB_PATH=/logs/events.duckdb
+      - DUCKDB_PATH=/logs/
       - SUPERSET_META_DB_URI=postgresql://superset:superset@superset_db:5432/superset
       - SUPERSET_POLL_INTERVAL_SEC=2
       - SUPERSET_BATCH_SIZE=200
-      - SUPERSET_PUBLIC_URL=http://localhost:8088
+      - SUPERSET_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:58088
       - SUPERSET_INTERNAL_URL=http://superset_app:8088
-      - SUPERSET_USERNAME=harry_potter
-      - SUPERSET_PASSWORD=1234
+      - SUPERSET_USERNAME=admin
+      - SUPERSET_PASSWORD=admin
       - SUPERSET_GUEST_AUD=superset
       - SUPERSET_LOG_DASHBOARD_ID=12
       - SUPERSET_LOG_USER_ID=
@@ -25,7 +25,9 @@ services:
       - CUBE_SQL_HOST=sales
       - CUBE_SQL_PORT=15432
       - CUBE_CONF_PATH=/cube/conf
-      - CORS_ORIGINS=http://localhost:8501
+      - CORS_ORIGINS=${CORS_ORIGINS:-}
+      - CORS_ORIGINS_APPEND=${CORS_ORIGINS_APPEND:-http://localhost:50101,http://localhost:50102,http://localhost:50103,http://localhost:50104,http://localhost:50105,http://localhost:50199,http://${PUBLIC_HOST:-localhost}:50101,http://${PUBLIC_HOST:-localhost}:50102,http://${PUBLIC_HOST:-localhost}:50103,http://${PUBLIC_HOST:-localhost}:50104,http://${PUBLIC_HOST:-localhost}:50105,http://${PUBLIC_HOST:-localhost}:50199}
+      - PRECREATE_USER_KEYS=${PRECREATE_USER_KEYS:-admin,test1,test2,test3,test4,test5}
     volumes:
       - ./data/logs:/logs
       - ./data/sales:/app/cube_data:ro

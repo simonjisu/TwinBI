@@ -1,11 +1,11 @@
 services:
-  streamlit:
-    container_name: streamlit_app
+  streamlit_1:
+    container_name: streamlit_app_1
     build:
       context: ./streamlit-app
       dockerfile: Dockerfile
     ports:
-      - "8501:8501"
+      - "50101:8501"
     volumes:
       - ./data:/app/cube_data:ro
       - ./streamlit-app:/app
@@ -14,12 +14,143 @@ services:
     command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8501 --server.runOnSave true
     environment:
       - SUPERSET_EMBED_COMPONENT_RELEASE=1
-      - SUPERSET_PUBLIC_URL=http://localhost:8088
+      - SUPERSET_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:58088
       - SUPERSET_INTERNAL_URL=http://superset_app:8088
       - FASTAPI_INTERNAL_URL=http://api:8000
-      - FASTAPI_PUBLIC_URL=http://localhost:8000
-      - SUPERSET_USERNAME=harry_potter
-      - SUPERSET_PASSWORD=1234
+      - FASTAPI_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:8000
+      - SUPERSET_USERNAME=test1
+      - SUPERSET_PASSWORD=test1
+      - STREAMLIT_USER_ID=test1
+      - SUPERSET_GUEST_AUD=superset
+    networks:
+      - agent4olap_net
+
+  streamlit_2:
+    container_name: streamlit_app_2
+    build:
+      context: ./streamlit-app
+      dockerfile: Dockerfile
+    ports:
+      - "50102:8502"
+    volumes:
+      - ./data:/app/cube_data:ro
+      - ./streamlit-app:/app
+      - ./src:/app/src:ro
+    working_dir: /app
+    command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8502 --server.runOnSave true
+    environment:
+      - SUPERSET_EMBED_COMPONENT_RELEASE=1
+      - SUPERSET_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:58088
+      - SUPERSET_INTERNAL_URL=http://superset_app:8088
+      - FASTAPI_INTERNAL_URL=http://api:8000
+      - FASTAPI_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:8000
+      - SUPERSET_USERNAME=test2
+      - SUPERSET_PASSWORD=test2
+      - STREAMLIT_USER_ID=test2
+      - SUPERSET_GUEST_AUD=superset
+    networks:
+      - agent4olap_net
+
+  streamlit_3:
+    container_name: streamlit_app_3
+    build:
+      context: ./streamlit-app
+      dockerfile: Dockerfile
+    ports:
+      - "50103:8503"
+    volumes:
+      - ./data:/app/cube_data:ro
+      - ./streamlit-app:/app
+      - ./src:/app/src:ro
+    working_dir: /app
+    command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8503 --server.runOnSave true
+    environment:
+      - SUPERSET_EMBED_COMPONENT_RELEASE=1
+      - SUPERSET_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:58088
+      - SUPERSET_INTERNAL_URL=http://superset_app:8088
+      - FASTAPI_INTERNAL_URL=http://api:8000
+      - FASTAPI_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:8000
+      - SUPERSET_USERNAME=test3
+      - SUPERSET_PASSWORD=test3
+      - STREAMLIT_USER_ID=test3
+      - SUPERSET_GUEST_AUD=superset
+    networks:
+      - agent4olap_net
+
+  streamlit_4:
+    container_name: streamlit_app_4
+    build:
+      context: ./streamlit-app
+      dockerfile: Dockerfile
+    ports:
+      - "50104:8504"
+    volumes:
+      - ./data:/app/cube_data:ro
+      - ./streamlit-app:/app
+      - ./src:/app/src:ro
+    working_dir: /app
+    command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8504 --server.runOnSave true
+    environment:
+      - SUPERSET_EMBED_COMPONENT_RELEASE=1
+      - SUPERSET_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:58088
+      - SUPERSET_INTERNAL_URL=http://superset_app:8088
+      - FASTAPI_INTERNAL_URL=http://api:8000
+      - FASTAPI_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:8000
+      - SUPERSET_USERNAME=test4
+      - SUPERSET_PASSWORD=test4
+      - STREAMLIT_USER_ID=test4
+      - SUPERSET_GUEST_AUD=superset
+    networks:
+      - agent4olap_net
+
+  streamlit_5:
+    container_name: streamlit_app_5
+    build:
+      context: ./streamlit-app
+      dockerfile: Dockerfile
+    ports:
+      - "50105:8505"
+    volumes:
+      - ./data:/app/cube_data:ro
+      - ./streamlit-app:/app
+      - ./src:/app/src:ro
+    working_dir: /app
+    command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8505 --server.runOnSave true
+    environment:
+      - SUPERSET_EMBED_COMPONENT_RELEASE=1
+      - SUPERSET_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:58088
+      - SUPERSET_INTERNAL_URL=http://superset_app:8088
+      - FASTAPI_INTERNAL_URL=http://api:8000
+      - FASTAPI_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:8000
+      - SUPERSET_USERNAME=test5
+      - SUPERSET_PASSWORD=test5
+      - STREAMLIT_USER_ID=test5
+      - SUPERSET_GUEST_AUD=superset
+    networks:
+      - agent4olap_net
+
+  streamlit_admin:
+    container_name: streamlit_app_admin
+    build:
+      context: ./streamlit-app
+      dockerfile: Dockerfile
+    ports:
+      - "50199:8599"
+    volumes:
+      - ./data:/app/cube_data:ro
+      - ./streamlit-app:/app
+      - ./src:/app/src:ro
+    working_dir: /app
+    command: streamlit run streamlit_app.py --server.address 0.0.0.0 --server.port 8599 --server.runOnSave true
+    environment:
+      - SUPERSET_EMBED_COMPONENT_RELEASE=1
+      - SUPERSET_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:58088
+      - SUPERSET_INTERNAL_URL=http://superset_app:8088
+      - FASTAPI_INTERNAL_URL=http://api:8000
+      - FASTAPI_PUBLIC_URL=http://${PUBLIC_HOST:-localhost}:8000
+      - SUPERSET_USERNAME=admin
+      - SUPERSET_PASSWORD=admin
+      - STREAMLIT_USER_ID=admin
       - SUPERSET_GUEST_AUD=superset
     networks:
       - agent4olap_net

@@ -10,6 +10,15 @@ def _split_csv(value: str | None) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _merge_origins(*values: list[str]) -> list[str]:
+    merged: list[str] = []
+    for origins in values:
+        for origin in origins:
+            if origin not in merged:
+                merged.append(origin)
+    return merged
+
+
 @dataclass(frozen=True)
 class Settings:
     duckdb_path: str
@@ -62,5 +71,8 @@ def load_settings() -> Settings:
         cube_sql_host=os.getenv("CUBE_SQL_HOST"),
         cube_sql_port=int(cube_sql_port) if cube_sql_port else None,
         cube_conf_path=os.getenv("CUBE_CONF_PATH"),
-        cors_origins=_split_csv(os.getenv("CORS_ORIGINS")),
+        cors_origins=_merge_origins(
+            _split_csv(os.getenv("CORS_ORIGINS")),
+            _split_csv(os.getenv("CORS_ORIGINS_APPEND")),
+        ),
     )

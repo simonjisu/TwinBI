@@ -10,6 +10,7 @@ from pydantic.config import ConfigDict
 class ChatRequest(BaseModel):
     session_id: str
     user_id: str | None = None
+    device_id: str | None = None
     message: str
     history: list[dict[str, str]] = Field(default_factory=list)
     dashboard_id: int | None = None
@@ -34,6 +35,7 @@ class EventRequest(BaseModel):
     ts: datetime | None = None
     session_id: str
     user_id: str | None = None
+    device_id: str | None = None
     event_type: str
     payload: dict[str, Any] = Field(default_factory=dict)
 

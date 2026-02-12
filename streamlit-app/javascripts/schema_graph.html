@@ -33,6 +33,23 @@
   const panel = root.querySelector(".schema-graph-panel");
   const apiBase = "{{FASTAPI_PUBLIC_URL}}";
   const sessionId = "{{SESSION_ID}}";
+  const deviceStorageKey = "agent4olap_device_id";
+  const deviceId = (() => {
+    try {
+      let id = localStorage.getItem(deviceStorageKey);
+      if (!id) {
+        if (window.crypto && crypto.randomUUID) {
+          id = crypto.randomUUID();
+        } else {
+          id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        }
+        localStorage.setItem(deviceStorageKey, id);
+      }
+      return id;
+    } catch (err) {
+      return "";
+    }
+  })();
   const graphData = {{SCHEMA_JSON}};
 
   function normalize(value) {
@@ -244,7 +261,14 @@
   function startHighlightStream() {
     if (!apiBase || !sessionId || !window.EventSource) return;
     const lastId = "0";
-    const url = `${apiBase.replace(/\/+$/, "")}/events/stream?source=superset&action=schema_highlight&limit=1&last_id=${lastId}`;
+    const params = new URLSearchParams({
+      source: "superset",
+      action: "schema_highlight",
+      limit: "1",
+      last_id: String(lastId),
+    });
+    if (deviceId) params.set("device_id", deviceId);
+    const url = `${apiBase.replace(/\/+$/, "")}/events/stream?${params.toString()}`;
     const source = new EventSource(url);
     source.onmessage = (event) => {
       try {

@@ -9,6 +9,24 @@
     const apiBase = "{{API_BASE}}";
     const dashboardId = "{{DASHBOARD_ID}}";
     const sessionId = "{{SESSION_ID}}";
+    const userId = "{{USER_ID}}";
+    const deviceStorageKey = "agent4olap_device_id";
+    const deviceId = (() => {
+      try {
+        let id = localStorage.getItem(deviceStorageKey);
+        if (!id) {
+          if (window.crypto && crypto.randomUUID) {
+            id = crypto.randomUUID();
+          } else {
+            id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+          }
+          localStorage.setItem(deviceStorageKey, id);
+        }
+        return id;
+      } catch (err) {
+        return "";
+      }
+    })();
     const supersetUsername = "{{SUPERSET_USERNAME}}";
     const supersetPassword = "{{SUPERSET_PASSWORD}}";
     const desiredDashboardId = (() => {
@@ -294,7 +312,10 @@
       if (!apiBase || !window.EventSource) return;
       // Keep stream unfiltered by dashboard_id so chart events with missing
       // dashboard_id are not dropped by backend filtering.
-      const url = `${apiBase}/events/stream?source=superset`;
+      const streamParams = new URLSearchParams({ source: "superset" });
+      if (userId) streamParams.set("user_name", userId);
+      if (deviceId) streamParams.set("device_id", deviceId);
+      const url = `${apiBase}/events/stream?${streamParams.toString()}`;
       let syncTimer = null;
       let syncing = false;
 
@@ -309,6 +330,12 @@
           }
           if (sessionId) {
             params.push(`session_id=${encodeURIComponent(sessionId)}`);
+          }
+          if (userId) {
+            params.push(`user_name=${encodeURIComponent(userId)}`);
+          }
+          if (deviceId) {
+            params.push(`device_id=${encodeURIComponent(deviceId)}`);
           }
           if (params.length) {
             activeUrl += `?${params.join("&")}`;

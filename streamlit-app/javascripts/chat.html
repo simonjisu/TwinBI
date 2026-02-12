@@ -29,6 +29,12 @@
     }
     .chat-input-row {
       display: flex;
+      gap: 8px;
+      align-items: stretch;
+      margin-bottom: 6px;
+    }
+    .chat-actions-row {
+      display: flex;
       gap: 6px;
       align-items: flex-end;
     }
@@ -316,6 +322,8 @@
     <div class="chat-title">Chat</div>
     <div class="chat-input-row">
       <textarea class="chat-input" rows="1" placeholder="Ask about what you see..."></textarea>
+    </div>
+    <div class="chat-actions-row">
       <button class="chat-send">Send</button>
       <button class="chat-stop" disabled>Stop</button>
       <button class="chat-clear">Clear Chat</button>
@@ -344,6 +352,7 @@
   const supersetUsername = "{{SUPERSET_USERNAME}}";
   const supersetPassword = "{{SUPERSET_PASSWORD}}";
   const agentModel = "{{AGENT_MODEL}}";
+  const deviceStorageKey = "agent4olap_device_id";
   const storageKey = dashboardId
     ? `chat_messages_${dashboardId}`
     : "chat_messages_default";
@@ -357,6 +366,22 @@
   let currentController = null;
   let isStreaming = false;
   let pendingAutoRefresh = false;
+  const deviceId = (() => {
+    try {
+      let id = localStorage.getItem(deviceStorageKey);
+      if (!id) {
+        if (window.crypto && crypto.randomUUID) {
+          id = crypto.randomUUID();
+        } else {
+          id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        }
+        localStorage.setItem(deviceStorageKey, id);
+      }
+      return id;
+    } catch (err) {
+      return "";
+    }
+  })();
 
   function setStatus(text) {
     statusEl.textContent = text;
@@ -503,6 +528,8 @@
     try {
       const url = new URL(`${apiBase}/chat/dialogue`);
       url.searchParams.set("session_id", sessionId);
+      if (userId) url.searchParams.set("user_id", userId);
+      if (deviceId) url.searchParams.set("device_id", deviceId);
       await fetch(url.toString(), { method: "DELETE", headers: authHeaders() });
     } catch (err) {}
     try {
@@ -667,10 +694,12 @@
     }
     if (dashboardId) {
       try {
-        const res = await fetch(
-          `${apiBase}/superset/charts/active?dashboard_id=${encodeURIComponent(dashboardId)}`,
-          { headers: authHeaders() }
-        );
+        const activeUrl = new URL(`${apiBase}/superset/charts/active`);
+        activeUrl.searchParams.set("dashboard_id", String(dashboardId));
+        if (sessionId) activeUrl.searchParams.set("session_id", sessionId);
+        if (userId) activeUrl.searchParams.set("user_name", userId);
+        if (deviceId) activeUrl.searchParams.set("device_id", deviceId);
+        const res = await fetch(activeUrl.toString(), { headers: authHeaders() });
         if (res.ok) {
           const data = await res.json();
           if (data && data.chart_name) {
@@ -684,6 +713,9 @@
     }
     try {
       const url = new URL(`${apiBase}/chat/context/latest`);
+      if (userId) url.searchParams.set("user_id", userId);
+      if (sessionId) url.searchParams.set("session_id", sessionId);
+      if (deviceId) url.searchParams.set("device_id", deviceId);
       const res = await fetch(url.toString(), { headers: authHeaders() });
       if (!res.ok) return "";
       const data = await res.json();
@@ -741,7 +773,16 @@
   function startLogListener() {
     if (!dashboardId || !window.EventSource) return;
     const lastId = logStorageKey ? Number(localStorage.getItem(logStorageKey) || "0") : 0;
-    const logUrl = `${apiBase}/events/stream?source=superset&limit=50&poll_interval_sec=1.0&dashboard_id=${dashboardId}&last_id=${lastId}`;
+    const params = new URLSearchParams({
+      source: "superset",
+      limit: "50",
+      poll_interval_sec: "1.0",
+      dashboard_id: String(dashboardId),
+      last_id: String(lastId),
+    });
+    if (userId) params.set("user_name", userId);
+    if (deviceId) params.set("device_id", deviceId);
+    const logUrl = `${apiBase}/events/stream?${params.toString()}`;
     const source = new EventSource(logUrl);
     source.onmessage = (event) => {
       try {
@@ -788,6 +829,7 @@
         body: JSON.stringify({
           session_id: sessionId,
           user_id: userId,
+          device_id: deviceId || null,
           message: text,
           history: history,
           active_chart_id: activeChartId,

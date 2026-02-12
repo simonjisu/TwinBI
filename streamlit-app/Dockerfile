@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # app + component python wrapper
 COPY streamlit_app.py /app/streamlit_app.py
 COPY superset_embed_component /app/superset_embed_component
+COPY .streamlit /app/.streamlit
 
 # copy built frontend into python package
 COPY --from=frontend /src/superset_embed_component/frontend/dist /app/superset_embed_component/frontend/dist

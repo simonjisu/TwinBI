@@ -22,12 +22,14 @@ from schema_processor import hierarchy_from_json
 
 from streamlit_agraph import agraph, Node, Edge, Config
 
-SUPERSET_PUBLIC_URL = os.getenv("SUPERSET_PUBLIC_URL", "http://localhost:8088")
+SUPERSET_PUBLIC_URL = os.getenv("SUPERSET_PUBLIC_URL", "http://localhost:58088")
 SUPERSET_INTERNAL_URL = os.getenv("SUPERSET_INTERNAL_URL", "http://superset_app:8088")
 FASTAPI_INTERNAL_URL = os.getenv("FASTAPI_INTERNAL_URL", "http://localhost:8000")
 FASTAPI_PUBLIC_URL = os.getenv("FASTAPI_PUBLIC_URL", FASTAPI_INTERNAL_URL)
 STREAMLIT_USER_ID = os.getenv("STREAMLIT_USER_ID", "streamlit_user")
 DEFAULT_EMBED_AUTH_MODE = os.getenv("SUPERSET_EMBED_AUTH_MODE", "session_iframe")
+if DEFAULT_EMBED_AUTH_MODE == "embedded_sdk":
+    DEFAULT_EMBED_AUTH_MODE = "guest_token"
 
 DEFAULT_SUPERSET_USERNAME = os.getenv("SUPERSET_USERNAME", "admin")
 DEFAULT_SUPERSET_PASSWORD = os.getenv("SUPERSET_PASSWORD", "admin")
@@ -38,6 +40,14 @@ MODEL_OPTIONS = [
     "gpt-4.1-mini",
     "gpt-4o-mini",
 ]
+DEFAULT_DASHBOARD_ID_BY_USER = {
+    "admin": "12",
+    "test1": "13",
+    "test2": "14",
+    "test3": "15",
+    "test4": "16",
+    "test5": "17",
+}
 
 GUEST_TOKEN_AUD = os.getenv("SUPERSET_GUEST_AUD", "superset")
 
@@ -331,6 +341,15 @@ st.session_state.setdefault("superset_username", DEFAULT_SUPERSET_USERNAME)
 st.session_state.setdefault("superset_password", DEFAULT_SUPERSET_PASSWORD)
 st.session_state.setdefault("agent_model", "gpt-5-mini")
 st.session_state.setdefault("embed_auth_mode", DEFAULT_EMBED_AUTH_MODE)
+_default_user_for_dashboard = (
+    STREAMLIT_USER_ID
+    or str(st.session_state.get("superset_username") or "")
+    or DEFAULT_SUPERSET_USERNAME
+)
+_default_dashboard_id = DEFAULT_DASHBOARD_ID_BY_USER.get(
+    _default_user_for_dashboard, "12"
+)
+st.session_state.setdefault("dashboard_id", _default_dashboard_id)
 st.markdown("""
 <style>
 /* Expander title text */
@@ -347,7 +366,7 @@ with st.sidebar:
     chat_container_id = f"chat-component-{uuid.uuid4().hex}"
     dashboard_id_value = str(st.session_state.get("dashboard_id") or "")
     superset_username_value = str(st.session_state.get("superset_username") or "")
-    effective_user_id = superset_username_value or STREAMLIT_USER_ID
+    effective_user_id = STREAMLIT_USER_ID or superset_username_value or DEFAULT_SUPERSET_USERNAME
     superset_password_value = str(st.session_state.get("superset_password") or "")
     agent_model_value = str(st.session_state.get("agent_model") or "gpt-5-nano")
     chat_html = (
@@ -377,12 +396,14 @@ active_context_container_id = f"superset-active-context-{uuid.uuid4().hex}"
 active_context_dashboard_id = str(st.session_state.get("dashboard_id") or "")
 active_context_superset_username = str(st.session_state.get("superset_username") or "")
 active_context_superset_password = str(st.session_state.get("superset_password") or "")
+active_context_user_id = STREAMLIT_USER_ID or active_context_superset_username or DEFAULT_SUPERSET_USERNAME
 active_context_html = (
     _load_html_template("active_context.html")
     .replace("{{CONTAINER_ID}}", active_context_container_id)
     .replace("{{API_BASE}}", FASTAPI_PUBLIC_URL)
     .replace("{{DASHBOARD_ID}}", active_context_dashboard_id)
     .replace("{{SESSION_ID}}", st.session_state.get("session_id", ""))
+    .replace("{{USER_ID}}", active_context_user_id)
     .replace("{{SUPERSET_USERNAME}}", active_context_superset_username)
     .replace("{{SUPERSET_PASSWORD}}", active_context_superset_password)
 )
@@ -426,17 +447,20 @@ with st.sidebar:
     )
     DASHBOARD_ID = st.text_input(
         "Dashboard ID",
-        value=st.session_state.get("dashboard_id", "12"),
+        value=st.session_state.get("dashboard_id", _default_dashboard_id),
         help="Superset Dashboard Numeric ID",
         key="dashboard_id",
     )
     SUPERSET_USERNAME = str(st.session_state.get("superset_username", DEFAULT_SUPERSET_USERNAME))
     SUPERSET_PASSWORD = str(st.session_state.get("superset_password", DEFAULT_SUPERSET_PASSWORD))
+    current_embed_mode = st.session_state.get("embed_auth_mode", DEFAULT_EMBED_AUTH_MODE)
+    if current_embed_mode == "embedded_sdk":
+        current_embed_mode = "guest_token"
     EMBED_AUTH_MODE = st.selectbox(
         "Embed Auth Mode",
         options=["session_iframe", "guest_token"],
         index=0
-        if st.session_state.get("embed_auth_mode", DEFAULT_EMBED_AUTH_MODE) == "session_iframe"
+        if current_embed_mode == "session_iframe"
         else 1,
         key="embed_auth_mode",
         help="session_iframe uses your browser Superset login session (non-guest behavior).",
@@ -492,12 +516,156 @@ if EMBED_AUTH_MODE == "session_iframe":
     if not DASHBOARD_ID:
         st.error("Dashboard ID is required for session iframe embed.")
         st.stop()
+    session_user_id = STREAMLIT_USER_ID or SUPERSET_USERNAME or DEFAULT_SUPERSET_USERNAME
+    iframe_query = {
+        "standalone": "1",
+        "show_filters": "1",
+        "expand_filters": "0",
+        "_r": str(st.session_state["embed_refresh_counter"]),
+        # Session iframe does not expose rich postMessage events reliably.
+        # Persist user/session hints in referrer query so FastAPI poller can
+        # route Superset logs to the intended per-user DB.
+        "agent_user_name": str(session_user_id or ""),
+        "agent_user_key": str(session_user_id or ""),
+        "agent_session_id": str(st.session_state.get("session_id", "") or ""),
+    }
     iframe_src = (
         f"{SUPERSET_PUBLIC_URL}/superset/dashboard/{urllib.parse.quote(str(DASHBOARD_ID))}/"
-        "?standalone=1&show_filters=1&expand_filters=0"
-        f"&_r={st.session_state['embed_refresh_counter']}"
+        f"?{urllib.parse.urlencode(iframe_query)}"
     )
-    components.iframe(iframe_src, height=dashboard_height, scrolling=True)
+    iframe_bridge_id = f"superset-iframe-bridge-{uuid.uuid4().hex}"
+    session_iframe_html = f"""
+    <div style="width:100%;height:{dashboard_height}px;overflow:hidden;border-radius:12px;">
+      <iframe id="{iframe_bridge_id}" src="{iframe_src}" style="width:100%;height:100%;border:0;" allowfullscreen></iframe>
+    </div>
+    <script>
+      (() => {{
+        const apiBase = {json.dumps(FASTAPI_PUBLIC_URL)};
+        const supersetOrigin = (() => {{
+          try {{ return new URL({json.dumps(SUPERSET_PUBLIC_URL)}).origin; }} catch {{ return ""; }}
+        }})();
+        const dashboardId = {json.dumps(str(DASHBOARD_ID))};
+        const sessionId = {json.dumps(st.session_state.get("session_id", ""))};
+        const userId = {json.dumps(session_user_id)};
+        const deviceStorageKey = "agent4olap_device_id";
+        const deviceId = (() => {{
+          try {{
+            let id = localStorage.getItem(deviceStorageKey);
+            if (!id) {{
+              id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `${{Date.now()}}-${{Math.random().toString(16).slice(2)}}`;
+              localStorage.setItem(deviceStorageKey, id);
+            }}
+            return id;
+          }} catch {{
+            return "";
+          }}
+        }})();
+        const postEvent = async (eventType, payload) => {{
+          if (!apiBase || !sessionId) return;
+          try {{
+            await fetch(`${{apiBase.replace(/\\/+$/, "")}}/events`, {{
+              method: "POST",
+              headers: {{ "Content-Type": "application/json" }},
+              body: JSON.stringify({{
+                session_id: sessionId,
+                user_id: userId || null,
+                device_id: deviceId || null,
+                event_type: eventType,
+                payload: payload || {{}},
+              }}),
+            }});
+          }} catch (err) {{
+            console.warn("[session-iframe] event post failed", err);
+          }}
+        }};
+        const activeCtxUrl = (() => {{
+          const qs = new URLSearchParams();
+          if (dashboardId) qs.set("dashboard_id", String(dashboardId));
+          if (sessionId) qs.set("session_id", String(sessionId));
+          if (userId) qs.set("user_name", String(userId));
+          if (deviceId) qs.set("device_id", String(deviceId));
+          return `${{apiBase.replace(/\\/+$/, "")}}/superset/charts/active?${{qs.toString()}}`;
+        }})();
+        let lastActiveSig = "";
+        let lastUiSig = "";
+        const emitActiveContextChanges = async () => {{
+          if (!activeCtxUrl) return;
+          try {{
+            const res = await fetch(activeCtxUrl, {{ method: "GET" }});
+            if (!res.ok) return;
+            const data = await res.json();
+            const chart = data?.interacting_chart || null;
+            const tab = data?.active_tab || null;
+            const chartSig = chart ? `${{chart.slice_id || ""}}|${{chart.name || ""}}` : "";
+            const tabSig = tab ? `${{tab.tab_id || ""}}|${{tab.tab_name || ""}}` : "";
+            const nextActiveSig = `${{chartSig}}||${{tabSig}}`;
+            if (nextActiveSig && nextActiveSig !== lastActiveSig) {{
+              lastActiveSig = nextActiveSig;
+              if (chart && chart.slice_id) {{
+                await postEvent("chart_activity", {{
+                  dashboard_id: Number(dashboardId) || null,
+                  slice_id: chart.slice_id,
+                  chart_name: chart.name || null,
+                  source: "active_context_poll",
+                }});
+              }}
+              if (tab && (tab.tab_id || tab.tab_name)) {{
+                await postEvent("superset_tab_active", {{
+                  dashboard_id: Number(dashboardId) || null,
+                  tab_id: tab.tab_id || null,
+                  tab_name: tab.tab_name || null,
+                  source: "active_context_poll",
+                }});
+              }}
+            }}
+            const ui = data?.last_ui_event || null;
+            if (ui && ui.action) {{
+              const uiSig = `${{ui.superset_log_id || ""}}|${{ui.action}}|${{ui.slice_id || ""}}`;
+              if (uiSig !== lastUiSig) {{
+                lastUiSig = uiSig;
+                await postEvent(String(ui.action), {{
+                  dashboard_id: Number(dashboardId) || null,
+                  slice_id: ui.slice_id || null,
+                  payload: ui.payload || null,
+                  source: "active_context_poll",
+                }});
+              }}
+            }}
+          }} catch (err) {{
+            console.debug("[session-iframe] active context poll failed", err);
+          }}
+        }};
+        postEvent("iframe_loaded", {{ dashboard_id: Number(dashboardId) || null, source: "session_iframe" }});
+        emitActiveContextChanges();
+        window.setInterval(emitActiveContextChanges, 1500);
+
+        window.addEventListener("message", (e) => {{
+          const originOk = (
+            (supersetOrigin && e.origin === supersetOrigin) ||
+            String(e.origin || "").includes(":58088")
+          );
+          if (!originOk || !e.data) return;
+          let data = e.data;
+          if (typeof data === "string") {{
+            try {{ data = JSON.parse(data); }} catch {{}}
+          }}
+          const obj = (data && typeof data === "object") ? data : {{}};
+          const payload = (obj.payload && typeof obj.payload === "object") ? obj.payload : {{}};
+          const eventType = String(obj.event || obj.event_type || payload.event || payload.event_type || "");
+          const tabLike = /tab/i.test(typeof e.data === "string" ? e.data : JSON.stringify(e.data));
+          if (eventType || obj.chart_id || obj.chartId || payload.chart_id || payload.chartId || tabLike) {{
+            postEvent(eventType || (tabLike ? "superset_tab_click" : "superset_ui_event"), {{
+              dashboard_id: Number(dashboardId) || null,
+              slice_id: obj.chart_id || obj.chartId || payload.chart_id || payload.chartId || payload.slice_id || payload.sliceId || null,
+              payload: obj.payload || obj,
+              raw: typeof e.data === "string" ? e.data : null,
+            }});
+          }}
+        }}, true);
+      }})();
+    </script>
+    """
+    components.html(session_iframe_html, height=dashboard_height + 8, scrolling=False)
 else:
     token = (
         get_guest_token(DASHBOARD_ID, SUPERSET_USERNAME, SUPERSET_PASSWORD)
@@ -517,7 +685,7 @@ else:
         guest_token=token,
         event_api_base=FASTAPI_PUBLIC_URL,
         session_id=st.session_state.get("session_id"),
-        user_id=(SUPERSET_USERNAME or STREAMLIT_USER_ID),
+        user_id=(STREAMLIT_USER_ID or SUPERSET_USERNAME or DEFAULT_SUPERSET_USERNAME),
         height=dashboard_height,
         key=f"dash_{DASHBOARD_ID}_{st.session_state['embed_refresh_counter']}",
     )
@@ -575,6 +743,9 @@ with st.expander("Output", expanded=True):
             "source": "superset",
             "action": "ChartDataRestApi.data",
         }
+        sql_user_name = STREAMLIT_USER_ID or SUPERSET_USERNAME or DEFAULT_SUPERSET_USERNAME
+        if sql_user_name:
+            sql_params["user_name"] = sql_user_name
         if DASHBOARD_ID:
             sql_params["dashboard_id"] = DASHBOARD_ID
         sql_query = urllib.parse.urlencode(sql_params)
@@ -638,7 +809,11 @@ with st.expander("Output", expanded=True):
             value=st.session_state.get("action_filter", ""),
             key="action_filter",
         )
-        params = {"limit": 50, "poll_interval_sec": 1.0, "source": source_filter}
+        params = {
+            "limit": 50,
+            "poll_interval_sec": 1.0,
+            "source": source_filter,
+        }
         if DASHBOARD_ID:
             params["dashboard_id"] = DASHBOARD_ID
         if superset_user_id.isdigit():

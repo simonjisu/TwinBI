@@ -20,10 +20,27 @@
   const statusEl = root.querySelector(".status");
   const sqlList = root.querySelector(".sql-list");
   const initialId = 0;
-  const streamUrl =
-    "{{SQL_STREAM_BASE}}" +
-    "&last_id=" +
-    initialId;
+  const deviceStorageKey = "agent4olap_device_id";
+  const deviceId = (() => {
+    try {
+      let id = localStorage.getItem(deviceStorageKey);
+      if (!id) {
+        if (window.crypto && crypto.randomUUID) {
+          id = crypto.randomUUID();
+        } else {
+          id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        }
+        localStorage.setItem(deviceStorageKey, id);
+      }
+      return id;
+    } catch (err) {
+      return "";
+    }
+  })();
+  const streamUrlObj = new URL("{{SQL_STREAM_BASE}}");
+  streamUrlObj.searchParams.set("last_id", String(initialId));
+  if (deviceId) streamUrlObj.searchParams.set("device_id", deviceId);
+  const streamUrl = streamUrlObj.toString();
   const chartsUrl = "{{CHARTS_URL}}";
   const supersetUsername = "{{SUPERSET_USERNAME}}";
   const supersetPassword = "{{SUPERSET_PASSWORD}}";

@@ -339,22 +339,62 @@ export default function SupersetEmbed(props: ComponentProps) {
 
   const prevCrossFiltersRef = useRef<NormFilter[]>([]);
   const prevGlobalFiltersRef = useRef<NormFilter[]>([]);
+  const deviceIdRef = useRef<string>("");
+
+  useEffect(() => {
+    try {
+      const storageKey = "agent4olap_device_id";
+      let id = window.localStorage.getItem(storageKey);
+      if (!id) {
+        id =
+          window.crypto && "randomUUID" in window.crypto
+            ? window.crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        window.localStorage.setItem(storageKey, id);
+      }
+      deviceIdRef.current = id;
+    } catch {
+      deviceIdRef.current = "";
+    }
+  }, []);
 
   const postEvent = async (eventType: string, payload: Record<string, unknown>) => {
     if (!eventApiBase || !sessionId) return;
     try {
-      await fetch(`${eventApiBase.replace(/\/+$/, "")}/events`, {
+      console.debug("[superset-embed] POST /events", {
+        eventType,
+        sessionId,
+        userId,
+        deviceId: deviceIdRef.current || null,
+      });
+      let fetchFn: typeof window.fetch = window.fetch.bind(window);
+      try {
+        if (window.top && window.top !== window) {
+          const topFetch = window.top.fetch;
+          if (typeof topFetch === "function") {
+            fetchFn = topFetch.bind(window.top);
+          }
+        }
+      } catch {
+        fetchFn = window.fetch.bind(window);
+      }
+      await fetchFn(`${eventApiBase.replace(/\/+$/, "")}/events`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           session_id: sessionId,
           user_id: userId ?? null,
+          device_id: deviceIdRef.current || null,
           event_type: eventType,
           payload,
         }),
       });
     } catch (err) {
-      console.warn("Failed to post event", err);
+      console.warn("[superset-embed] Failed to post event", err, {
+        eventType,
+        eventApiBase,
+        sessionId,
+      });
     }
   };
 
@@ -379,6 +419,10 @@ export default function SupersetEmbed(props: ComponentProps) {
       dashboardUiConfig: uiConfig,
     })
       .then((dashboard) => {
+        postEvent("embed_loaded", {
+          dashboard_id: dashboardIdNum ?? null,
+          source: "superset_embed_component",
+        });
         const debugWindow = window as typeof window & {
           __supersetEmbeddedDashboard?: unknown;
           __getSupersetDataMask?: () => Promise<unknown>;
@@ -456,6 +500,7 @@ export default function SupersetEmbed(props: ComponentProps) {
             prevGlobalFiltersRef.current = snapshot.globalFilters;
           })
           .catch(() => {
+            console.debug("[superset-embed] initial getDataMask unavailable");
             prevCrossFiltersRef.current = [];
             prevGlobalFiltersRef.current = [];
           });
@@ -473,7 +518,9 @@ export default function SupersetEmbed(props: ComponentProps) {
               lastMaskRef.current = mask;
               applyFilterDiff(extractScopedFiltersFromDataMask(mask));
             })
-            .catch(() => {});
+            .catch((err: unknown) => {
+              console.debug("[superset-embed] poll getDataMask failed", err);
+            });
         }, 1200);
 
         const applySize = () => {
@@ -543,10 +590,45 @@ export default function SupersetEmbed(props: ComponentProps) {
   }, [dashboardId, supersetDomain, guestToken, effectiveHeight, uiConfig]);
 
   useEffect(() => {
+    const configuredOrigin = (() => {
+      try {
+        return new URL(supersetDomain).origin;
+      } catch {
+        return "";
+      }
+    })();
+    const allowSameProtoPortAnyHost = (() => {
+      try {
+        const u = new URL(supersetDomain);
+        return (
+          u.hostname === "localhost" ||
+          u.hostname === "127.0.0.1" ||
+          u.hostname === "0.0.0.0"
+        );
+      } catch {
+        return false;
+      }
+    })();
+    const isAllowedOrigin = (origin: string): boolean => {
+      if (!origin) return false;
+      if (origin === configuredOrigin) return true;
+      if (!allowSameProtoPortAnyHost) return false;
+      try {
+        const eventUrl = new URL(origin);
+        const cfg = new URL(supersetDomain);
+        const cfgPort =
+          cfg.port || (cfg.protocol === "https:" ? "443" : "80");
+        const eventPort =
+          eventUrl.port || (eventUrl.protocol === "https:" ? "443" : "80");
+        return eventUrl.protocol === cfg.protocol && eventPort === cfgPort;
+      } catch {
+        return false;
+      }
+    };
+
     const handler = (event: MessageEvent) => {
       if (!supersetDomain) return;
-      const origin = new URL(supersetDomain).origin;
-      if (event.origin !== origin) return;
+      if (!isAllowedOrigin(event.origin)) return;
       if (!event.data) return;
 
       let message: unknown = event.data;
@@ -561,6 +643,22 @@ export default function SupersetEmbed(props: ComponentProps) {
         message && typeof message === "object"
           ? (message as Record<string, unknown>)
           : ({} as Record<string, unknown>);
+      if (window.top && window.top !== window) {
+        try {
+          window.top.dispatchEvent(
+            new MessageEvent("message", {
+              data: event.data,
+              origin: event.origin,
+            })
+          );
+        } catch {
+          // noop
+        }
+      }
+      console.debug("[superset-embed] message from dashboard", {
+        origin: event.origin,
+        keys: Object.keys(data),
+      });
       const uiPayload = data.payload as Record<string, unknown> | undefined;
       const eventDashboardId =
         parseDashboardId(data.dashboard_id) ||
@@ -595,6 +693,40 @@ export default function SupersetEmbed(props: ComponentProps) {
           slice_id: data.chart_id || data.chartId || uiPayload?.chart_id || uiPayload?.chartId || uiPayload?.slice_id || uiPayload?.sliceId || null,
           viz_type: data.viz_type || uiPayload?.viz_type || null,
           payload: data.payload,
+        });
+        return;
+      }
+
+      const hasStructuredUiSignal =
+        data.event !== undefined ||
+        data.event_type !== undefined ||
+        data.chart_id !== undefined ||
+        data.chartId !== undefined ||
+        uiPayload?.chart_id !== undefined ||
+        uiPayload?.chartId !== undefined ||
+        uiPayload?.slice_id !== undefined ||
+        uiPayload?.sliceId !== undefined;
+      if (hasStructuredUiSignal) {
+        const eventType = String(
+          data.event ||
+            data.event_type ||
+            uiPayload?.event ||
+            uiPayload?.event_type ||
+            "superset_ui_event"
+        );
+        postEvent(eventType, {
+          dashboard_id:
+            eventDashboardId ?? dashboardIdRef.current ?? dashboardIdNum ?? null,
+          slice_id:
+            data.chart_id ||
+            data.chartId ||
+            uiPayload?.chart_id ||
+            uiPayload?.chartId ||
+            uiPayload?.slice_id ||
+            uiPayload?.sliceId ||
+            null,
+          viz_type: data.viz_type || uiPayload?.viz_type || null,
+          payload: data.payload ?? data,
         });
         return;
       }

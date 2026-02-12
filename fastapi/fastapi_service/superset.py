@@ -7,7 +7,8 @@ import logging
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable
+from urllib.parse import parse_qs, urlparse
 
 import duckdb
 import requests
@@ -1545,6 +1546,7 @@ class SupersetPoller:
         username: str | None,
         writer: DuckDBWriter,
         conn: duckdb.DuckDBPyConnection,
+        writer_for_user: Callable[[str | None], Awaitable[DuckDBWriter]] | None = None,
     ) -> None:
         self._meta_db_uri = self._normalize_db_uri(meta_db_uri)
         self._poll_interval_sec = poll_interval_sec
@@ -1554,11 +1556,14 @@ class SupersetPoller:
         self._username = username
         self._writer = writer
         self._conn = conn
+        self._writer_for_user = writer_for_user
         self._stop = asyncio.Event()
         self._last_poll_at: datetime | None = None
         self._last_row_count: int | None = None
         self._last_error: str | None = None
         self._last_checkpoint_id: int | None = None
+        self._username_by_user_id: dict[int, str | None] = {}
+        self._user_id_by_username: dict[str, int | None] = {}
         ignore_raw = os.getenv(
             "SUPERSET_INGEST_IGNORE_ACTIONS",
             "ChartDataRestApi.json_dumps,DashboardRestApi.get,_get_data_response,fetch_rows",
@@ -1633,8 +1638,22 @@ class SupersetPoller:
             for row in rows:
                 if row.get("action") in self._ignored_actions:
                     continue
-                payload = self._normalize_row(row)
-                await self._writer.enqueue_superset_log(payload)
+                user_name, resolved_user_id = await asyncio.to_thread(
+                    self._resolve_user_identity_for_row, row
+                )
+                payload = self._normalize_row(
+                    row,
+                    override_user_id=resolved_user_id,
+                )
+                writer = self._writer
+                if self._writer_for_user is not None:
+                    user_key = user_name or (
+                        str(resolved_user_id)
+                        if resolved_user_id is not None
+                        else None
+                    )
+                    writer = await self._writer_for_user(user_key)
+                await writer.enqueue_superset_log(payload)
                 max_id = max(max_id, row["id"])
 
             await self._writer.enqueue_checkpoint(
@@ -1680,8 +1699,22 @@ class SupersetPoller:
                 for row in rows:
                     if row.get("action") in self._ignored_actions:
                         continue
-                    payload = self._normalize_row(row)
-                    await self._writer.enqueue_superset_log(payload)
+                    user_name, resolved_user_id = await asyncio.to_thread(
+                        self._resolve_user_identity_for_row, row
+                    )
+                    payload = self._normalize_row(
+                        row,
+                        override_user_id=resolved_user_id,
+                    )
+                    writer = self._writer
+                    if self._writer_for_user is not None:
+                        user_key = user_name or (
+                            str(resolved_user_id)
+                            if resolved_user_id is not None
+                            else None
+                        )
+                        writer = await self._writer_for_user(user_key)
+                    await writer.enqueue_superset_log(payload)
                     max_id = max(max_id, row["id"])
                 total_rows += len(rows)
                 last_id = max_id
@@ -1720,6 +1753,47 @@ class SupersetPoller:
 
     def _resolve_user_id(self, username: str) -> int | None:
         return lookup_user_id(self._meta_db_uri, username)
+
+    def _resolve_user_identity_for_row(
+        self, row: dict[str, Any]
+    ) -> tuple[str | None, int | None]:
+        referrer = row.get("referrer")
+        if isinstance(referrer, str) and referrer:
+            try:
+                parsed = urlparse(referrer)
+                query = parse_qs(parsed.query or "")
+                for key in (
+                    "agent_user_name",
+                    "user_name",
+                    "agent_user_key",
+                    "user_key",
+                    "streamlit_user",
+                ):
+                    values = query.get(key) or []
+                    candidate = (
+                        values[0].strip() if values and isinstance(values[0], str) else ""
+                    )
+                    if candidate:
+                        cached_user_id = self._user_id_by_username.get(candidate)
+                        if cached_user_id is None and candidate not in self._user_id_by_username:
+                            cached_user_id = lookup_user_id(self._meta_db_uri, candidate)
+                            self._user_id_by_username[candidate] = cached_user_id
+                        return candidate, cached_user_id
+            except Exception:
+                logger.debug("Failed to parse user key from referrer", exc_info=True)
+
+        raw_user_id = row.get("user_id")
+        try:
+            user_id = int(raw_user_id) if raw_user_id is not None else None
+        except (TypeError, ValueError):
+            user_id = None
+        if user_id is None:
+            return None, None
+        if user_id in self._username_by_user_id:
+            return self._username_by_user_id[user_id], user_id
+        username = lookup_username(self._meta_db_uri, user_id)
+        self._username_by_user_id[user_id] = username
+        return username, user_id
 
     def _fetch_source_max_id(self) -> int | None:
         import psycopg2
@@ -1765,12 +1839,18 @@ class SupersetPoller:
         params.append(batch_size)
         return sql, tuple(params)
 
-    def _normalize_row(self, row: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_row(
+        self, row: dict[str, Any], *, override_user_id: int | None = None
+    ) -> dict[str, Any]:
         return DuckDBWriter.build_superset_payload(
             superset_log_id=row["id"],
             dttm=row.get("dttm"),
             action=row.get("action"),
-            user_id=row.get("user_id"),
+            user_id=(
+                override_user_id
+                if override_user_id is not None
+                else row.get("user_id")
+            ),
             dashboard_id=row.get("dashboard_id"),
             slice_id=row.get("slice_id"),
             duration_ms=row.get("duration_ms"),
@@ -1803,6 +1883,18 @@ def lookup_user_id(meta_db_uri: str, username: str) -> int | None:
         with conn.cursor() as cursor:
             cursor.execute(
                 "SELECT id FROM ab_user WHERE username = %s LIMIT 1", (username,)
+            )
+            row = cursor.fetchone()
+            return row[0] if row else None
+
+
+def lookup_username(meta_db_uri: str, user_id: int) -> str | None:
+    import psycopg2
+
+    with psycopg2.connect(meta_db_uri) as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT username FROM ab_user WHERE id = %s LIMIT 1", (user_id,)
             )
             row = cursor.fetchone()
             return row[0] if row else None
