@@ -697,7 +697,8 @@ def _decorate_superset_log(row: dict[str, Any]) -> dict[str, Any]:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = app.state.settings
     db_store = UserDuckDBStore(settings.duckdb_path)
-    conn, writer, _ = await db_store.get_or_create(None)
+    # Use configured Superset log username (if provided) to namespace the primary DuckDB file.
+    conn, writer, _ = await db_store.get_or_create(settings.superset_log_username)
     app.state.db_store = db_store
     app.state.conn = conn
     app.state.writer = writer

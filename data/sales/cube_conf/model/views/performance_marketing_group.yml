@@ -1,5 +1,5 @@
 views:
-  - name: view_s1_marketing_qtr
+  - name: view_marketing_qtr
     description: "Scenario 1: Marketing group Q2 2024 — revenue, store reach, and brand drill"
     cubes:
       # anchor (fact measures)

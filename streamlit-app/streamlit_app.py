@@ -31,6 +31,7 @@ DEFAULT_EMBED_AUTH_MODE = os.getenv("SUPERSET_EMBED_AUTH_MODE", "session_iframe"
 
 DEFAULT_SUPERSET_USERNAME = os.getenv("SUPERSET_USERNAME", "admin")
 DEFAULT_SUPERSET_PASSWORD = os.getenv("SUPERSET_PASSWORD", "admin")
+DEFAULT_DASHBOARD_ID = os.getenv("DEFAULT_DASHBOARD_ID", "")
 MODEL_OPTIONS = [
     "gpt-5-nano",
     "gpt-5-mini",
@@ -329,8 +330,10 @@ def render_schema_graph(path: str):
 st.set_page_config(layout="wide", initial_sidebar_state="expanded")
 st.session_state.setdefault("superset_username", DEFAULT_SUPERSET_USERNAME)
 st.session_state.setdefault("superset_password", DEFAULT_SUPERSET_PASSWORD)
+st.session_state.setdefault("dashboard_id", DEFAULT_DASHBOARD_ID)
 st.session_state.setdefault("agent_model", "gpt-5-mini")
 st.session_state.setdefault("embed_auth_mode", DEFAULT_EMBED_AUTH_MODE)
+st.session_state.setdefault("session_id", uuid.uuid4().hex)
 st.markdown("""
 <style>
 /* Expander title text */
@@ -343,7 +346,6 @@ div[data-testid="stExpander"] summary p {
 
 # --- Sidebar Chat ---
 with st.sidebar:
-    st.session_state.setdefault("session_id", uuid.uuid4().hex)
     chat_container_id = f"chat-component-{uuid.uuid4().hex}"
     dashboard_id_value = str(st.session_state.get("dashboard_id") or "")
     superset_username_value = str(st.session_state.get("superset_username") or "")
@@ -424,12 +426,7 @@ with st.sidebar:
         else 0,
         key="agent_model",
     )
-    DASHBOARD_ID = st.text_input(
-        "Dashboard ID",
-        value=st.session_state.get("dashboard_id", "12"),
-        help="Superset Dashboard Numeric ID",
-        key="dashboard_id",
-    )
+    DASHBOARD_ID = str(st.session_state.get("dashboard_id", DEFAULT_DASHBOARD_ID)).strip()
     SUPERSET_USERNAME = str(st.session_state.get("superset_username", DEFAULT_SUPERSET_USERNAME))
     SUPERSET_PASSWORD = str(st.session_state.get("superset_password", DEFAULT_SUPERSET_PASSWORD))
     EMBED_AUTH_MODE = st.selectbox(
@@ -490,14 +487,43 @@ st.session_state["embed_refresh_counter"] = refresh_counter + 1
 
 if EMBED_AUTH_MODE == "session_iframe":
     if not DASHBOARD_ID:
-        st.error("Dashboard ID is required for session iframe embed.")
-        st.stop()
-    iframe_src = (
-        f"{SUPERSET_PUBLIC_URL}/superset/dashboard/{urllib.parse.quote(str(DASHBOARD_ID))}/"
-        "?standalone=1&show_filters=1&expand_filters=0"
-        f"&_r={st.session_state['embed_refresh_counter']}"
-    )
+        iframe_src = f"{SUPERSET_PUBLIC_URL}/login/"
+    else:
+        iframe_src = (
+            f"{SUPERSET_PUBLIC_URL}/superset/dashboard/{urllib.parse.quote(str(DASHBOARD_ID))}/"
+            "?standalone=1&show_filters=1&expand_filters=0"
+            f"&_r={st.session_state['embed_refresh_counter']}"
+        )
     components.iframe(iframe_src, height=dashboard_height, scrolling=True)
+    # Probe Superset /api/v1/me using browser session cookies and send user_id to FastAPI for per-user logging.
+    components.html(
+        f"""
+        <script>
+        (async function() {{
+          try {{
+            const res = await fetch("{SUPERSET_PUBLIC_URL}/api/v1/me/", {{ credentials: "include" }});
+            if (!res.ok) return;
+            const data = await res.json();
+            const username = data && data.username;
+            if (!username) return;
+            await fetch("{FASTAPI_PUBLIC_URL}/events", {{
+              method: "POST",
+              headers: {{ "Content-Type": "application/json" }},
+              body: JSON.stringify({{
+                session_id: "{st.session_state.get("session_id")}",
+                user_id: username,
+                event_type: "superset_user_identified",
+                payload: {{ source: "session_iframe", me: data }}
+              }})
+            }});
+          }} catch (err) {{
+            console.warn("superset me probe failed", err);
+          }}
+        }})();
+        </script>
+        """,
+        height=0,
+    )
 else:
     token = (
         get_guest_token(DASHBOARD_ID, SUPERSET_USERNAME, SUPERSET_PASSWORD)
