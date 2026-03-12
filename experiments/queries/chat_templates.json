@@ -1,0 +1,185 @@
+{
+  "query_01": {
+    "preferred_chat_questions": [
+      "From the visible Store-Level dashboard, identify the top store in the North district by average daily sales.",
+      "If the North district is not already active, use the visible district context and tell me which store should be first after applying North."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys store_name and avg_daily_sales."
+  },
+  "query_02": {
+    "preferred_chat_questions": [
+      "From the visible Store-Level dashboard, identify the lowest-performing store in the South district by average daily sales."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys store_name and avg_daily_sales."
+  },
+  "query_03": {
+    "preferred_chat_questions": [
+      "From the visible Store-Level dashboard, list the top 3 stores in the East district ranked by average daily sales."
+    ],
+    "final_synthesis_prompt": "Return JSON with key top_3_stores as a list of store names."
+  },
+  "query_04": {
+    "preferred_chat_questions": [
+      "From the visible Store-Level dashboard, identify the second-highest store in the West district by average daily sales."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys store_name and rank."
+  },
+  "query_05": {
+    "preferred_chat_questions": [
+      "Using the visible Store-Level dashboard with the recent 15-day context, identify the single best-performing store across all districts by average daily sales."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys store_name and context."
+  },
+  "query_06": {
+    "preferred_chat_questions": [
+      "From the visible Store-Level dashboard, compare the best store in each district and identify which district has the strongest top store by average daily sales."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys district and store_name."
+  },
+  "query_07": {
+    "preferred_chat_questions": [
+      "From the visible Product-Level dashboard, list the product types whose average revenue per unit is above the overall portfolio average."
+    ],
+    "final_synthesis_prompt": "Return JSON with key product_types as a list."
+  },
+  "query_08": {
+    "preferred_chat_questions": [
+      "From the visible Product-Level dashboard, identify the single most premium product type with the highest average revenue per unit."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys product_type and avg_revenue_per_unit."
+  },
+  "query_09": {
+    "preferred_chat_questions": [
+      "From the visible Product-Level dashboard, count how many product types have average revenue per unit above the overall product-type average."
+    ],
+    "final_synthesis_prompt": "Return JSON with key premium_type_count."
+  },
+  "query_10": {
+    "preferred_chat_questions": [
+      "From the visible Product-Level dashboard filtered to Marketing, list the product types whose average revenue per unit is above the overall Marketing product-type average."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys department and product_types."
+  },
+  "query_11": {
+    "preferred_chat_questions": [
+      "From the visible Product-Level dashboard, identify the product type with the largest positive gap between its average revenue per unit and the overall average."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys product_type and premium_gap."
+  },
+  "query_12": {
+    "preferred_chat_questions": [
+      "From the visible Product-Level dashboard, identify which department contains the product type with the highest average revenue per unit."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys department and product_type."
+  },
+  "query_13": {
+    "preferred_chat_questions": [
+      "From the visible Category-Level dashboard, list all department-category pairs with qoq_growth_rate at least 0.15 for Q4 versus Q3."
+    ],
+    "final_synthesis_prompt": "Return JSON with key pairs as a list of objects with department, category, and qoq_growth_rate."
+  },
+  "query_14": {
+    "preferred_chat_questions": [
+      "From the visible Category-Level dashboard, identify the department-category pair with the highest Q4 versus Q3 qoq_growth_rate."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys department, category, and qoq_growth_rate."
+  },
+  "query_15": {
+    "preferred_chat_questions": [
+      "From the visible Category-Level dashboard, list the Marketing categories with qoq_growth_rate at least 0.15 for Q4 versus Q3."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys department and categories."
+  },
+  "query_16": {
+    "preferred_chat_questions": [
+      "From the visible Category-Level dashboard, find the Laptop category, identify its department, and report its Q4 versus Q3 qoq_growth_rate."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys department, category, and qoq_growth_rate."
+  },
+  "query_17": {
+    "preferred_chat_questions": [
+      "From the visible Category-Level dashboard, find the Mobile category under the Marketing department and report its Q4 versus Q3 qoq_growth_rate."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys department, category, and qoq_growth_rate."
+  },
+  "query_18": {
+    "preferred_chat_questions": [
+      "From the visible Category-Level dashboard, count how many department-category pairs have qoq_growth_rate at least 0.15 for Q4 versus Q3."
+    ],
+    "final_synthesis_prompt": "Return JSON with key qualifying_pair_count."
+  },
+  "query_19": {
+    "preferred_chat_questions": [
+      "Using the visible dashboard tabs and values after North is applied, identify which tab shows the highest visible average daily sales value: Store-Level, Product-Level, or Category-Level."
+    ],
+    "final_synthesis_prompt": "Return JSON with key tab_name."
+  },
+  "query_20": {
+    "preferred_chat_questions": [
+      "From the visible Department QoQ Growth table, identify the department with the highest previous_units value."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys department and previous_units."
+  },
+  "query_21": {
+    "preferred_chat_questions": [
+      "From the visible Category Scatter chart, identify which category has the largest scale value."
+    ],
+    "final_synthesis_prompt": "Return JSON with key category."
+  },
+  "query_22": {
+    "preferred_chat_questions": [
+      "From the visible Category-Level dashboard, compare the QoQ growth values for Sales and Marketing and identify which department is higher."
+    ],
+    "final_synthesis_prompt": "Return JSON with key winning_department."
+  },
+  "query_23": {
+    "preferred_chat_questions": [
+      "From the visible Units sold by quarter chart, identify the quarter with the highest unit sales value and report the value."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys quarter_label and units_sold."
+  },
+  "query_24": {
+    "preferred_chat_questions": [
+      "From the visible Store-Level dashboard, identify the top store in the East district and tell me whether it differs from the overall top store."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys east_top_store and different_from_overall."
+  },
+  "query_25": {
+    "preferred_chat_questions": [
+      "From the visible Store-Level dashboard, identify the top-performing North district store by average daily sales."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys store_name and policy_followed."
+  },
+  "query_26": {
+    "preferred_chat_questions": [
+      "From the visible Store-Level dashboard with North kept active, identify the highest average daily sales store."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys store_name and district."
+  },
+  "query_27": {
+    "preferred_chat_questions": [
+      "From the visible Category-Level dashboard, locate the Laptop category and report its exact qoq_growth_rate."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys category and qoq_growth_rate."
+  },
+  "query_28": {
+    "preferred_chat_questions": [
+      "From the visible Category-Level dashboard, identify the department that owns the Laptop category."
+    ],
+    "final_synthesis_prompt": "Return JSON with key department."
+  },
+  "query_29": {
+    "preferred_chat_questions": [
+      "Using the visible dashboard context with North preserved, identify the top North store and confirm whether the North filter is still preserved after switching views."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys store_name and filter_preserved."
+  },
+  "query_30": {
+    "preferred_chat_questions": [
+      "From the visible Category-Level dashboard, identify the Marketing category referenced by slot A.",
+      "From the visible Category-Level dashboard, report the qoq_growth_rate for Marketing -> Laptop as slot B.",
+      "From the visible Category-Level dashboard, identify the department for Laptop as slot C."
+    ],
+    "final_synthesis_prompt": "Return JSON with keys A, B, and C."
+  }
+}

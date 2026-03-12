@@ -1,0 +1,10 @@
+Scenario Q17: Mobile growth in Marketing
+You are preparing a focused Marketing category review.
+Find the QoQ unit sales growth rate from Q3 to Q4 for the Mobile category in the Marketing department.
+
+Output Format:
+{
+    "department": "Marketing",
+    "category": "Mobile",
+    "qoq_growth_rate": <float>
+}

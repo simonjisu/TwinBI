@@ -1,0 +1,9 @@
+Scenario Q15: Marketing high-growth categories
+You are reviewing Q4 momentum within Marketing.
+Find all Marketing categories with QoQ unit sales growth of at least 15% from Q3 to Q4.
+
+Output Format:
+{
+    "department": "Marketing",
+    "categories": <list[str]>
+}

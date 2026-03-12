@@ -1,0 +1,41 @@
+{
+  "query_id": 9,
+  "task_file": "queries/query_09.txt",
+  "final_answer": {
+    "premium_type_count": 2
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "premium_type_count": 2
+      },
+      "context": {
+        "domain": "product",
+        "portfolio_avg": 1004.4936737118439
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "premium_type_count": 2
+      },
+      "context": {
+        "domain": "product",
+        "portfolio_avg": 1004.4936737118439
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "premium_type_count": 2
+      },
+      "context": {
+        "domain": "product",
+        "portfolio_avg": 1004.4936737118439
+      }
+    }
+  }
+}

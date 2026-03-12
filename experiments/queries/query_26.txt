@@ -1,0 +1,9 @@
+Scenario Q26: Trap - selected filter should not be toggled off
+You are validating stable filter handling.
+Apply the North district filter and keep it active while identifying the highest average daily sales store in that filtered state.
+
+Output Format:
+{
+    "store_name": <str>,
+    "district": "North"
+}

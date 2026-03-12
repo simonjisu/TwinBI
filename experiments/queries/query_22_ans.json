@@ -1,0 +1,41 @@
+{
+  "query_id": 22,
+  "task_file": "queries/query_22.txt",
+  "final_answer": {
+    "winning_department": "Marketing"
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "winning_department": "Marketing"
+      },
+      "context": {
+        "domain": "department_qoq_comparison",
+        "quarter_start": "2024-10-01"
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "winning_department": "Marketing"
+      },
+      "context": {
+        "domain": "department_qoq_comparison",
+        "quarter_start": "2024-10-01"
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "winning_department": "Marketing"
+      },
+      "context": {
+        "domain": "department_qoq_comparison",
+        "quarter_start": "2024-10-01"
+      }
+    }
+  }
+}

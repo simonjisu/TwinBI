@@ -1,0 +1,49 @@
+{
+  "query_id": 30,
+  "task_file": "queries/query_30.txt",
+  "final_answer": {
+    "A": "Shoes",
+    "B": 0.552,
+    "C": "Tech"
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "A": "Shoes",
+        "B": 0.552,
+        "C": "Tech"
+      },
+      "context": {
+        "domain": "qoq",
+        "quarter_start": "2024-10-01"
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "A": "Shoes",
+        "B": 0.552,
+        "C": "Tech"
+      },
+      "context": {
+        "domain": "qoq",
+        "quarter_start": "2024-10-01"
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "A": "Shoes",
+        "B": 0.552,
+        "C": "Tech"
+      },
+      "context": {
+        "domain": "qoq",
+        "quarter_start": "2024-10-01"
+      }
+    }
+  }
+}

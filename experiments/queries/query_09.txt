@@ -1,0 +1,8 @@
+Scenario Q09: Above-average premium count
+You are summarizing how concentrated price premiums are in the portfolio.
+Count how many product types have average revenue per unit above the overall product-type average.
+
+Output Format:
+{
+    "premium_type_count": <int>
+}

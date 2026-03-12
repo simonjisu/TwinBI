@@ -1,0 +1,8 @@
+Scenario Q07: Premium product types
+You are part of the pricing team analyzing product positioning.
+Identify product types whose average revenue per unit is higher than the overall portfolio average across all product types.
+
+Output Format:
+{
+    "product_types": <list[str]>
+}

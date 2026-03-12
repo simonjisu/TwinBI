@@ -13,14 +13,15 @@ services:
       - SUPERSET_META_DB_URI=postgresql://superset:superset@superset_db:5432/superset
       - SUPERSET_POLL_INTERVAL_SEC=2
       - SUPERSET_BATCH_SIZE=200
+      - SUPERSET_INGEST_ALLOW_ACTIONS=ChartDataRestApi.data
       - SUPERSET_PUBLIC_URL=http://localhost:8088
       - SUPERSET_INTERNAL_URL=http://superset_app:8088
       - SUPERSET_USERNAME=harry_potter
       - SUPERSET_PASSWORD=1234
       - SUPERSET_GUEST_AUD=superset
-      - SUPERSET_LOG_DASHBOARD_ID=12
+      # Keep empty to ingest logs across dashboards (12/13/...)
+      - SUPERSET_LOG_DASHBOARD_ID=
       - SUPERSET_LOG_USER_ID=
-      - SUPERSET_LOG_USERNAME=
       - CUBE_REST_URL=http://sales:4000
       - CUBE_SQL_HOST=sales
       - CUBE_SQL_PORT=15432

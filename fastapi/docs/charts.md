@@ -67,3 +67,14 @@ Tools to verify:
 ## Notes
 - Prefer `tab_id` from `get_dashboard_layout` for deterministic placement.
 - `append_chart_to_dashboard` is the safe final step because it now synchronizes dashboard relation + layout in one call.
+
+## API Validation Snapshot (2026-03-06)
+- Read-only checks completed
+  - `GET /superset/dashboards/charts?dashboard_id=13` -> `200`
+  - `GET /superset/dashboards/13/layout` -> `200`
+  - `GET /superset/charts/templates` -> `200`
+- Mutating endpoints were intentionally not executed in this validation pass
+  - `POST /semantic/views`
+  - `POST /superset/datasets/sync`
+  - `POST /superset/charts`
+  - `POST /superset/dashboards/{dashboard_id}/layout/append-chart`

@@ -1,0 +1,9 @@
+Scenario Q08: Most premium product type
+You are reviewing premium positioning within the portfolio.
+Find the single most premium product type, defined as the highest average revenue per unit.
+
+Output Format:
+{
+    "product_type": <str>,
+    "avg_revenue_per_unit": <float>
+}

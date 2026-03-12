@@ -2,7 +2,7 @@ Dashboard Agent Tools
 
 Overview
 These tools help the agent inspect Superset dashboards and charts and fetch
-data for the active chart. Use them when a user asks about the current dashboard,
+data for active tab charts. Use them when a user asks about the current dashboard,
 available charts, or chart results.
 
 Tools
@@ -20,7 +20,8 @@ Tools
 
 - get_active_tab_charts
   Returns charts for the active tab (last tab click or default tab).
-  Output: {"dashboard_id": int, "active_tab": {...}, "active_charts": [...], "last_ui_event": {...}}
+  Output: {"dashboard_id": int, "active_tab": {...}, "active_charts": [...]}
+  Note: each entry in `active_charts` includes `native_filters`, `cross_filters`, `interaction`.
 
 - list_dashboard_charts
   Lists charts for the configured or most recent dashboard.
@@ -125,6 +126,7 @@ Documentation tools
 
 Typical usage patterns
 - "What charts are on this dashboard?" -> list_dashboard_charts
+- "What are we currently looking at?" -> get_active_tab_charts (first step)
 - "Show dashboard layout/tab ids" -> get_dashboard_layout(dashboard_id)
 - "What is this chart based on?" -> get_chart_sql
 - "Show the data behind this chart" -> get_active_chart_data
@@ -133,6 +135,9 @@ Typical usage patterns
 
 Notes
 - These tools require Superset credentials and DuckDB logs configured in FastAPI.
+- For analytical Q&A, start with get_active_tab_charts and identify relevant charts by title.
+- For composite questions (e.g. "A and B", "growth vs scale"), use multiple chart_ids from
+  active_charts or run a dataset query. Do not answer from a single chart unless explicitly requested.
 - If there is no active chart context, use list_dashboard_charts and then
   get_chart_data_by_id as needed.
 - list_dashboard_charts returns datasource_id and datasource_type; datasource_id
@@ -141,6 +146,8 @@ Notes
 - Hint: if you need the chart's query structure (columns/metrics/filters) before
   issuing a dataset query, call get_chart_queries and reuse its queries/form_data
   to build the query payload.
+- `/superset/charts/{chart_id}/data` and log-based tools require matching
+  `ChartDataRestApi.*` logs; otherwise they can return `404` / "no chart log payload found".
 
 create_superset_chart preferred request_json example
 ```json
@@ -173,10 +180,23 @@ Superset dataset query flow (recommended)
 2) get_chart_queries(chart_id) -> read queries/form_data (columns/metrics/filters)
 3) query_superset_dataset(query_json) -> send ChartDataRestApi.data payload
 
-Notes for /superset/datasets/{dataset_id}/query
 Notes for /superset/datasets/query
 - The endpoint mirrors Superset's /api/v1/chart/data payload.
 - datasource.id is required; it is the Superset dataset id.
+
+Validated REST parity (2026-03-06)
+- `GET /health` -> `200`
+- `GET /superset/charts/active?dashboard_id=13&user_key=abc` -> `200`
+- `GET /superset/logs/latest?user_key=abc&limit=3` -> `200`
+- `GET /superset/dashboards/charts?dashboard_id=13` -> `200`
+- `GET /superset/dashboards/13/layout` -> `200`
+- `GET /superset/charts/templates` -> `200`
+- `GET /superset/databases/meta` -> `200`
+- `GET /superset/datasets?username=abc&limit=5` -> `200`
+- `GET /superset/charts/1106/form-data` -> `200`
+- `GET /superset/charts/1106/queries` -> `200`
+- `GET /superset/charts/1106/data` -> `404` (expected when chart data logs are absent for target scope)
+- `GET /superset/charts/1106/log-context` -> `404` (same reason as above)
 
 Example query_json
 ```json

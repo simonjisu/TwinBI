@@ -1,0 +1,54 @@
+{
+  "query_id": 12,
+  "task_file": "queries/query_12.txt",
+  "final_answer": {
+    "department": "Marketing",
+    "product_type": "Appliance"
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "department": "Marketing",
+        "product_type": "Appliance"
+      },
+      "context": {
+        "domain": "product",
+        "group_by": [
+          "department",
+          "type"
+        ]
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "department": "Marketing",
+        "product_type": "Appliance"
+      },
+      "context": {
+        "domain": "product",
+        "group_by": [
+          "department",
+          "type"
+        ]
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "department": "Marketing",
+        "product_type": "Appliance"
+      },
+      "context": {
+        "domain": "product",
+        "group_by": [
+          "department",
+          "type"
+        ]
+      }
+    }
+  }
+}

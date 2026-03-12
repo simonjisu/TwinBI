@@ -1,0 +1,8 @@
+Scenario Q22: Sales vs Marketing growth comparison
+You are comparing department momentum.
+Determine which department has the higher QoQ growth value between Sales and Marketing.
+
+Output Format:
+{
+    "winning_department": <str>
+}

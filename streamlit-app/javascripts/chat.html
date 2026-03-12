@@ -1,64 +1,94 @@
 <div id="{{CHAT_CONTAINER_ID}}" class="chat-root">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
+    :root {
+      --chat-bg: #262730;
+      --chat-bg-soft: #1c2230;
+      --chat-panel: #232a3a;
+      --chat-panel-2: #2a3143;
+      --chat-border: rgba(180, 196, 224, 0.2);
+      --chat-text: #edf2ff;
+      --chat-muted: #aeb8ce;
+      --chat-accent: #2aa5d6;
+      --chat-accent-soft: rgba(42, 165, 214, 0.22);
+    }
     html, body {
-      background: #262731;
+      background: var(--chat-bg);
     }
     .chat-root {
-      font-family: sans-serif;
-      color: #fff;
-      background: #262731;
+      font-family: "IBM Plex Sans KR", "SUIT", "Pretendard", sans-serif;
+      color: var(--chat-text);
+      background: var(--chat-bg);
       height: 100vh;
       display: flex;
       flex-direction: column;
+    }
+    .focus-col {
+      width: min(96%, 76ch);
+      margin: 0 auto;
     }
     .chat-header {
       position: sticky;
       top: 0;
       z-index: 2;
-      background: #262731;
+      background: linear-gradient(180deg, rgba(19, 23, 34, 0.96) 0%, rgba(19, 23, 34, 0.9) 100%);
+      backdrop-filter: blur(8px);
       padding: 6px 0 10px 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--chat-border);
       flex: 0 0 auto;
     }
     .chat-title {
       font-weight: 700;
       margin-bottom: 6px;
-      font-size: 20px;
-      color: #ffffff;
+      font-size: 22px;
+      letter-spacing: 0.01em;
+      color: #f7faff;
     }
     .chat-input-row {
       display: flex;
-      gap: 6px;
-      align-items: flex-end;
+      flex-direction: column;
+      gap: 8px;
+      align-items: stretch;
     }
     .chat-input {
-      flex: 1;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: #ffffff;
-      color: #000000;
-      border-radius: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid var(--chat-border);
+      background: #f7f9ff;
+      color: #111827;
+      border-radius: 12px;
       padding: 10px 12px;
-      font-size: 16px;
-      line-height: 1.35;
+      font-size: 15px;
+      line-height: 1.5;
       resize: vertical;
       min-height: 44px;
       max-height: 240px;
       overflow: auto;
     }
+    .chat-input:focus {
+      outline: none;
+      border-color: rgba(42, 165, 214, 0.75);
+      box-shadow: 0 0 0 2px rgba(42, 165, 214, 0.2);
+    }
+    .chat-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
     .chat-send {
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: #1f2937;
-      color: #fff;
+      border: 1px solid rgba(42, 165, 214, 0.5);
+      background: linear-gradient(180deg, #1f7aa0 0%, #175f7d 100%);
+      color: #f8fdff;
       border-radius: 10px;
       padding: 10px 14px;
       cursor: pointer;
       font-size: 14px;
     }
     .chat-clear {
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: #111827;
-      color: #cbd5f5;
+      border: 1px solid var(--chat-border);
+      background: #1a2030;
+      color: #d5def4;
       border-radius: 10px;
       padding: 10px 12px;
       cursor: pointer;
@@ -80,17 +110,24 @@
     .chat-status {
       margin-top: 6px;
       font-size: 13px;
-      color: #5a5d62;
+      color: var(--chat-muted);
     }
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
     .chat-panel {
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 14px;
+      border: 1px solid var(--chat-border);
+      border-radius: 16px;
       padding: 8px;
-      background: #262731;
+      background: linear-gradient(180deg, rgba(30, 37, 53, 0.88) 0%, rgba(24, 30, 43, 0.9) 100%);
       margin-top: 10px;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .focus-col--panel {
+      width: min(98%, 76ch);
       flex: 1 1 auto;
       min-height: 0;
       display: flex;
@@ -98,19 +135,18 @@
     }
     .scroller {
       overflow: auto;
-      height: 100vh;
       display: flex;
       flex-direction: column-reverse;
       overflow-anchor: auto !important;
-      height: auto;         /* 기존 80vh 제거 */
       flex: 1 1 auto;
       min-height: 0;
+      scrollbar-gutter: stable;
     }
     .scroller-content {
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      padding: 6px 0 12px 0;
+      gap: 12px;
+      padding: 8px 0 14px 0;
     }
     .meta {
       display: flex;
@@ -137,46 +173,85 @@
       transform: translateZ(0);
     }
     .bubble {
-      padding: 10px 12px;
-      border-radius: 16px;
-      max-width: 92%;
-      line-height: 1.35;
-      font-size: 1.02rem;
-      white-space: pre-wrap;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+      padding: 14px 16px;
+      border-radius: 15px;
+      max-width: min(92%, 72ch);
+      line-height: 1.62;
+      font-size: 0.99rem;
+      white-space: normal;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .bubble p {
-      margin: 0 0 0.4rem 0;
+      margin: 0 0 0.28rem 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     }
     .bubble p:last-child {
       margin-bottom: 0;
     }
     .bubble ul, .bubble ol {
-      margin: 0.35rem 0 0.35rem 1.1rem;
+      margin: 0.45rem 0 0.55rem 1.15rem;
       padding: 0;
+      display: grid;
+      gap: 0.42rem;
+    }
+    .bubble li, .bubble h1, .bubble h2, .bubble h3, .bubble h4 {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+    .bubble h1, .bubble h2, .bubble h3 {
+      margin: 0.85rem 0 0.4rem;
+      line-height: 1.35;
+      color: #f7fbff;
+      letter-spacing: 0.01em;
+    }
+    .bubble h1 { font-size: 1.17rem; }
+    .bubble h2 { font-size: 1.08rem; }
+    .bubble h3 { font-size: 1.02rem; }
+    .bubble pre {
+      margin: 0.65rem 0;
+      padding: 10px 11px;
+      border-radius: 10px;
+      background: rgba(7, 10, 17, 0.65);
+      border: 1px solid rgba(154, 171, 205, 0.25);
+      overflow: auto;
+      max-height: 320px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .bubble blockquote {
+      margin: 0.5rem 0;
+      padding: 0.25rem 0.85rem;
+      border-left: 3px solid rgba(42, 165, 214, 0.65);
+      color: #d9e2f7;
+      background: rgba(42, 165, 214, 0.08);
+      border-radius: 0 8px 8px 0;
     }
     .bubble code {
-      background: rgba(255, 255, 255, 0.12);
-      padding: 0.08rem 0.28rem;
-      border-radius: 4px;
-      font-size: 0.95em;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      background: rgba(228, 239, 255, 0.16);
+      padding: 0.09rem 0.32rem;
+      border-radius: 6px;
+      font-size: 0.9em;
     }
     .bubble.user {
       margin-left: auto;
-      background: rgba(0, 140, 255, 0.22);
-      border: 1px solid rgba(0, 140, 255, 0.35);
+      background: var(--chat-accent-soft);
+      border: 1px solid rgba(42, 165, 214, 0.45);
     }
     .bubble.assistant {
       margin-right: auto;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: linear-gradient(180deg, var(--chat-panel) 0%, var(--chat-panel-2) 100%);
+      border: 1px solid rgba(182, 197, 224, 0.26);
     }
     .trace-details {
-      margin-top: 4px;
+      margin-top: 2px;
       border: 1px solid rgba(255,255,255,0.10);
       border-radius: 12px;
       background: rgba(255,255,255,0.04);
-      padding: 4px 6px;
+      padding: 2px 6px 3px;
       max-width: 100%;
       box-sizing: border-box;
       overflow: hidden;
@@ -190,8 +265,8 @@
       color: #cbd5f5;
       font-size: 13px;
       user-select: none;
-      padding: 2px 0;            /* summary 자체 패딩 추가(작게) */
-      line-height: 1.2;
+      padding: 0;
+      line-height: 1.15;
     }
     .trace-details summary::-webkit-details-marker { display: none; }
 
@@ -205,23 +280,22 @@
     }
 
     .trace-details[open] summary {
-      margin-bottom: 2px;
+      margin-bottom: 1px;
     }
     
 
     .trace-list {
-      margin: 2px 0 0;
-      padding-left: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+      margin: 0;
+      padding-left: 16px;
+      display: block;
     }
     .trace-item {
       font-size: 12px;
       color: rgba(255,255,255,0.85);
-      line-height: 1.25;
+      line-height: 1.2;
       white-space: pre-wrap;
       word-break: break-word;
+      margin: 0;
     }
     .trace-item p {
       margin: 0;
@@ -313,18 +387,24 @@
     }
   </style>
   <div class="chat-header">
-    <div class="chat-title">Chat</div>
-    <div class="chat-input-row">
-      <textarea class="chat-input" rows="1" placeholder="Ask about what you see..."></textarea>
-      <button class="chat-send">Send</button>
-      <button class="chat-stop" disabled>Stop</button>
-      <button class="chat-clear">Clear Chat</button>
+    <div class="focus-col">
+      <div class="chat-title">Chat</div>
+      <div class="chat-input-row">
+        <textarea class="chat-input" rows="1" placeholder="Ask about what you see..."></textarea>
+        <div class="chat-actions">
+          <button class="chat-send">Send</button>
+          <button class="chat-stop" disabled>Stop</button>
+          <button class="chat-clear">Clear Chat</button>
+        </div>
+      </div>
+      <div class="chat-status">ready</div>
     </div>
-    <div class="chat-status">ready</div>
   </div>
   <div class="chat-panel">
-    <div class="scroller">
-      <div class="scroller-content"></div>
+    <div class="focus-col focus-col--panel">
+      <div class="scroller">
+        <div class="scroller-content"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -344,19 +424,28 @@
   const supersetUsername = "{{SUPERSET_USERNAME}}";
   const supersetPassword = "{{SUPERSET_PASSWORD}}";
   const agentModel = "{{AGENT_MODEL}}";
-  const storageKey = dashboardId
-    ? `chat_messages_${dashboardId}`
-    : "chat_messages_default";
-  const chartStorageKey = `chat_active_chart_${sessionId}`;
-  const logStorageKey = dashboardId
-    ? `superset-log-last-id-${dashboardId}`
-    : null;
-  const chartMap = new Map();
-  let activeChartId = null;
-  let activeChartName = null;
+  const chatScopeKey = dashboardId
+    ? `chat_scope_${dashboardId}_${userId || "anon"}`
+    : `chat_scope_default_${userId || "anon"}`;
+  const storageKey = `${chatScopeKey}_messages`;
+  const chatThreadStorageKey = `${chatScopeKey}_thread`;
+  const chatSessionBaseKey = `${chatScopeKey}_base`;
+  let chatSessionBaseId = localStorage.getItem(chatSessionBaseKey);
+  if (!chatSessionBaseId) {
+    chatSessionBaseId = `${dashboardId || "default"}:${userId || "anon"}`;
+    localStorage.setItem(chatSessionBaseKey, chatSessionBaseId);
+  }
+  let chatThreadId = localStorage.getItem(chatThreadStorageKey) || "0";
+  if (!localStorage.getItem(chatThreadStorageKey)) {
+    localStorage.setItem(chatThreadStorageKey, chatThreadId);
+  }
   let currentController = null;
   let isStreaming = false;
   let pendingAutoRefresh = false;
+
+  function getChatSessionId() {
+    return `${chatSessionBaseId}::chat::${chatThreadId}`;
+  }
 
   function setStatus(text) {
     statusEl.textContent = text;
@@ -497,12 +586,15 @@
 
 
   async function clearMessages() {
+    const previousChatSessionId = getChatSessionId();
     localStorage.removeItem(storageKey);
     renderMessages([]);
+    chatThreadId = String(Date.now());
+    localStorage.setItem(chatThreadStorageKey, chatThreadId);
     setStatus("cleared");
     try {
       const url = new URL(`${apiBase}/chat/dialogue`);
-      url.searchParams.set("session_id", sessionId);
+      url.searchParams.set("session_id", previousChatSessionId);
       await fetch(url.toString(), { method: "DELETE", headers: authHeaders() });
     } catch (err) {}
     try {
@@ -655,16 +747,6 @@
   }
 
   async function fetchContextLabel() {
-    if (activeChartId && chartMap.has(String(activeChartId))) {
-      const chartName = chartMap.get(String(activeChartId));
-      return `Using activated charts (${formatChartLabel(activeChartId, chartName)})\n`;
-    }
-    if (activeChartName) {
-      return `Using activated charts (${formatChartLabel(activeChartId, activeChartName)})\n`;
-    }
-    if (activeChartId) {
-      return `Using activated charts (${formatChartLabel(activeChartId, null)})\n`;
-    }
     if (dashboardId) {
       try {
         const res = await fetch(
@@ -673,11 +755,18 @@
         );
         if (res.ok) {
           const data = await res.json();
-          if (data && data.chart_name) {
-            return `Using activated charts (${formatChartLabel(data.slice_id, data.chart_name)})\n`;
+          const activeCharts = data && Array.isArray(data.active_charts) ? data.active_charts : [];
+          const selected =
+            activeCharts.find((chart) => chart && chart.interaction) ||
+            activeCharts[0] ||
+            null;
+          const activeTab = data && data.active_tab ? data.active_tab : null;
+          const tabName = activeTab && activeTab.name ? String(activeTab.name) : "Active tab";
+          if (selected && selected.slice_id) {
+            return `Context: ${tabName} (${activeCharts.length} charts), focus ${formatChartLabel(selected.slice_id, selected.name || null)}\n`;
           }
-          if (data && data.slice_id) {
-            return `Using activated charts (${formatChartLabel(data.slice_id, null)})\n`;
+          if (activeCharts.length > 0) {
+            return `Context: ${tabName} (${activeCharts.length} charts)\n`;
           }
         }
       } catch (err) {}
@@ -690,74 +779,22 @@
       if (!data || !data.context) {
         return "";
       }
-      const chartId = data.context.chart_id;
-      if (!chartId) {
+      const activeContext = data.context.active_context;
+      const activeCharts =
+        activeContext && Array.isArray(activeContext.active_charts)
+          ? activeContext.active_charts
+          : [];
+      if (!activeCharts.length) {
         return "";
       }
-      const chartName = chartMap.get(String(chartId));
-      if (chartName) {
-        return `Using activated charts (${formatChartLabel(chartId, chartName)})\n`;
-      }
-      return `Using activated charts (${formatChartLabel(chartId, null)})\n`;
+      const tabName =
+        activeContext && activeContext.active_tab && activeContext.active_tab.name
+          ? String(activeContext.active_tab.name)
+          : "Active tab";
+      return `Context: ${tabName} (${activeCharts.length} charts)\n`;
     } catch (err) {
       return "";
     }
-  }
-
-  async function loadChartMap() {
-    if (!dashboardId) return;
-    try {
-      const res = await fetch(`${apiBase}/superset/dashboards/${dashboardId}/charts`, {
-        headers: authHeaders(),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      const charts = data && data.charts ? data.charts : [];
-      charts.forEach((chart) => {
-        const sliceId = chart.slice_id || chart.chart_id;
-        if (!sliceId) return;
-        chartMap.set(String(sliceId), chart.name || "");
-      });
-    } catch (err) {}
-  }
-
-  function loadActiveChart() {
-    try {
-      const raw = localStorage.getItem(chartStorageKey);
-      if (!raw) return;
-      const data = JSON.parse(raw);
-      activeChartId = data.chart_id ?? null;
-      activeChartName = data.chart_name ?? null;
-    } catch (err) {}
-  }
-
-  function saveActiveChart() {
-    localStorage.setItem(
-      chartStorageKey,
-      JSON.stringify({ chart_id: activeChartId, chart_name: activeChartName })
-    );
-  }
-
-  function startLogListener() {
-    if (!dashboardId || !window.EventSource) return;
-    const lastId = logStorageKey ? Number(localStorage.getItem(logStorageKey) || "0") : 0;
-    const logUrl = `${apiBase}/events/stream?source=superset&limit=50&poll_interval_sec=1.0&dashboard_id=${dashboardId}&last_id=${lastId}`;
-    const source = new EventSource(logUrl);
-    source.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (!data) return;
-        if (data.superset_log_id && logStorageKey) {
-          localStorage.setItem(logStorageKey, String(data.superset_log_id));
-        }
-        const sliceId = data.slice_id;
-        if (!sliceId) return;
-        activeChartId = Number(sliceId);
-        const name = chartMap.get(String(sliceId));
-        activeChartName = name || `Chart ${sliceId}`;
-        saveActiveChart();
-      } catch (err) {}
-    };
   }
 
   async function sendMessage() {
@@ -786,12 +823,10 @@
         headers: authHeaders({ "Content-Type": "application/json" }),
         signal: currentController.signal,
         body: JSON.stringify({
-          session_id: sessionId,
+          session_id: getChatSessionId(),
           user_id: userId,
           message: text,
           history: history,
-          active_chart_id: activeChartId,
-          active_chart_name: activeChartName,
           superset_username: supersetUsername || null,
           superset_password: supersetPassword || null,
           agent_model: agentModel || null,
@@ -893,7 +928,5 @@
     }
   });
 
-  loadActiveChart();
-  loadChartMap().then(startLogListener);
   renderMessages(loadMessages());
 </script>

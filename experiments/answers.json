@@ -1,0 +1,491 @@
+{
+  "dashboard-only": {
+    "query_01": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\"store_name\": \"Store_5\", \"avg_daily_sales\": 12300.0}",
+      "normalized_answer": {
+        "avg_daily_sales": 12300.0,
+        "store_name": "Store_5"
+      }
+    },
+    "query_02": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"store_name\": \"Store_6\",\n    \"avg_daily_sales\": 11000.0\n}",
+      "normalized_answer": {
+        "avg_daily_sales": 11000.0,
+        "store_name": "Store_6"
+      }
+    },
+    "query_03": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"top_3_stores\": [\"Store_9\", \"Store_12\", \"Store_1\"]\n}",
+      "normalized_answer": {
+        "top_3_stores": [
+          "Store_9",
+          "Store_12",
+          "Store_1"
+        ]
+      }
+    },
+    "query_04": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"store_name\": \"Store_14\",\n    \"rank\": 2\n}",
+      "normalized_answer": {
+        "rank": 2,
+        "store_name": "Store_14"
+      }
+    },
+    "query_05": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_06": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_07": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"product_types\": [\"Appliance\", \"Accessory\"]\n}",
+      "normalized_answer": {
+        "product_types": [
+          "Appliance",
+          "Accessory"
+        ]
+      }
+    },
+    "query_08": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"product_type\": \"Appliance\",\n    \"avg_revenue_per_unit\": 1035.36\n}",
+      "normalized_answer": {
+        "avg_revenue_per_unit": 1035.36,
+        "product_type": "Appliance"
+      }
+    },
+    "query_09": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"premium_type_count\": 2\n}",
+      "normalized_answer": {
+        "premium_type_count": 2
+      }
+    },
+    "query_10": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_11": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"product_type\": \"Appliance\",\n    \"premium_gap\": 30.87\n}",
+      "normalized_answer": {
+        "premium_gap": 30.87,
+        "product_type": "Appliance"
+      }
+    },
+    "query_12": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_13": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_14": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_15": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_16": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_17": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_18": {
+      "answer_type": "structured",
+      "parse_method": "literal_eval",
+      "raw_final_answer": "{'qualifying_pair_count': 2}",
+      "normalized_answer": {
+        "qualifying_pair_count": 2
+      }
+    },
+    "query_19": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\"tab_name\": \"Store-Level\"}",
+      "normalized_answer": {
+        "tab_name": "Store-Level"
+      }
+    },
+    "query_20": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"department\": \"Sales\",\n    \"previous_units\": 20100.0\n}",
+      "normalized_answer": {
+        "department": "Sales",
+        "previous_units": 20100.0
+      }
+    },
+    "query_21": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\"category\": \"Audio\"}",
+      "normalized_answer": {
+        "category": "Audio"
+      }
+    },
+    "query_22": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"winning_department\": \"Tie\"\n}",
+      "normalized_answer": {
+        "winning_department": "Tie"
+      }
+    },
+    "query_23": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_24": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_25": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"store_name\": \"Store_5\",\n    \"policy_followed\": true\n}",
+      "normalized_answer": {
+        "policy_followed": true,
+        "store_name": "Store_5"
+      }
+    },
+    "query_26": {
+      "answer_type": "structured",
+      "parse_method": "literal_eval",
+      "raw_final_answer": "{'store_name': 'Store_5', 'district': 'North'}",
+      "normalized_answer": {
+        "district": "North",
+        "store_name": "Store_5"
+      }
+    },
+    "query_27": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_28": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_29": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_30": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    }
+  },
+  "twinbi": {
+    "query_01": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"store_name\": \"Store_5\",\n    \"avg_daily_sales\": 12264.8\n}",
+      "normalized_answer": {
+        "avg_daily_sales": 12264.8,
+        "store_name": "Store_5"
+      }
+    },
+    "query_02": {
+      "answer_type": "structured",
+      "parse_method": "literal_eval",
+      "raw_final_answer": "{'store_name': 'Store_7', 'avg_daily_sales': 10205.97}",
+      "normalized_answer": {
+        "avg_daily_sales": 10205.97,
+        "store_name": "Store_7"
+      }
+    },
+    "query_03": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"top_3_stores\": [\"Store_9\", \"Store_12\", \"Store_1\"]\n}",
+      "normalized_answer": {
+        "top_3_stores": [
+          "Store_9",
+          "Store_12",
+          "Store_1"
+        ]
+      }
+    },
+    "query_04": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"store_name\": \"Store_3\",\n    \"rank\": 2\n}",
+      "normalized_answer": {
+        "rank": 2,
+        "store_name": "Store_3"
+      }
+    },
+    "query_05": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\"store_name\": \"Store_5\", \"context\": \"last_15_days\"}",
+      "normalized_answer": {
+        "context": "last_15_days",
+        "store_name": "Store_5"
+      }
+    },
+    "query_06": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\"district\":\"South\",\"store_name\":\"Store_11\"}",
+      "normalized_answer": {
+        "district": "South",
+        "store_name": "Store_11"
+      }
+    },
+    "query_07": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"product_types\": [\"Appliance\", \"Accessory\"]\n}",
+      "normalized_answer": {
+        "product_types": [
+          "Appliance",
+          "Accessory"
+        ]
+      }
+    },
+    "query_08": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"product_type\": \"Appliance\",\n    \"avg_revenue_per_unit\": 1035.36\n}",
+      "normalized_answer": {
+        "avg_revenue_per_unit": 1035.36,
+        "product_type": "Appliance"
+      }
+    },
+    "query_09": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\"premium_type_count\": 2}",
+      "normalized_answer": {
+        "premium_type_count": 2
+      }
+    },
+    "query_10": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\"department\": \"Marketing\", \"product_types\": [\"Appliance\", \"Accessory\"]}",
+      "normalized_answer": {
+        "department": "Marketing",
+        "product_types": [
+          "Appliance",
+          "Accessory"
+        ]
+      }
+    },
+    "query_11": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"product_type\": \"Appliance\",\n    \"premium_gap\": 30.87\n}",
+      "normalized_answer": {
+        "premium_gap": 30.87,
+        "product_type": "Appliance"
+      }
+    },
+    "query_12": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_13": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"pairs\": []\n}",
+      "normalized_answer": {
+        "pairs": []
+      }
+    },
+    "query_14": {
+      "answer_type": "structured",
+      "parse_method": "literal_eval",
+      "raw_final_answer": "{'department': 'Marketing', 'category': 'Mobile', 'qoq_growth_rate': 2.789473684210526}",
+      "normalized_answer": {
+        "category": "Mobile",
+        "department": "Marketing",
+        "qoq_growth_rate": 2.789474
+      }
+    },
+    "query_15": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"department\": \"Marketing\",\n    \"categories\": [\"Laptop\", \"Shoes\"]\n}",
+      "normalized_answer": {
+        "categories": [
+          "Laptop",
+          "Shoes"
+        ],
+        "department": "Marketing"
+      }
+    },
+    "query_16": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"department\": \"Tech\",\n    \"category\": \"Laptop\",\n    \"qoq_growth_rate\": 1.9019607843137254\n}",
+      "normalized_answer": {
+        "category": "Laptop",
+        "department": "Tech",
+        "qoq_growth_rate": 1.901961
+      }
+    },
+    "query_17": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"department\": \"Marketing\",\n    \"category\": \"Mobile\",\n    \"qoq_growth_rate\": 2.789473684210526\n}",
+      "normalized_answer": {
+        "category": "Mobile",
+        "department": "Marketing",
+        "qoq_growth_rate": 2.789474
+      }
+    },
+    "query_18": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\"qualifying_pair_count\": 6}",
+      "normalized_answer": {
+        "qualifying_pair_count": 6
+      }
+    },
+    "query_19": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{ \"tab_name\": \"Store-Level\" }",
+      "normalized_answer": {
+        "tab_name": "Store-Level"
+      }
+    },
+    "query_20": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"department\": \"Sales\",\n    \"previous_units\": 20116.0\n}",
+      "normalized_answer": {
+        "department": "Sales",
+        "previous_units": 20116.0
+      }
+    },
+    "query_21": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"category\": \"TV\"\n}",
+      "normalized_answer": {
+        "category": "TV"
+      }
+    },
+    "query_22": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"winning_department\": \"Neither\"\n}",
+      "normalized_answer": {
+        "winning_department": "Neither"
+      }
+    },
+    "query_23": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"quarter_label\": \"Q4 2022\",\n    \"units_sold\": 4916.0\n}",
+      "normalized_answer": {
+        "quarter_label": "2022-Q4",
+        "units_sold": 4916.0
+      }
+    },
+    "query_24": {
+      "answer_type": "structured",
+      "parse_method": "literal_eval",
+      "raw_final_answer": "{'east_top_store': 'Store_12', 'different_from_overall': True}",
+      "normalized_answer": {
+        "different_from_overall": true,
+        "east_top_store": "Store_12"
+      }
+    },
+    "query_25": {
+      "answer_type": "structured",
+      "parse_method": "literal_eval",
+      "raw_final_answer": "{'store_name': 'Store_5', 'policy_followed': True}",
+      "normalized_answer": {
+        "policy_followed": true,
+        "store_name": "Store_5"
+      }
+    },
+    "query_26": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n    \"store_name\": \"Store_11\",\n    \"district\": \"North\"\n}",
+      "normalized_answer": {
+        "district": "North",
+        "store_name": "Store_11"
+      }
+    },
+    "query_27": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_28": {
+      "answer_type": "max_steps",
+      "parse_method": "text",
+      "raw_final_answer": "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.",
+      "normalized_answer": null
+    },
+    "query_29": {
+      "answer_type": "structured",
+      "parse_method": "json",
+      "raw_final_answer": "{\n  \"store_name\": \"unknown\",\n  \"filter_preserved\": false\n}",
+      "normalized_answer": {
+        "filter_preserved": false,
+        "store_name": "unknown"
+      }
+    }
+  }
+}

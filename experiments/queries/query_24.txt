@@ -1,0 +1,9 @@
+Scenario Q24: Average-daily-sales winner after district filter
+You are testing whether district filters materially change the leader board.
+Filter to East and identify the highest average daily sales store, then report whether it is different from the overall best store.
+
+Output Format:
+{
+    "east_top_store": <str>,
+    "different_from_overall": <bool>
+}

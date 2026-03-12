@@ -1,0 +1,41 @@
+{
+  "query_id": 19,
+  "task_file": "queries/query_19.txt",
+  "final_answer": {
+    "tab_name": "Store-Level"
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "tab_name": "Store-Level"
+      },
+      "context": {
+        "domain": "metadata",
+        "note": "Only Store-Level exposes avg_sales_per_day on dashboard 13."
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "tab_name": "Store-Level"
+      },
+      "context": {
+        "domain": "metadata",
+        "note": "Only Store-Level exposes avg_sales_per_day on dashboard 13."
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "tab_name": "Store-Level"
+      },
+      "context": {
+        "domain": "metadata",
+        "note": "Only Store-Level exposes avg_sales_per_day on dashboard 13."
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+Scenario Q30: Trap - exact structured fill-in
+You are preparing a structured executive note.
+Determine the missing values below using dashboard-only interaction:
+
+| key | meaning |
+|-----|---------|
+| A | Marketing category with QoQ growth 1.1791 |
+| B | QoQ growth rate for Marketing Laptop |
+| C | Department that owns Laptop with QoQ growth 1.9020 |
+
+Output Format:
+{
+    "A": <str>,
+    "B": <float>,
+    "C": <str>
+}

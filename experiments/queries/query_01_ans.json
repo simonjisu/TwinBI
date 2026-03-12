@@ -1,0 +1,121 @@
+{
+  "query_id": 1,
+  "task_file": "queries/query_01.txt",
+  "question": "North district top store by average daily sales",
+  "final_answer": {
+    "store_name": "Store_5",
+    "avg_daily_sales": 12264.798884297521
+  },
+  "self_consistency": {
+    "consistent": true,
+    "agreed_store_name": "Store_5",
+    "agreed_avg_daily_sales": 12264.798884297521
+  },
+  "methods": [
+    {
+      "method": "db_sql",
+      "source": "../data/sales/database/sales.db",
+      "logic": "Join fact_sales with dim_store, filter sales_district = 'North', compute SUM(total_receipts) / COUNT(DISTINCT date_key) by store_name, order descending.",
+      "sql": "SELECT ds.store_name, CAST(SUM(fs.total_receipts) * 1.0 / COUNT(DISTINCT fs.date_key) AS DOUBLE) AS avg_daily_sales FROM fact_sales fs JOIN dim_store ds ON fs.store_key = ds.store_key WHERE ds.sales_district = 'North' GROUP BY ds.store_name ORDER BY avg_daily_sales DESC, ds.store_name ASC LIMIT 10",
+      "top_rows": [
+        {
+          "store_name": "Store_5",
+          "avg_daily_sales": 12264.798884297521
+        },
+        {
+          "store_name": "Store_8",
+          "avg_daily_sales": 11953.963846153847
+        },
+        {
+          "store_name": "Store_13",
+          "avg_daily_sales": 11648.811869565217
+        }
+      ]
+    },
+    {
+      "method": "cube_api",
+      "source": "http://localhost:34000/cubejs-api/v1/load",
+      "logic": "Query Cube view_store_ranking with measure avg_sales_per_day, dimension dim_store_store_name, filter dim_store_sales_district = North, order by avg_sales_per_day desc.",
+      "request": {
+        "measures": [
+          "view_store_ranking.avg_sales_per_day"
+        ],
+        "dimensions": [
+          "view_store_ranking.dim_store_store_name"
+        ],
+        "filters": [
+          {
+            "member": "view_store_ranking.dim_store_sales_district",
+            "operator": "equals",
+            "values": [
+              "North"
+            ]
+          }
+        ],
+        "order": {
+          "view_store_ranking.avg_sales_per_day": "desc"
+        },
+        "limit": 10
+      },
+      "top_rows": [
+        {
+          "store_name": "Store_5",
+          "avg_daily_sales": 12264.798884297521
+        },
+        {
+          "store_name": "Store_8",
+          "avg_daily_sales": 11953.963846153847
+        },
+        {
+          "store_name": "Store_13",
+          "avg_daily_sales": 11648.811869565217
+        }
+      ]
+    },
+    {
+      "method": "our_api_plus_superset",
+      "source": "http://localhost:8000/superset/dashboards/charts?dashboard_id=13 + http://localhost:8088/api/v1/chart/data",
+      "logic": "Use our API to locate Store-Level chart 1108 ('Average daily store sales'). Read its saved query_context/form params from Superset, then re-run /api/v1/chart/data with an added filter dim_store_sales_district IN ('North'), matching the dashboard cross-filter flow.",
+      "chart_lookup": {
+        "dashboard_id": 13,
+        "chart_id": 1108,
+        "chart_name": "Average daily store sales",
+        "supporting_filter_chart_id": 1106,
+        "supporting_filter_chart_name": "Total sales by district "
+      },
+      "superset_query": {
+        "datasource": {
+          "id": 54,
+          "type": "table"
+        },
+        "added_filter": {
+          "col": "dim_store_sales_district",
+          "op": "IN",
+          "val": [
+            "North"
+          ]
+        },
+        "metric_label": "AVG(avg_sales_per_day)",
+        "group_column": "dim_store_store_name"
+      },
+      "top_rows": [
+        {
+          "store_name": "Store_5",
+          "avg_daily_sales": 12264.798884297521
+        },
+        {
+          "store_name": "Store_8",
+          "avg_daily_sales": 11953.963846153847
+        },
+        {
+          "store_name": "Store_13",
+          "avg_daily_sales": 11648.811869565217
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "Saved chart form-data for chart 1108 does not contain the stray Marketing filter seen in some logged query payloads.",
+    "The three methods agree on the same top store and value for query 1."
+  ]
+}

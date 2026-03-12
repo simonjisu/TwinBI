@@ -1,0 +1,14 @@
+Scenario Q01: North district top store
+You are a regional sales director reviewing district-level performance.
+Find the top-performing store in the North district based on average daily sales.
+
+Dashboard policy:
+- Use only features available on the dashboard screen.
+- Allowed: tab navigation, filter clicks (global/cross-filter), drill-by, hover for tooltip inspection.
+- Forbidden: chart edit, chart configuration changes, dashboard structure changes.
+
+Output Format:
+{
+    "store_name": <str>,
+    "avg_daily_sales": <float>
+}

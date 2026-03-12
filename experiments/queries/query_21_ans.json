@@ -1,0 +1,38 @@
+{
+  "query_id": 21,
+  "task_file": "queries/query_21.txt",
+  "final_answer": {
+    "category": "TV"
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "category": "TV"
+      },
+      "context": {
+        "domain": "category_scale"
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "category": "TV"
+      },
+      "context": {
+        "domain": "category_scale"
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "category": "TV"
+      },
+      "context": {
+        "domain": "category_scale"
+      }
+    }
+  }
+}

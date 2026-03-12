@@ -1,0 +1,8 @@
+Scenario Q03: East district top 3 stores
+You are preparing a recognition list for regional leadership.
+Identify the top 3 stores in the East district ranked by average daily sales.
+
+Output Format:
+{
+    "top_3_stores": <list[str]>
+}

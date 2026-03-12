@@ -1,0 +1,51 @@
+{
+  "query_id": 27,
+  "task_file": "queries/query_27.txt",
+  "final_answer": {
+    "category": "Laptop",
+    "qoq_growth_rate": 0.552
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "category": "Laptop",
+        "qoq_growth_rate": 0.552
+      },
+      "context": {
+        "domain": "qoq",
+        "quarter_start": "2024-10-01",
+        "department": "Marketing",
+        "category": "Laptop"
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "category": "Laptop",
+        "qoq_growth_rate": 0.552
+      },
+      "context": {
+        "domain": "qoq",
+        "quarter_start": "2024-10-01",
+        "department": "Marketing",
+        "category": "Laptop"
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "category": "Laptop",
+        "qoq_growth_rate": 0.552
+      },
+      "context": {
+        "domain": "qoq",
+        "quarter_start": "2024-10-01",
+        "department": "Marketing",
+        "category": "Laptop"
+      }
+    }
+  }
+}

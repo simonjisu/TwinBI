@@ -1,0 +1,9 @@
+Scenario Q05: Best district-wide store after 15-day filter
+You are reviewing recent momentum in store performance.
+Apply the recent 15-day filter and find the single best-performing store across all districts by average daily sales.
+
+Output Format:
+{
+    "store_name": <str>,
+    "context": "last_15_days"
+}

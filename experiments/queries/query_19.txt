@@ -1,0 +1,8 @@
+Scenario Q19: Best tab for North
+You are comparing views for the North district.
+After filtering to North, determine whether the Store-Level, Product-Level, or Category-Level tab contains the highest visible average daily sales value.
+
+Output Format:
+{
+    "tab_name": <str>
+}

@@ -52,7 +52,7 @@
 
       const title = document.createElement("div");
       title.style = "font-weight:600; margin-bottom:6px;";
-      const name = row.name || "";
+      const name = chartNames.get(sliceId) || row.name || "";
       title.textContent = name
         ? `Chart(id=${sliceId}): ${name}`
         : `Chart(id=${sliceId})`;
@@ -83,8 +83,22 @@
       charts.forEach((chart) => {
         const sliceId = chart.slice_id || chart.chart_id;
         if (!sliceId) return;
+        const resolvedName =
+          chart.name ||
+          chart.slice_name ||
+          chart.sliceName ||
+          chart.chart_name ||
+          chart.chartName ||
+          "";
         if (!chartNames.has(sliceId)) {
-          chartNames.set(sliceId, chart.name);
+          chartNames.set(sliceId, resolvedName);
+        } else if (resolvedName) {
+          chartNames.set(sliceId, resolvedName);
+        }
+        const existing = chartMap.get(sliceId);
+        if (existing && resolvedName) {
+          existing.name = resolvedName;
+          chartMap.set(sliceId, existing);
         }
       });
       renderRows();
@@ -123,6 +137,9 @@
         // Always start from 0; do not persist last_event_id.
         const knownName = chartNames.get(data.slice_id) || "Chart " + data.slice_id;
         const row = chartMap.get(data.slice_id) || { name: knownName, sql: "" };
+        if (chartNames.get(data.slice_id)) {
+          row.name = chartNames.get(data.slice_id);
+        }
         row.sql = translatedSql || "No SQL yet.";
         chartMap.set(data.slice_id, row);
         renderRows();

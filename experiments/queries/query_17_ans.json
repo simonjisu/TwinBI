@@ -1,0 +1,55 @@
+{
+  "query_id": 17,
+  "task_file": "queries/query_17.txt",
+  "final_answer": {
+    "department": "Marketing",
+    "category": "Mobile",
+    "qoq_growth_rate": 2.789473684210526
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "department": "Marketing",
+        "category": "Mobile",
+        "qoq_growth_rate": 2.789473684210526
+      },
+      "context": {
+        "domain": "qoq",
+        "quarter_start": "2024-10-01",
+        "department": "Marketing",
+        "category": "Mobile"
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "department": "Marketing",
+        "category": "Mobile",
+        "qoq_growth_rate": 2.789473684210526
+      },
+      "context": {
+        "domain": "qoq",
+        "quarter_start": "2024-10-01",
+        "department": "Marketing",
+        "category": "Mobile"
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "department": "Marketing",
+        "category": "Mobile",
+        "qoq_growth_rate": 2.789473684210526
+      },
+      "context": {
+        "domain": "qoq",
+        "quarter_start": "2024-10-01",
+        "department": "Marketing",
+        "category": "Mobile"
+      }
+    }
+  }
+}

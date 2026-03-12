@@ -1,0 +1,60 @@
+{
+  "query_id": 10,
+  "task_file": "queries/query_10.txt",
+  "final_answer": {
+    "department": "Marketing",
+    "product_types": [
+      "Appliance",
+      "Clothing"
+    ]
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "department": "Marketing",
+        "product_types": [
+          "Appliance",
+          "Clothing"
+        ]
+      },
+      "context": {
+        "domain": "product",
+        "department": "Marketing",
+        "department_avg": 1007.4577820604047
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "department": "Marketing",
+        "product_types": [
+          "Appliance",
+          "Clothing"
+        ]
+      },
+      "context": {
+        "domain": "product",
+        "department": "Marketing",
+        "department_avg": 1007.4577820604047
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "department": "Marketing",
+        "product_types": [
+          "Appliance",
+          "Clothing"
+        ]
+      },
+      "context": {
+        "domain": "product",
+        "department": "Marketing",
+        "department_avg": 1007.4577820604047
+      }
+    }
+  }
+}

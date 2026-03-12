@@ -1,0 +1,10 @@
+Scenario Q14: Highest QoQ growth category
+You are identifying the strongest growth story in the portfolio.
+Find the department-category pair with the highest QoQ unit sales growth from Q3 to Q4.
+
+Output Format:
+{
+    "department": <str>,
+    "category": <str>,
+    "qoq_growth_rate": <float>
+}
