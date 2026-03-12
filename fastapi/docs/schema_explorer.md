@@ -40,3 +40,7 @@ Typical usage patterns
 Notes
 - The explorer is configured to use the star schema under ./data/sales.
 - Attribute lookup is case-insensitive for labels; use short attribute names.
+
+Validation note (2026-03-06)
+- These are function tools (agent-internal), not standalone REST endpoints.
+- REST verification for schema-layer parity was performed on `GET /semantic/schema?type=cubes` (`200`).

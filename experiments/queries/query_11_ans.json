@@ -1,0 +1,45 @@
+{
+  "query_id": 11,
+  "task_file": "queries/query_11.txt",
+  "final_answer": {
+    "product_type": "Appliance",
+    "premium_gap": 30.869135108937144
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "product_type": "Appliance",
+        "premium_gap": 30.869135108937144
+      },
+      "context": {
+        "domain": "product",
+        "portfolio_avg": 1004.4936737118439
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "product_type": "Appliance",
+        "premium_gap": 30.869135108937144
+      },
+      "context": {
+        "domain": "product",
+        "portfolio_avg": 1004.4936737118439
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "product_type": "Appliance",
+        "premium_gap": 30.869135108937144
+      },
+      "context": {
+        "domain": "product",
+        "portfolio_avg": 1004.4936737118439
+      }
+    }
+  }
+}

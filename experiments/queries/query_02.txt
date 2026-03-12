@@ -1,0 +1,9 @@
+Scenario Q02: South district lowest store
+You are a district manager reviewing underperforming stores.
+Find the lowest-performing store in the South district based on average daily sales.
+
+Output Format:
+{
+    "store_name": <str>,
+    "avg_daily_sales": <float>
+}

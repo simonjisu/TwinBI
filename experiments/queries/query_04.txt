@@ -1,0 +1,9 @@
+Scenario Q04: West district runner-up
+You are reviewing competitive positioning within the West district.
+Find the second-highest store in the West district by average daily sales.
+
+Output Format:
+{
+    "store_name": <str>,
+    "rank": 2
+}

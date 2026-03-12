@@ -1,0 +1,9 @@
+Scenario Q10: Premium types in Marketing
+You are reviewing price premium only within the Marketing department.
+Find which product types in Marketing have average revenue per unit above the overall Marketing product-type average.
+
+Output Format:
+{
+    "department": "Marketing",
+    "product_types": <list[str]>
+}

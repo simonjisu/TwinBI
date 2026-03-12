@@ -1,0 +1,9 @@
+Scenario Q12: Department-level premium leader
+You are comparing departments on pricing power.
+Find which department contains the product type with the highest average revenue per unit.
+
+Output Format:
+{
+    "department": <str>,
+    "product_type": <str>
+}

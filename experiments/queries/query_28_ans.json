@@ -1,0 +1,44 @@
+{
+  "query_id": 28,
+  "task_file": "queries/query_28.txt",
+  "final_answer": {
+    "department": "Tech"
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "department": "Tech"
+      },
+      "context": {
+        "domain": "qoq",
+        "quarter_start": "2024-10-01",
+        "category": "Laptop"
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "department": "Tech"
+      },
+      "context": {
+        "domain": "qoq",
+        "quarter_start": "2024-10-01",
+        "category": "Laptop"
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "department": "Tech"
+      },
+      "context": {
+        "domain": "qoq",
+        "quarter_start": "2024-10-01",
+        "category": "Laptop"
+      }
+    }
+  }
+}

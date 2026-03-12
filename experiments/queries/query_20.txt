@@ -1,0 +1,9 @@
+Scenario Q20: Department with highest previous units
+You are reviewing prior-quarter scale before deciding investments.
+Find which department has the highest previous units value in the department growth table.
+
+Output Format:
+{
+    "department": <str>,
+    "previous_units": <float>
+}

@@ -213,6 +213,10 @@ data/sales/index/*
 data/tutorial/index/*
 .cubestore
 superset
+superset/*
 .DS_Store
 archive
 *.duckdb
+paper
+dev_docs
+simulation

@@ -415,6 +415,7 @@ export default function SupersetEmbed(props: ComponentProps) {
           for (const filter of crossDiff.added) {
             postEvent("cross_filter_added", {
               dashboard_id: effectiveDashboardId,
+              filter_type: "cross",
               source_slice_id: effectiveSourceSliceId,
               filter,
             });
@@ -422,20 +423,23 @@ export default function SupersetEmbed(props: ComponentProps) {
           for (const filter of crossDiff.removed) {
             postEvent("cross_filter_removed", {
               dashboard_id: effectiveDashboardId,
+              filter_type: "cross",
               source_slice_id: effectiveSourceSliceId,
               filter,
             });
           }
           for (const filter of globalDiff.added) {
-            postEvent("global_filter_added", {
+            postEvent("native_filter_added", {
               dashboard_id: effectiveDashboardId,
+              filter_type: "native",
               source_slice_id: null,
               filter,
             });
           }
           for (const filter of globalDiff.removed) {
-            postEvent("global_filter_removed", {
+            postEvent("native_filter_removed", {
               dashboard_id: effectiveDashboardId,
+              filter_type: "native",
               source_slice_id: null,
               filter,
             });
@@ -543,6 +547,55 @@ export default function SupersetEmbed(props: ComponentProps) {
   }, [dashboardId, supersetDomain, guestToken, effectiveHeight, uiConfig]);
 
   useEffect(() => {
+    const resolveLegendEvent = (
+      rawType: string,
+      rawData: Record<string, unknown>,
+      rawPayload: Record<string, unknown> | undefined,
+    ) => {
+      if (rawType !== "legend_toggle") {
+        return {
+          eventType: rawType,
+          legendName: null as string | null,
+          legendActive: null as boolean | null,
+          selected: null as Record<string, unknown> | null,
+        };
+      }
+      const clickedRaw =
+        rawData.clicked_name ??
+        rawData.clickedName ??
+        rawPayload?.clicked_name ??
+        rawPayload?.clickedName ??
+        rawPayload?.name ??
+        rawData.name;
+      const legendName =
+        typeof clickedRaw === "string" && clickedRaw.trim()
+          ? clickedRaw.trim()
+          : null;
+      const selected =
+        rawPayload?.selected && typeof rawPayload.selected === "object"
+          ? (rawPayload.selected as Record<string, unknown>)
+          : rawData.selected && typeof rawData.selected === "object"
+            ? (rawData.selected as Record<string, unknown>)
+            : null;
+      let legendActive: boolean | null = null;
+      if (
+        legendName &&
+        selected &&
+        Object.prototype.hasOwnProperty.call(selected, legendName)
+      ) {
+        const rawValue = selected[legendName];
+        if (typeof rawValue === "boolean") legendActive = rawValue;
+        else if (rawValue === 0 || rawValue === 1) legendActive = Boolean(rawValue);
+      }
+      const mappedType =
+        legendActive === true
+          ? "legend_toggle_activate"
+          : legendActive === false
+            ? "legend_toggle_deactivate"
+            : "legend_toggle";
+      return { eventType: mappedType, legendName, legendActive, selected };
+    };
+
     const handler = (event: MessageEvent) => {
       if (!supersetDomain) return;
       const origin = new URL(supersetDomain).origin;
@@ -582,18 +635,22 @@ export default function SupersetEmbed(props: ComponentProps) {
       }
 
       if (data && data.id === 'superset-ui-event') {
-        const eventType = String(
+        const baseEventType = String(
           data.event ||
             data.event_type ||
             uiPayload?.event ||
             uiPayload?.event_type ||
             "superset_ui_event"
         );
-        postEvent(eventType, {
+        const legendResolved = resolveLegendEvent(baseEventType, data, uiPayload);
+        postEvent(legendResolved.eventType, {
           dashboard_id:
             eventDashboardId ?? dashboardIdRef.current ?? dashboardIdNum ?? null,
           slice_id: data.chart_id || data.chartId || uiPayload?.chart_id || uiPayload?.chartId || uiPayload?.slice_id || uiPayload?.sliceId || null,
           viz_type: data.viz_type || uiPayload?.viz_type || null,
+          legend_name: legendResolved.legendName,
+          legend_active: legendResolved.legendActive,
+          selected: legendResolved.selected,
           payload: data.payload,
         });
         return;

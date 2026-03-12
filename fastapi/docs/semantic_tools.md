@@ -47,3 +47,8 @@ Notes
 - Requires CUBE_REST_URL for live queries and CUBE_CONF_PATH for repo schema.
 - `/semantic/schema` returns Cube meta with verbose keys removed.
 - The query_json must be valid JSON.
+
+Validated REST parity (2026-03-06)
+- `GET /semantic/schema?type=cubes` -> `200`
+  - Verified response key: `cubes`
+  - Verified cube metadata present (for example `fact_sales` with measures/dimensions)

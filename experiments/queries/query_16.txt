@@ -1,0 +1,10 @@
+Scenario Q16: Laptop ownership
+You are validating category ownership before inventory planning.
+Determine which department owns the Laptop category and report its Q4 vs Q3 QoQ unit sales growth.
+
+Output Format:
+{
+    "department": <str>,
+    "category": "Laptop",
+    "qoq_growth_rate": <float>
+}

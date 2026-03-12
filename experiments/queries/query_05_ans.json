@@ -1,0 +1,54 @@
+{
+  "query_id": 5,
+  "task_file": "queries/query_05.txt",
+  "final_answer": {
+    "store_name": "Store_5",
+    "context": "last_15_days"
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "store_name": "Store_5",
+        "context": "last_15_days"
+      },
+      "context": {
+        "domain": "store",
+        "date_range": [
+          "2024-12-16",
+          "2024-12-30"
+        ]
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "store_name": "Store_5",
+        "context": "last_15_days"
+      },
+      "context": {
+        "domain": "store",
+        "date_range": [
+          "2024-12-16",
+          "2024-12-30"
+        ]
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "store_name": "Store_5",
+        "context": "last_15_days"
+      },
+      "context": {
+        "domain": "store",
+        "date_range": [
+          "2024-12-16",
+          "2024-12-30"
+        ]
+      }
+    }
+  }
+}

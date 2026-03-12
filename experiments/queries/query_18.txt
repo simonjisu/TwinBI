@@ -1,0 +1,8 @@
+Scenario Q18: Count of high-growth pairs
+You are summarizing how many category opportunities exceed the growth threshold.
+Count how many department-category pairs show at least 15% QoQ unit sales growth from Q3 to Q4.
+
+Output Format:
+{
+    "qualifying_pair_count": <int>
+}

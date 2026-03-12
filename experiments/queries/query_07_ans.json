@@ -1,0 +1,53 @@
+{
+  "query_id": 7,
+  "task_file": "queries/query_07.txt",
+  "final_answer": {
+    "product_types": [
+      "Accessory",
+      "Appliance"
+    ]
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "product_types": [
+          "Accessory",
+          "Appliance"
+        ]
+      },
+      "context": {
+        "domain": "product",
+        "portfolio_avg": 1004.4936737118439
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "product_types": [
+          "Accessory",
+          "Appliance"
+        ]
+      },
+      "context": {
+        "domain": "product",
+        "portfolio_avg": 1004.4936737118439
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "product_types": [
+          "Accessory",
+          "Appliance"
+        ]
+      },
+      "context": {
+        "domain": "product",
+        "portfolio_avg": 1004.4936737118439
+      }
+    }
+  }
+}

@@ -13,8 +13,6 @@ class ChatRequest(BaseModel):
     message: str
     history: list[dict[str, str]] = Field(default_factory=list)
     dashboard_id: int | None = None
-    active_chart_id: int | None = None
-    active_chart_name: str | None = None
     superset_username: str | None = None
     superset_password: str | None = None
     agent_model: str | None = None

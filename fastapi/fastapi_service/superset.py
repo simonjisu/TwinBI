@@ -176,7 +176,6 @@ def normalize_chart_queries_result(result: dict[str, Any]) -> dict[str, Any]:
 class QueryTranslater:
     SUPPORTED_ACTIONS = {
         "ChartDataRestApi.data",
-        "ChartDataRestApi.json_dumps",
     }
 
     def __init__(
@@ -1545,6 +1544,7 @@ class SupersetPoller:
         username: str | None,
         writer: DuckDBWriter,
         conn: duckdb.DuckDBPyConnection,
+        ingest_superset_log: Callable[[dict[str, Any], dict[str, Any]], Any] | None = None,
     ) -> None:
         self._meta_db_uri = self._normalize_db_uri(meta_db_uri)
         self._poll_interval_sec = poll_interval_sec
@@ -1554,6 +1554,7 @@ class SupersetPoller:
         self._username = username
         self._writer = writer
         self._conn = conn
+        self._ingest_superset_log = ingest_superset_log
         self._stop = asyncio.Event()
         self._last_poll_at: datetime | None = None
         self._last_row_count: int | None = None
@@ -1561,11 +1562,20 @@ class SupersetPoller:
         self._last_checkpoint_id: int | None = None
         ignore_raw = os.getenv(
             "SUPERSET_INGEST_IGNORE_ACTIONS",
-            "ChartDataRestApi.json_dumps,DashboardRestApi.get,_get_data_response,fetch_rows",
+            "DashboardRestApi.get,_get_data_response,fetch_rows",
         )
         self._ignored_actions = {
             item.strip()
             for item in ignore_raw.split(",")
+            if item and item.strip()
+        }
+        allow_raw = os.getenv(
+            "SUPERSET_INGEST_ALLOW_ACTIONS",
+            "ChartDataRestApi.data",
+        )
+        self._allowed_actions = {
+            item.strip()
+            for item in allow_raw.split(",")
             if item and item.strip()
         }
 
@@ -1631,11 +1641,19 @@ class SupersetPoller:
 
             max_id = last_id
             for row in rows:
+                max_id = max(max_id, row["id"])
                 if row.get("action") in self._ignored_actions:
                     continue
                 payload = self._normalize_row(row)
-                await self._writer.enqueue_superset_log(payload)
-                max_id = max(max_id, row["id"])
+                normalized_action = payload.get("action")
+                if self._allowed_actions and normalized_action not in self._allowed_actions:
+                    continue
+                if self._ingest_superset_log is not None:
+                    maybe_awaitable = self._ingest_superset_log(payload, row)
+                    if asyncio.iscoroutine(maybe_awaitable):
+                        await maybe_awaitable
+                else:
+                    await self._writer.enqueue_superset_log(payload)
 
             await self._writer.enqueue_checkpoint(
                 db.CHECKPOINT_KEY_SUPERSET_LAST_ID, str(max_id)
@@ -1678,11 +1696,19 @@ class SupersetPoller:
 
                 max_id = last_id
                 for row in rows:
+                    max_id = max(max_id, row["id"])
                     if row.get("action") in self._ignored_actions:
                         continue
                     payload = self._normalize_row(row)
-                    await self._writer.enqueue_superset_log(payload)
-                    max_id = max(max_id, row["id"])
+                    normalized_action = payload.get("action")
+                    if self._allowed_actions and normalized_action not in self._allowed_actions:
+                        continue
+                    if self._ingest_superset_log is not None:
+                        maybe_awaitable = self._ingest_superset_log(payload, row)
+                        if asyncio.iscoroutine(maybe_awaitable):
+                            await maybe_awaitable
+                    else:
+                        await self._writer.enqueue_superset_log(payload)
                 total_rows += len(rows)
                 last_id = max_id
 
@@ -1766,10 +1792,21 @@ class SupersetPoller:
         return sql, tuple(params)
 
     def _normalize_row(self, row: dict[str, Any]) -> dict[str, Any]:
+        action = row.get("action")
+        raw_json = row.get("json")
+        if action == "log" and isinstance(raw_json, str):
+            try:
+                payload = json.loads(raw_json)
+            except json.JSONDecodeError:
+                payload = {}
+            if isinstance(payload, dict):
+                event_name = payload.get("event_name")
+                if isinstance(event_name, str) and event_name.strip():
+                    action = event_name.strip()
         return DuckDBWriter.build_superset_payload(
             superset_log_id=row["id"],
             dttm=row.get("dttm"),
-            action=row.get("action"),
+            action=action,
             user_id=row.get("user_id"),
             dashboard_id=row.get("dashboard_id"),
             slice_id=row.get("slice_id"),
@@ -1792,6 +1829,7 @@ class SupersetPoller:
             "dashboard_id_filter": self._dashboard_id,
             "user_id_filter": self._user_id,
             "username_filter": self._username,
+            "allowed_actions": sorted(self._allowed_actions),
             "ignored_actions": sorted(self._ignored_actions),
         }
 
@@ -1806,6 +1844,21 @@ def lookup_user_id(meta_db_uri: str, username: str) -> int | None:
             )
             row = cursor.fetchone()
             return row[0] if row else None
+
+
+def lookup_username(meta_db_uri: str, user_id: int) -> str | None:
+    import psycopg2
+
+    with psycopg2.connect(meta_db_uri) as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT username FROM ab_user WHERE id = %s LIMIT 1", (user_id,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            value = row[0]
+            return str(value).strip() if value is not None else None
 
 
 def _fetch_dashboard_charts_endpoint(

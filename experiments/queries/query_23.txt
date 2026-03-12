@@ -1,0 +1,9 @@
+Scenario Q23: Quarter peak in units sold
+You are reviewing seasonality patterns.
+Find which quarter in the units-sold-by-quarter chart has the highest unit sales value.
+
+Output Format:
+{
+    "quarter_label": <str>,
+    "units_sold": <float>
+}

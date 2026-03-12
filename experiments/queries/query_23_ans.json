@@ -1,0 +1,42 @@
+{
+  "query_id": 23,
+  "task_file": "queries/query_23.txt",
+  "final_answer": {
+    "quarter_label": "2022-Q4",
+    "units_sold": 4916.0
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "quarter_label": "2022-Q4",
+        "units_sold": 4916.0
+      },
+      "context": {
+        "domain": "quarter_units"
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "quarter_label": "2022-Q4",
+        "units_sold": 4916.0
+      },
+      "context": {
+        "domain": "quarter_units"
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "quarter_label": "2022-Q4",
+        "units_sold": 4916.0
+      },
+      "context": {
+        "domain": "quarter_units"
+      }
+    }
+  }
+}

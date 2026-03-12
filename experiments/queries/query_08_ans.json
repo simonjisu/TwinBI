@@ -1,0 +1,42 @@
+{
+  "query_id": 8,
+  "task_file": "queries/query_08.txt",
+  "final_answer": {
+    "product_type": "Appliance",
+    "avg_revenue_per_unit": 1035.362808820781
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "product_type": "Appliance",
+        "avg_revenue_per_unit": 1035.362808820781
+      },
+      "context": {
+        "domain": "product"
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "product_type": "Appliance",
+        "avg_revenue_per_unit": 1035.362808820781
+      },
+      "context": {
+        "domain": "product"
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "product_type": "Appliance",
+        "avg_revenue_per_unit": 1035.362808820781
+      },
+      "context": {
+        "domain": "product"
+      }
+    }
+  }
+}

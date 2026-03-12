@@ -1,0 +1,9 @@
+Scenario Q27: Tooltip-heavy category lookup
+You are validating fine-grained chart reading.
+On the Category-Level view, use hover if needed to identify the exact QoQ growth rate of the Laptop category.
+
+Output Format:
+{
+    "category": "Laptop",
+    "qoq_growth_rate": <float>
+}

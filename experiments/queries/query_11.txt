@@ -1,0 +1,9 @@
+Scenario Q11: Highest premium gap
+You are analyzing premium dispersion.
+Find the product type with the largest positive gap between its average revenue per unit and the overall average across product types.
+
+Output Format:
+{
+    "product_type": <str>,
+    "premium_gap": <float>
+}

@@ -1,0 +1,45 @@
+{
+  "query_id": 2,
+  "task_file": "queries/query_02.txt",
+  "final_answer": {
+    "store_name": "Store_7",
+    "avg_daily_sales": 10205.96531707317
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "store_name": "Store_7",
+        "avg_daily_sales": 10205.96531707317
+      },
+      "context": {
+        "domain": "store",
+        "district": "South"
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "store_name": "Store_7",
+        "avg_daily_sales": 10205.96531707317
+      },
+      "context": {
+        "domain": "store",
+        "district": "South"
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "store_name": "Store_7",
+        "avg_daily_sales": 10205.96531707317
+      },
+      "context": {
+        "domain": "store",
+        "district": "South"
+      }
+    }
+  }
+}

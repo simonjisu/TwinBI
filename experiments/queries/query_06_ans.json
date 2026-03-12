@@ -1,0 +1,45 @@
+{
+  "query_id": 6,
+  "task_file": "queries/query_06.txt",
+  "final_answer": {
+    "district": "South",
+    "store_name": "Store_11"
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "district": "South",
+        "store_name": "Store_11"
+      },
+      "context": {
+        "domain": "store",
+        "scope": "all_districts"
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "district": "South",
+        "store_name": "Store_11"
+      },
+      "context": {
+        "domain": "store",
+        "scope": "all_districts"
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "district": "South",
+        "store_name": "Store_11"
+      },
+      "context": {
+        "domain": "store",
+        "scope": "all_districts"
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+from contextvars import ContextVar
 from pathlib import Path
 from dataclasses import dataclass, replace
 from typing import Any, AsyncIterator
@@ -79,19 +80,18 @@ class Answer(BaseModel):
 class AgentContext:
     settings: Any
     conn: Any
-    chart_id: int | None = None
-    chart_name: str | None = None
-    chart_data: dict[str, Any] | None = None
     trace_logs: list[dict[str, Any]] | None = None
     active_chart: dict[str, Any] | None = None
     messages: list[dict[str, str]] | None = None
 
 
-_ACTIVE_CONTEXT: AgentContext | None = None
+_ACTIVE_CONTEXT_VAR: ContextVar[AgentContext | None] = ContextVar(
+    "active_agent_context", default=None
+)
 
 
 def _get_active_context() -> AgentContext | None:
-    return _ACTIVE_CONTEXT
+    return _ACTIVE_CONTEXT_VAR.get()
 
 
 def _get_active_settings() -> tuple[Any | None, dict[str, Any] | None]:
@@ -213,7 +213,7 @@ def _fetch_latest_chart_log_payload(
         """
         SELECT json
         FROM superset_action_logs
-        WHERE slice_id = ? AND action IN ('ChartDataRestApi.data', 'ChartDataRestApi.json_dumps')
+        WHERE slice_id = ? AND action = 'ChartDataRestApi.data'
         ORDER BY superset_log_id DESC
         LIMIT 1
         """,
@@ -280,22 +280,36 @@ def _fetch_latest_active_chart(
 def _fetch_latest_ui_event(
     conn: duckdb.DuckDBPyConnection,
     dashboard_id: int | None = None,
+    session_id: str | None = None,
+    actions: tuple[str, ...] | None = None,
 ) -> dict[str, Any] | None:
-    ui_actions = (
+    default_ui_actions = (
         "superset_tab_click",
         "legend_toggle",
+        "legend_toggle_activate",
+        "legend_toggle_deactivate",
         "chart_click",
         "cross_filter_added",
         "cross_filter_removed",
+        "native_filter_added",
+        "native_filter_removed",
+        "global_filter_added",
+        "global_filter_removed",
         # backward compatibility with old names
         "filter_added",
         "filter_removed",
     )
+    ui_actions = actions or default_ui_actions
+    if not ui_actions:
+        return None
     params: list[Any] = list(ui_actions)
     filters = [f"action IN ({','.join(['?'] * len(ui_actions))})"]
     if dashboard_id is not None:
         filters.append("dashboard_id = ?")
         params.append(dashboard_id)
+    if isinstance(session_id, str) and session_id.strip():
+        filters.append("json_extract_string(json, '$.session_id') = ?")
+        params.append(session_id.strip())
     where_clause = " AND ".join(filters)
     row = conn.execute(
         f"""
@@ -327,6 +341,263 @@ def _fetch_latest_ui_event(
     }
 
 
+def _ui_payload(event: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(event, dict):
+        return {}
+    payload = event.get("payload")
+    if not isinstance(payload, dict):
+        return {}
+    inner = payload.get("payload")
+    if isinstance(inner, dict):
+        return inner
+    return payload
+
+
+def _ui_slice_id(event: dict[str, Any] | None) -> Any:
+    if not isinstance(event, dict):
+        return None
+    if event.get("slice_id") is not None:
+        return event.get("slice_id")
+    payload = _ui_payload(event)
+    for key in ("slice_id", "sliceId", "chart_id", "chartId", "source_slice_id"):
+        value = payload.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def _normalize_filter_entry(entry: Any) -> dict[str, Any] | None:
+    if not isinstance(entry, dict):
+        return None
+    col = entry.get("col") or entry.get("subject")
+    if col is None:
+        return None
+    op = entry.get("op") or entry.get("operator") or "IN"
+    val = entry.get("val")
+    if val is None and "comparator" in entry:
+        val = entry.get("comparator")
+    if isinstance(val, str):
+        text = val.strip()
+        if not text or text.lower() == "no filter":
+            return None
+        val = text
+    elif isinstance(val, list):
+        cleaned: list[Any] = []
+        for item in val:
+            if isinstance(item, str):
+                text = item.strip()
+                if not text or text.lower() == "no filter":
+                    continue
+                cleaned.append(text)
+            elif item not in (None, ""):
+                cleaned.append(item)
+        if not cleaned:
+            return None
+        val = cleaned
+    elif val in (None, "", []):
+        return None
+    return {"col": str(col), "op": str(op), "val": val}
+
+
+def _looks_like_display_text_col(col: str) -> bool:
+    text = (col or "").strip()
+    if not text:
+        return True
+    if "," in text and "_" not in text and "." not in text:
+        return True
+    return False
+
+
+def _filter_key(entry: dict[str, Any]) -> str:
+    return json.dumps(
+        {
+            "col": entry.get("col"),
+            "op": entry.get("op"),
+            "val": entry.get("val"),
+        },
+        sort_keys=True,
+        default=str,
+    )
+
+
+def _extract_filters_from_chart_payload(payload: Any) -> list[dict[str, Any]]:
+    if not isinstance(payload, dict):
+        return []
+    form_data = payload.get("form_data") or payload.get("from_data") or {}
+    if not isinstance(form_data, dict):
+        return []
+    filters = form_data.get("filters")
+    if not isinstance(filters, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for raw in filters:
+        normalized = _normalize_filter_entry(raw)
+        if normalized:
+            out.append(normalized)
+    dedup: dict[str, dict[str, Any]] = {}
+    for item in out:
+        dedup[_filter_key(item)] = item
+    return list(dedup.values())
+
+
+def _fetch_latest_chart_filters_by_slice(
+    conn: duckdb.DuckDBPyConnection,
+    slice_ids: list[int],
+    dashboard_id: int | None = None,
+) -> dict[int, list[dict[str, Any]]]:
+    if not slice_ids:
+        return {}
+    unique_slice_ids: list[int] = []
+    seen_slice_ids: set[int] = set()
+    for value in slice_ids:
+        try:
+            sid = int(value)
+        except Exception:
+            continue
+        if sid in seen_slice_ids:
+            continue
+        seen_slice_ids.add(sid)
+        unique_slice_ids.append(sid)
+    if not unique_slice_ids:
+        return {}
+    placeholders = ",".join(["?"] * len(unique_slice_ids))
+    params: list[Any] = []
+    where = [
+        "action = 'ChartDataRestApi.data'",
+        f"slice_id IN ({placeholders})",
+    ]
+    params.extend(unique_slice_ids)
+    if dashboard_id is not None:
+        where.append("dashboard_id = ?")
+        params.append(dashboard_id)
+    rows = conn.execute(
+        f"""
+        SELECT superset_log_id, slice_id, json
+        FROM superset_action_logs
+        WHERE {' AND '.join(where)}
+        ORDER BY superset_log_id DESC
+        LIMIT 5000
+        """,
+        params,
+    ).fetchall()
+    out: dict[int, list[dict[str, Any]]] = {}
+    seen: set[int] = set()
+    for _, slice_id, raw_json in rows:
+        if slice_id is None:
+            continue
+        sid = int(slice_id)
+        if sid in seen:
+            continue
+        seen.add(sid)
+        payload: dict[str, Any] = {}
+        if isinstance(raw_json, str) and raw_json:
+            try:
+                payload = json.loads(raw_json)
+            except json.JSONDecodeError:
+                payload = {}
+        out[sid] = _extract_filters_from_chart_payload(payload)
+        if len(seen) == len(unique_slice_ids):
+            break
+    return out
+
+
+def _fetch_current_global_filters(
+    conn: duckdb.DuckDBPyConnection,
+    dashboard_id: int | None = None,
+    session_id: str | None = None,
+) -> list[dict[str, Any]]:
+    filter_actions = (
+        "native_filter_added",
+        "native_filter_removed",
+        "global_filter_added",
+        "global_filter_removed",
+    )
+    params: list[Any] = list(filter_actions)
+    where = [f"action IN ({','.join(['?'] * len(filter_actions))})"]
+    if dashboard_id is not None:
+        where.append("dashboard_id = ?")
+        params.append(dashboard_id)
+    if isinstance(session_id, str) and session_id.strip():
+        where.append("json_extract_string(json, '$.session_id') = ?")
+        params.append(session_id.strip())
+    rows = conn.execute(
+        f"""
+        SELECT action, json
+        FROM superset_action_logs
+        WHERE {' AND '.join(where)}
+        ORDER BY superset_log_id ASC
+        """,
+        params,
+    ).fetchall()
+    active: dict[str, dict[str, Any]] = {}
+    for action, raw_json in rows:
+        payload_obj: dict[str, Any] = {}
+        if isinstance(raw_json, str) and raw_json:
+            try:
+                payload_obj = json.loads(raw_json)
+            except json.JSONDecodeError:
+                payload_obj = {}
+        payload = payload_obj.get("payload")
+        if isinstance(payload, dict) and isinstance(payload.get("payload"), dict):
+            payload = payload.get("payload")
+        if not isinstance(payload, dict):
+            payload = {}
+        normalized = _normalize_filter_entry(payload.get("filter"))
+        if not normalized:
+            continue
+        if _looks_like_display_text_col(str(normalized.get("col") or "")):
+            continue
+        key = _filter_key(normalized)
+        if action in ("native_filter_added", "global_filter_added"):
+            active[key] = normalized
+        elif action in ("native_filter_removed", "global_filter_removed"):
+            active.pop(key, None)
+    return list(active.values())
+
+
+def _normalize_legend_interaction(payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(payload, dict):
+        return None
+    name = payload.get("legend_name")
+    active = payload.get("legend_active")
+    if name is None and active is None:
+        return None
+    normalized = dict(payload)
+    if isinstance(normalized.get("legend_name"), str):
+        normalized["legend_name"] = normalized["legend_name"].strip()
+    return normalized
+
+
+def _active_context_payload(context: AgentContext | None) -> dict[str, Any]:
+    if context and isinstance(context.active_chart, dict):
+        return context.active_chart
+    return {}
+
+
+def _pick_context_chart(context: AgentContext | None) -> dict[str, Any] | None:
+    active_context = _active_context_payload(context)
+    charts = active_context.get("active_charts")
+    if not isinstance(charts, list) or not charts:
+        return None
+    for chart in charts:
+        if isinstance(chart, dict) and chart.get("slice_id") and chart.get("interaction"):
+            return chart
+    for chart in charts:
+        if isinstance(chart, dict) and chart.get("slice_id") is not None:
+            return chart
+    return None
+
+
+def _pick_context_chart_id(context: AgentContext | None) -> int | None:
+    chart = _pick_context_chart(context)
+    if not isinstance(chart, dict):
+        return None
+    try:
+        return int(chart.get("slice_id"))
+    except Exception:
+        return None
+
+
 if function_tool:
     _SCHEMA_EXPLORER_ERROR: Exception | None = None
     _SCHEMA_EXPLORER: SchemaExplorer | None = None
@@ -348,72 +619,89 @@ if function_tool:
     @function_tool
     def get_active_chart_log() -> dict[str, Any]:
         """
-        Return the latest Superset log payload for the active chart.
+        Return the latest Superset log payload for the focused chart in active tab context.
 
         Input:
-        - Uses the active context set by the API handler (chart id + DuckDB connection).
+        - Uses the active context set by the API handler.
+        - Focused chart selection priority: interaction chart -> first chart in active tab.
 
         Output:
-        - {"chart_id": int, "payload": dict | null}
-        - {"error": "..."} on missing chart id or missing payload.
+        - {"chart_id": int, "chart_name": str | null, "payload": dict | null}
+        - {"error": "..."} on missing active chart context.
         """
         context = _get_active_context()
         if context is None:
             return {"error": "active context not set"}
-        if not context.chart_id:
-            return {"error": "active chart id not set"}
-        payload = _fetch_latest_chart_log_payload(context.conn, context.chart_id)
-        return {"chart_id": context.chart_id, "payload": payload}
+        chart = _pick_context_chart(context)
+        chart_id = _pick_context_chart_id(context)
+        if chart_id is None:
+            return {"error": "no active tab chart found; call get_active_tab_charts first"}
+        payload = _fetch_latest_chart_log_payload(context.conn, chart_id)
+        return {
+            "chart_id": chart_id,
+            "chart_name": chart.get("name") if isinstance(chart, dict) else None,
+            "payload": payload,
+        }
 
     @function_tool
     def get_active_chart_data() -> dict[str, Any]:
         """
-        Fetch chart data from Superset using the latest log payload.
+        Fetch chart data for the focused chart in active tab context.
 
         Input:
-        - Uses the active context set by the API handler (chart id + settings).
+        - Uses the active context set by the API handler.
+        - Focused chart selection priority: interaction chart -> first chart in active tab.
 
         Output:
-        - {"chart_id": int, "data": dict} (raw Superset /api/v1/chart/data response)
-        - {"error": "..."} on missing chart id or missing payload.
+        - {"chart_id": int, "chart_name": str | null, "data": dict}
+        - {"error": "..."} on missing active chart context.
         """
         context = _get_active_context()
         if context is None:
             return {"error": "active context not set"}
-        if not context.chart_id:
-            return {"error": "active chart id not set"}
-        payload = _fetch_latest_chart_log_payload(context.conn, context.chart_id)
+        chart = _pick_context_chart(context)
+        chart_id = _pick_context_chart_id(context)
+        if chart_id is None:
+            return {"error": "no active tab chart found; call get_active_tab_charts first"}
+        payload = _fetch_latest_chart_log_payload(context.conn, chart_id)
         if not payload:
             return {"error": "no chart log payload found"}
         data = fetch_chart_data_from_log(context.settings, payload)
-        return {"chart_id": context.chart_id, "data": data['raw']}
+        return {
+            "chart_id": chart_id,
+            "chart_name": chart.get("name") if isinstance(chart, dict) else None,
+            "data": data["raw"],
+        }
 
     @function_tool
     def get_chart_sql() -> dict[str, Any]:
         """
-        Return the latest SQL/query for the active chart from DuckDB logs.
+        Return the latest SQL/query for the focused chart in active tab context.
 
         Input:
-        - Uses the active context set by the API handler (chart id + DuckDB connection).
+        - Uses the active context set by the API handler.
+        - Focused chart selection priority: interaction chart -> first chart in active tab.
 
         Output:
-        - {"chart_id": int, "sql": str | null}
-        - {"error": "..."} if no log payload or invalid JSON.
+        - {"chart_id": int, "chart_name": str | null, "sql": str | null}
+        - {"error": "..."} if no active chart context or no log payload.
         """
         context = _get_active_context()
         if context is None:
             return {"error": "active context not set"}
-        if not context.chart_id:
-            return {"error": "active chart id not set"}
+        chart = _pick_context_chart(context)
+        chart_id = _pick_context_chart_id(context)
+        if chart_id is None:
+            return {"error": "no active tab chart found; call get_active_tab_charts first"}
         row = context.conn.execute(
             """
             SELECT json
             FROM superset_action_logs
-            WHERE slice_id = ? AND action IN ('ChartDataRestApi.data', 'ChartDataRestApi.json_dumps')
+            WHERE slice_id = ? AND action = 'ChartDataRestApi.data'
             ORDER BY superset_log_id DESC
             LIMIT 1
             """,
-            [context.chart_id],
+            [chart_id],
         ).fetchone()
         if not row or not row[0]:
             return {"error": "no chart log payload found"}
@@ -421,7 +709,11 @@ if function_tool:
             payload = json.loads(row[0])
         except json.JSONDecodeError:
             return {"error": "log payload is not valid JSON"}
-        return {"chart_id": context.chart_id, "sql": payload.get("sql") or payload.get("query")}
+        return {
+            "chart_id": chart_id,
+            "chart_name": chart.get("name") if isinstance(chart, dict) else None,
+            "sql": payload.get("sql") or payload.get("query"),
+        }
 
     @function_tool
     def list_dashboard_charts() -> dict[str, Any]:
@@ -478,27 +770,60 @@ if function_tool:
         Return charts for the active tab (from latest tab click or default tab).
 
         Output:
-        - {"dashboard_id": int, "active_tab": {...}, "active_charts": [...], "last_ui_event": {...}}
+        - {"dashboard_id": int, "active_tab": {...}, "active_charts": [...]}
+          active_charts include native_filters, cross_filters, and interaction.
         - {"error": "..."} on missing dashboard id.
         """
         context = _get_active_context()
         if context is None:
             return {"error": "active context not set"}
+        active_context = context.active_chart if isinstance(context.active_chart, dict) else {}
+        if isinstance(active_context, dict) and active_context.get("active_charts") is not None:
+            return active_context
+        session_id = (
+            active_context.get("session_id")
+            if isinstance(active_context.get("session_id"), str)
+            else None
+        )
         dashboard_id = context.settings.superset_log_dashboard_id
+        if not dashboard_id and active_context.get("dashboard_id") is not None:
+            try:
+                dashboard_id = int(active_context.get("dashboard_id"))
+            except (TypeError, ValueError):
+                dashboard_id = None
         if not dashboard_id:
             dashboard_id = _fetch_latest_dashboard_id(context.conn)
         if not dashboard_id:
             return {"error": "dashboard id not available"}
 
         charts = fetch_dashboard_charts(context.settings, int(dashboard_id))
-        ui_event = _fetch_latest_ui_event(context.conn, dashboard_id=int(dashboard_id))
+        tab_event = _fetch_latest_ui_event(
+            context.conn,
+            dashboard_id=int(dashboard_id),
+            session_id=session_id,
+            actions=("superset_tab_click",),
+        )
+        figure_actions = (
+            "legend_toggle",
+            "legend_toggle_activate",
+            "legend_toggle_deactivate",
+            "chart_click",
+            "cross_filter_added",
+            "cross_filter_removed",
+            "filter_added",
+            "filter_removed",
+        )
+        figure_event = _fetch_latest_ui_event(
+            context.conn,
+            dashboard_id=int(dashboard_id),
+            session_id=session_id,
+            actions=figure_actions,
+        )
         log = _fetch_latest_active_chart(context.conn, dashboard_id=int(dashboard_id))
 
         active_tab = None
-        if ui_event and ui_event.get("action") == "superset_tab_click":
-            payload = ui_event.get("payload") or {}
-            if isinstance(payload, dict) and isinstance(payload.get("payload"), dict):
-                payload = payload.get("payload") or {}
+        if tab_event and tab_event.get("action") == "superset_tab_click":
+            payload = _ui_payload(tab_event)
             active_tab = {
                 "id": payload.get("tab_id") or payload.get("tabId"),
                 "name": payload.get("tab_name") or payload.get("tabName"),
@@ -534,11 +859,63 @@ if function_tool:
                 if _tab_matches(chart.get("tab"), active_tab)
             ]
 
+        active_slice_ids: list[int] = []
+        for chart in active_charts:
+            try:
+                active_slice_ids.append(int(chart.get("slice_id")))
+            except Exception:
+                continue
+        chart_filters_by_slice = _fetch_latest_chart_filters_by_slice(
+            context.conn,
+            slice_ids=active_slice_ids,
+            dashboard_id=int(dashboard_id),
+        )
+        global_filters = _fetch_current_global_filters(
+            context.conn,
+            dashboard_id=int(dashboard_id),
+            session_id=session_id,
+        )
+        if active_charts:
+            for chart in active_charts:
+                cross_filters: list[dict[str, Any]] = []
+                try:
+                    sid = int(chart.get("slice_id"))
+                except Exception:
+                    sid = None
+                if sid is not None:
+                    for item in chart_filters_by_slice.get(sid, []):
+                        cross_filters.append(item)
+                chart["native_filters"] = list(global_filters)
+                chart["cross_filters"] = cross_filters
+
+        interaction_payload = None
+        interaction_slice_id = None
+        interaction_action = None
+        if figure_event and figure_event.get("action") in figure_actions:
+            interaction_payload = _ui_payload(figure_event)
+            interaction_action = figure_event.get("action")
+            if isinstance(interaction_action, str) and interaction_action.startswith(
+                "legend_toggle"
+            ):
+                interaction_payload = _normalize_legend_interaction(interaction_payload)
+                if interaction_payload is None:
+                    interaction_action = None
+            interaction_slice_id = _ui_slice_id(figure_event)
+
+        if active_charts:
+            for chart in active_charts:
+                chart["interaction"] = None
+                if interaction_payload and interaction_slice_id is not None:
+                    if str(chart.get("slice_id")) == str(interaction_slice_id):
+                        chart["interaction"] = {
+                            "action": interaction_action,
+                            "payload": interaction_payload,
+                        }
+
         return {
             "dashboard_id": int(dashboard_id),
             "active_tab": active_tab,
             "active_charts": active_charts,
-            "last_ui_event": ui_event,
         }
 
     @function_tool
@@ -1990,13 +2367,14 @@ class AgentRunner:
         if Runner is None:
             raise RuntimeError(_IMPORT_ERROR or "agents Runner unavailable")
         prompt = [{"role": "user", "content": payload_json}]
+        active_context = _get_active_context()
         run_sync = getattr(Runner, "run_sync", None)
         if callable(run_sync):
-            result = await asyncio.to_thread(run_sync, agent, prompt, context=_ACTIVE_CONTEXT)
+            result = await asyncio.to_thread(run_sync, agent, prompt, context=active_context)
         else:
             run_async = getattr(Runner, "run", None)
             if callable(run_async):
-                result = run_async(agent, prompt, context=_ACTIVE_CONTEXT)
+                result = run_async(agent, prompt, context=active_context)
                 if asyncio.iscoroutine(result):
                     result = await result
             else:
@@ -2044,6 +2422,7 @@ class AgentRunner:
             ), [{"type": "error", "message": "agent_not_available"}] if debug else [], None
 
         debug_items: list[dict[str, Any]] = []
+        context_token = _ACTIVE_CONTEXT_VAR.set(context_obj)
         try:
             prompt = self._build_input_messages(
                 message,
@@ -2052,8 +2431,6 @@ class AgentRunner:
             )
             if context_obj is not None:
                 context_obj.messages = prompt
-            global _ACTIVE_CONTEXT
-            _ACTIVE_CONTEXT = context_obj
             if self._is_insights_command(message) and self._insight_seeker_agent:
                 insights_text = await self._call_insights(history, context_obj)
                 insights_answer = self._parse_json_answer(insights_text)
@@ -2064,7 +2441,7 @@ class AgentRunner:
                 debug_items.append({"type": "error", "message": str(exc)})
             return "Agent call failed. Check API credentials and logs.", debug_items, None
         finally:
-            _ACTIVE_CONTEXT = None
+            _ACTIVE_CONTEXT_VAR.reset(context_token)
         answer = self._extract_answer(result)
         raw_output = self._extract_raw_output(result)
         if debug:
@@ -2086,6 +2463,7 @@ class AgentRunner:
             return
 
         last_text = ""
+        context_token = _ACTIVE_CONTEXT_VAR.set(context_obj)
         try:
             prompt = self._build_input_messages(
                 message,
@@ -2094,8 +2472,6 @@ class AgentRunner:
             )
             if context_obj is not None:
                 context_obj.messages = prompt
-            global _ACTIVE_CONTEXT
-            _ACTIVE_CONTEXT = context_obj
             if self._is_insights_command(message) and self._insight_seeker_agent:
                 insights_text = await self._call_insights(history, context_obj)
                 insights_answer = self._parse_json_answer(insights_text)
@@ -2135,7 +2511,7 @@ class AgentRunner:
             yield {"event": "error", "message": str(exc)}
             return
         finally:
-            _ACTIVE_CONTEXT = None
+            _ACTIVE_CONTEXT_VAR.reset(context_token)
 
         final_text = getattr(stream, "final_output", None) or last_text
         raw_text = final_text if isinstance(final_text, str) else str(final_text)

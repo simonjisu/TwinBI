@@ -1,0 +1,9 @@
+Scenario Q06: District comparison winner
+You are comparing district leaders.
+Find which district has the strongest top store, using average daily sales of the best store in each district.
+
+Output Format:
+{
+    "district": <str>,
+    "store_name": <str>
+}

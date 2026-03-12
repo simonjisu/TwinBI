@@ -1,0 +1,45 @@
+{
+  "query_id": 24,
+  "task_file": "queries/query_24.txt",
+  "final_answer": {
+    "east_top_store": "Store_9",
+    "different_from_overall": true
+  },
+  "self_consistency": {
+    "consistent": true,
+    "db_equals_cube": true,
+    "db_equals_superset": true
+  },
+  "methods": {
+    "db_sql": {
+      "answer": {
+        "east_top_store": "Store_9",
+        "different_from_overall": true
+      },
+      "context": {
+        "domain": "store",
+        "district": "East"
+      }
+    },
+    "cube_api": {
+      "answer": {
+        "east_top_store": "Store_9",
+        "different_from_overall": true
+      },
+      "context": {
+        "domain": "store",
+        "district": "East"
+      }
+    },
+    "our_api_plus_superset": {
+      "answer": {
+        "east_top_store": "Store_9",
+        "different_from_overall": true
+      },
+      "context": {
+        "domain": "store",
+        "district": "East"
+      }
+    }
+  }
+}

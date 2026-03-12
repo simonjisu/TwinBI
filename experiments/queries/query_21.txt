@@ -1,0 +1,8 @@
+Scenario Q21: Strongest category scale
+You are reviewing category scale and momentum together.
+On the Category-Level view, identify which category has the largest scale on the scatter chart.
+
+Output Format:
+{
+    "category": <str>
+}

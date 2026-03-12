@@ -1,0 +1,8 @@
+Scenario Q13: QoQ growth at least 15%
+You are reviewing high-growth categories for next year's planning.
+Find all department-category pairs with quarter-over-quarter unit sales growth of at least 15% from Q3 to Q4.
+
+Output Format:
+{
+    "pairs": <list[{"department": <str>, "category": <str>, "qoq_growth_rate": <float>}]>
+}

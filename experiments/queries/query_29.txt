@@ -1,0 +1,9 @@
+Scenario Q29: Cross-view consistency check
+You are checking whether rankings remain consistent across views.
+Find the top store in North on Store-Level, then verify whether the same store still leads after switching to Product-Level and back without losing the North filter.
+
+Output Format:
+{
+    "store_name": <str>,
+    "filter_preserved": <bool>
+}

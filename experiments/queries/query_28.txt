@@ -1,0 +1,8 @@
+Scenario Q28: Trap - avoid top chrome confusion
+You are reviewing filtered category performance.
+Clear the active department filter only through dashboard filter controls, not through global navigation or dashboard edit controls, then identify the department that owns Laptop.
+
+Output Format:
+{
+    "department": <str>
+}
