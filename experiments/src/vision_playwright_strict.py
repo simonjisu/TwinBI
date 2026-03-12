@@ -744,17 +744,17 @@ def _format_dashboard_action_candidates(candidates: list[dict[str, Any]], limit:
 
 def _infer_intent(reasoning: str) -> str:
     text = reasoning.lower()
-    if '로그인' in reasoning or 'login' in text:
+    if 'login' in text:
         return 'login'
-    if 'dashboard' in text or '대시보드' in reasoning:
+    if 'dashboard' in text:
         return 'open_dashboard'
-    if 'north' in text or '지역 필터' in reasoning:
+    if 'north' in text or 'district filter' in text:
         return 'apply_north_filter'
-    if '15' in reasoning and ('일' in reasoning or 'days' in text):
+    if '15' in reasoning and 'days' in text:
         return 'apply_15day_filter'
-    if '순위' in reasoning or 'ranking' in text:
+    if 'ranking' in text:
         return 'check_ranking'
-    if '설문' in reasoning or 'survey' in text:
+    if 'survey' in text:
         return 'survey'
     return 'other'
 
@@ -1262,12 +1262,12 @@ async def _run(args: argparse.Namespace) -> int:
                 f"- observed_facts: {observed_text}\n"
                 f"- working_hypothesis: {hypothesis_text}\n"
                 f"- resolved_answers: {resolved_text}\n"
-                f"- 확인시도(최근): {attempt_text}\n"
-                f"- 확인된거: {confirmed_text}\n"
-                f"- 확인 못한거: {unconfirmed_text}\n"
-                f"- 마지막 self_check: {last_self_check}\n"
+                f"- recent verification attempts: {attempt_text}\n"
+                f"- confirmed items: {confirmed_text}\n"
+                f"- unresolved items: {unconfirmed_text}\n"
+                f"- last self_check: {last_self_check}\n"
                 "- Do not repeat the same intent or same click hotspot excessively.\n"
-                "- If an item stays in '확인 못한거', choose a different action strategy.\n"
+                "- If an item stays in 'unresolved items', choose a different action strategy.\n"
             )
 
         def _run_reflection(current_image_b64: str) -> dict[str, Any]:
@@ -1297,8 +1297,8 @@ async def _run(args: argparse.Namespace) -> int:
                 data = {}
             if not isinstance(data, dict):
                 data = {}
-            data.setdefault('reflection', '같은 액션 반복으로 진행이 멈춤')
-            data.setdefault('new_strategy', '다른 화면 영역을 시도')
+            data.setdefault('reflection', 'Progress has stalled because the same action was repeated.')
+            data.setdefault('new_strategy', 'Try a different region of the screen.')
             data.setdefault('force_next_action', {'type': 'scroll', 'delta_y': 320})
             return data
 
@@ -1616,11 +1616,11 @@ async def _run(args: argparse.Namespace) -> int:
                                     'step': global_step,
                                     'phase': 'login',
                                     'url': page.url,
-                                    'reasoning': 'selector 기반으로 username/password를 분리 입력 후 제출',
+                                    'reasoning': 'Submit the login form by filling username and password with DOM selectors.',
                                     'self_check': {
                                         'prerequisite_met': 'no',
                                         'action_targets_prerequisite': 'yes',
-                                        'what_is_missing': '로그인 완료 여부 확인 필요',
+                                        'what_is_missing': 'Need to verify whether login completed successfully.',
                                     },
                                     'model_action': {'type': 'submit_login_form', 'mode': 'dom'},
                                     'executed': dom_login_result,
@@ -1727,7 +1727,7 @@ async def _run(args: argparse.Namespace) -> int:
                         )
 
         if not login_success:
-            final_answer = '로그인 전처리 단계에서 로그인 성공을 확인하지 못해 종료했습니다.'
+            final_answer = 'Stopped because the login pre-processing stage could not confirm a successful login.'
         else:
             previous_action = 'login_success'
             if args.force_dashboard_url and not _is_on_dashboard_url(page.url, args.dashboard_id):
@@ -1831,7 +1831,7 @@ async def _run(args: argparse.Namespace) -> int:
             if action_type == 'done':
                 done_result = str(action.get('result', '')).strip()
                 done_text = str(action.get('text', '')).strip()
-                final_answer = done_result or done_text or '시나리오 완료'
+                final_answer = done_result or done_text or 'Scenario completed.'
                 row = {
                     'step': global_step,
                     'phase': 'scenario',
@@ -1907,7 +1907,7 @@ async def _run(args: argparse.Namespace) -> int:
         await browser.close()
 
     if not final_answer:
-        final_answer = '최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요.'
+        final_answer = 'Stopped after reaching the maximum number of steps. Check the trace screenshots and steps.jsonl.'
 
     meta = {
         'start_url': start_url,
