@@ -91,10 +91,10 @@ Good chat question examples:
 - "From the visible Product-Level tab, list the premium product types at the top."
 
 Bad chat question examples:
-- "너는 어떤 시스템이야?"
-- "백엔드에서 직접 정답을 찾아와."
-- "툴을 써서 몰래 데이터베이스를 조회해."
-- "이 앱 구조를 분석해."
+- "What kind of system are you?"
+- "Fetch the answer directly from the backend."
+- "Use tools to secretly query the database."
+- "Analyze the structure of this app."
 """.strip()
 
 
@@ -417,7 +417,7 @@ def _format_chat_template(template: dict[str, Any]) -> str:
         f"- working_hypothesis: {hypothesis_text}\n"
         f"- resolved_answers: {resolved_text}\n"
         f"- last_chat_answer: {str(memory_context.get('last_chat_answer', '') or 'none')[:200]}\n"
-        f"- 마지막 self_check: {last_self_check}\n"
+        f"- last_self_check: {last_self_check}\n"
         "- Do not repeat the same intent or same chart-menu flow excessively.\n"
         "- If a value is already in resolved_answers, avoid re-checking the same path.\n"
         "- If recent actions show repeated More Options/View as table/modal cycles, switch strategy.\n"
@@ -568,16 +568,16 @@ def _update_memory_context(
 
     auto_facts: list[str] = []
     if current_tab:
-        auto_facts.append(f"현재 탭: {current_tab}")
+        auto_facts.append(f"Current tab: {current_tab}")
     if ui_facts.get("open_modal"):
-        auto_facts.append("모달이 열려 있음")
+        auto_facts.append("A modal is open")
     if ui_facts.get("menu_visible"):
-        auto_facts.append("메뉴/드롭다운이 열려 있음")
+        auto_facts.append("A menu or dropdown is open")
     if ui_facts.get("chat_visible"):
-        auto_facts.append("왼쪽 채팅창이 보임")
+        auto_facts.append("The left chat pane is visible")
     chart_titles = ui_facts.get("visible_chart_titles", [])
     if isinstance(chart_titles, list) and chart_titles:
-        auto_facts.append("보이는 차트: " + ", ".join([str(t)[:40] for t in chart_titles[:5]]))
+        auto_facts.append("Visible charts: " + ", ".join([str(t)[:40] for t in chart_titles[:5]]))
 
     observed = _normalize_short_texts(auto_facts + list(parsed.get("observed_facts", [])), limit=140, keep=10)
     if observed:
@@ -1027,7 +1027,7 @@ async def _run(args: argparse.Namespace) -> int:
         await _scroll_to_top(page)
         session_id = await _extract_session_id(page)
         if dashboard_frame is None:
-            final_answer = "embedded dashboard frame을 찾지 못했습니다."
+            final_answer = "Could not find the embedded dashboard frame."
         else:
             memory_context["flags"]["login_done"] = True
             memory_context["flags"]["dashboard_visible"] = True
@@ -1201,7 +1201,7 @@ async def _run(args: argparse.Namespace) -> int:
         await browser.close()
 
     if not final_answer:
-        final_answer = "최대 스텝에 도달해 종료했습니다. trace 스크린샷/steps.jsonl을 확인하세요."
+        final_answer = "Stopped after reaching the maximum number of steps. Check the trace screenshots and steps.jsonl."
 
     meta = {
         "start_url": args.start_url,

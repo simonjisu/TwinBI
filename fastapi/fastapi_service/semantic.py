@@ -73,7 +73,7 @@ def run_cube_query(
 
 def summarize_schema(meta: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Input: {"cubes":[...]} 형태의 Cube meta JSON
+    Input: Cube meta JSON in the form {"cubes":[...]}
     Output: {table_name: {columns:[...], joined:{joined_table:{columns:[...]}}}}
     """
     cubes = meta.get("cubes", []) or []

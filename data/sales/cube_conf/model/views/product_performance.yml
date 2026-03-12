@@ -2,16 +2,16 @@ views:
   - name: view_product_performance
     description: "Product performance view for BI (fact_sales + product + date)"
     cubes:
-      # 1) 기준 join path: fact
+      # 1) Base join path: fact
       - join_path: fact_sales
         includes:
-          # measures (fact_sales에 정의된 measure 이름을 넣어)
+          # measures (use the measure names defined in fact_sales)
           - total_receipts
           - active_stores
           - total_units_sold
           - total_transactions
 
-      # 2) product dimension들
+      # 2) Product dimensions
       - join_path: fact_sales.dim_product
         prefix: true
         includes:
@@ -22,7 +22,7 @@ views:
           - brand
           - product_name
 
-      # 3) date dimension들 (time hierarchy)
+      # 3) Date dimensions (time hierarchy)
       - join_path: fact_sales.dim_date
         prefix: true
         includes:
