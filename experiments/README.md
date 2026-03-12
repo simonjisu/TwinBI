@@ -8,11 +8,11 @@ Goals of this experiment:
 - keep traces, answer files, and gold answers reproducible in one place
 
 Main contents:
-- [`queries/`](/Users/soo/code/Agent4OLAP/experiments/queries): `query_01.txt` to `query_30.txt`, gold answer files, and chat templates
-- [`src/vision_playwright_strict.py`](/Users/soo/code/Agent4OLAP/experiments/src/vision_playwright_strict.py): dashboard-only runner
-- [`src/vision_playwright_strict2.py`](/Users/soo/code/Agent4OLAP/experiments/src/vision_playwright_strict2.py): Streamlit/TwinBI runner
-- [`src/run_query_batch.py`](/Users/soo/code/Agent4OLAP/experiments/src/run_query_batch.py): batch runner
-- [`answers.json`](/Users/soo/code/Agent4OLAP/experiments/answers.json): normalized answer snapshot for comparison
+- [`queries/`](queries): `query_01.txt` to `query_30.txt`, gold answer files, and chat templates
+- [`src/vision_playwright_strict.py`](src/vision_playwright_strict.py): dashboard-only runner
+- [`src/vision_playwright_strict2.py`](src/vision_playwright_strict2.py): Streamlit/TwinBI runner
+- [`src/run_query_batch.py`](src/run_query_batch.py): batch runner
+- [`answers.json`](answers.json): normalized answer snapshot for comparison
 
 ## Modes
 
@@ -112,8 +112,8 @@ uv run python experiments/src/run_query_batch.py \
 ```
 
 Output locations:
-- dashboard batch: [`experiments/logs/abtest_runs/`](/Users/soo/code/Agent4OLAP/experiments/logs/abtest_runs)
-- streamlit batch: [`experiments/logs/abtest_runs_streamlit/`](/Users/soo/code/Agent4OLAP/experiments/logs/abtest_runs_streamlit)
+- dashboard batch: [`logs/abtest_runs/`](logs/abtest_runs)
+- streamlit batch: [`logs/abtest_runs_streamlit/`](logs/abtest_runs_streamlit)
 
 Each batch produces a structure like this:
 
@@ -139,8 +139,8 @@ Per-query trace directory:
 - `memory_context.json`: persistent state used during the run
 
 Gold answer files:
-- [`queries/query_01_ans.json`](/Users/soo/code/Agent4OLAP/experiments/queries/query_01_ans.json) style answer files for each query
-- [`answers.json`](/Users/soo/code/Agent4OLAP/experiments/answers.json): normalized answers grouped by system
+- [`queries/query_01_ans.json`](queries/query_01_ans.json) style answer files for each query
+- [`answers.json`](answers.json): normalized answers grouped by system
 
 ## Visualize Traces
 
@@ -163,5 +163,5 @@ uv run python experiments/src/annotate_trace_clicks.py \
 ## Notes
 
 - The runners in this directory are configured to use `experiments/...` paths by default.
-- [`queries/chat_templates.json`](/Users/soo/code/Agent4OLAP/experiments/queries/chat_templates.json) is intended to improve chat question quality, not to store final gold answers directly.
-- [`answers.json`](/Users/soo/code/Agent4OLAP/experiments/answers.json) is a convenience snapshot for comparison; the original execution record remains in each batch trace directory.
+- [`queries/chat_templates.json`](queries/chat_templates.json) is intended to improve chat question quality, not to store final gold answers directly.
+- [`answers.json`](answers.json) is a convenience snapshot for comparison; the original execution record remains in each batch trace directory.
