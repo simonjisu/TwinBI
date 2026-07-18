@@ -1560,6 +1560,8 @@ class SupersetPoller:
         self._last_row_count: int | None = None
         self._last_error: str | None = None
         self._last_checkpoint_id: int | None = None
+        self._last_ingested_count: int | None = None
+        self._last_skipped_count: int | None = None
         ignore_raw = os.getenv(
             "SUPERSET_INGEST_IGNORE_ACTIONS",
             "DashboardRestApi.get,_get_data_response,fetch_rows",
@@ -1571,7 +1573,7 @@ class SupersetPoller:
         }
         allow_raw = os.getenv(
             "SUPERSET_INGEST_ALLOW_ACTIONS",
-            "ChartDataRestApi.data",
+            "ChartDataRestApi.data,log",
         )
         self._allowed_actions = {
             item.strip()
@@ -1636,17 +1638,22 @@ class SupersetPoller:
             )
             self._last_row_count = len(rows)
             if not rows:
+                self._last_ingested_count = 0
+                self._last_skipped_count = 0
                 logger.info("Superset poll tick: 0 rows (last_id=%s)", last_id)
                 return
 
             max_id = last_id
+            ingested_count = 0
+            skipped_count = 0
             for row in rows:
                 max_id = max(max_id, row["id"])
                 if row.get("action") in self._ignored_actions:
+                    skipped_count += 1
                     continue
                 payload = self._normalize_row(row)
-                normalized_action = payload.get("action")
-                if self._allowed_actions and normalized_action not in self._allowed_actions:
+                if not self._is_allowed_action(row, payload):
+                    skipped_count += 1
                     continue
                 if self._ingest_superset_log is not None:
                     maybe_awaitable = self._ingest_superset_log(payload, row)
@@ -1654,14 +1661,20 @@ class SupersetPoller:
                         await maybe_awaitable
                 else:
                     await self._writer.enqueue_superset_log(payload)
+                ingested_count += 1
 
             await self._writer.enqueue_checkpoint(
                 db.CHECKPOINT_KEY_SUPERSET_LAST_ID, str(max_id)
             )
             self._last_checkpoint_id = max_id
+            self._last_ingested_count = ingested_count
+            self._last_skipped_count = skipped_count
             logger.info(
-                "Superset poll fetched %s rows (last_id=%s -> %s)",
+                "Superset poll fetched %s rows, ingested %s, skipped %s "
+                "(last_id=%s -> %s)",
                 len(rows),
+                ingested_count,
+                skipped_count,
                 last_id,
                 max_id,
             )
@@ -1673,6 +1686,8 @@ class SupersetPoller:
         self._last_poll_at = datetime.now(timezone.utc)
         self._last_error = None
         total_rows = 0
+        total_ingested = 0
+        total_skipped = 0
         try:
             if self._user_id is None and self._username:
                 self._user_id = await asyncio.to_thread(
@@ -1698,10 +1713,11 @@ class SupersetPoller:
                 for row in rows:
                     max_id = max(max_id, row["id"])
                     if row.get("action") in self._ignored_actions:
+                        total_skipped += 1
                         continue
                     payload = self._normalize_row(row)
-                    normalized_action = payload.get("action")
-                    if self._allowed_actions and normalized_action not in self._allowed_actions:
+                    if not self._is_allowed_action(row, payload):
+                        total_skipped += 1
                         continue
                     if self._ingest_superset_log is not None:
                         maybe_awaitable = self._ingest_superset_log(payload, row)
@@ -1709,6 +1725,7 @@ class SupersetPoller:
                             await maybe_awaitable
                     else:
                         await self._writer.enqueue_superset_log(payload)
+                    total_ingested += 1
                 total_rows += len(rows)
                 last_id = max_id
 
@@ -1718,11 +1735,35 @@ class SupersetPoller:
                 self._last_checkpoint_id = max_id
 
             self._last_row_count = total_rows
-            logger.info("Superset sync inserted %s rows", total_rows)
+            self._last_ingested_count = total_ingested
+            self._last_skipped_count = total_skipped
+            logger.info(
+                "Superset sync fetched %s rows, ingested %s, skipped %s",
+                total_rows,
+                total_ingested,
+                total_skipped,
+            )
         except Exception as exc:
             self._last_error = str(exc)
             logger.exception("Superset sync failed: %s", exc)
-        return total_rows
+        return total_ingested
+
+    def _is_allowed_action(
+        self,
+        row: dict[str, Any],
+        payload: dict[str, Any],
+    ) -> bool:
+        if not self._allowed_actions:
+            return True
+        # Superset's generic "log" rows are normalized to their event_name
+        # (for example, "load" or "select"). Match the source action too,
+        # otherwise an allowlist containing "log" silently drops them.
+        source_action = row.get("action")
+        normalized_action = payload.get("action")
+        return (
+            source_action in self._allowed_actions
+            or normalized_action in self._allowed_actions
+        )
 
     def _fetch_rows(
         self,
@@ -1824,6 +1865,8 @@ class SupersetPoller:
             "last_row_count": self._last_row_count,
             "last_error": self._last_error,
             "last_checkpoint_id": self._last_checkpoint_id,
+            "last_ingested_count": self._last_ingested_count,
+            "last_skipped_count": self._last_skipped_count,
             "poll_interval_sec": self._poll_interval_sec,
             "batch_size": self._batch_size,
             "dashboard_id_filter": self._dashboard_id,

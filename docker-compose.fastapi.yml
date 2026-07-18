@@ -13,7 +13,9 @@ services:
       - SUPERSET_META_DB_URI=postgresql://superset:superset@superset_db:5432/superset
       - SUPERSET_POLL_INTERVAL_SEC=2
       - SUPERSET_BATCH_SIZE=200
-      - SUPERSET_INGEST_ALLOW_ACTIONS=ChartDataRestApi.data
+      # Capture chart queries and semantic dashboard interactions. Generic
+      # Superset "log" rows are normalized to their event_name by the poller.
+      - SUPERSET_INGEST_ALLOW_ACTIONS=ChartDataRestApi.data,log
       - SUPERSET_PUBLIC_URL=http://localhost:8088
       - SUPERSET_INTERNAL_URL=http://superset_app:8088
       # The bundled Superset initialization creates this local admin account.
