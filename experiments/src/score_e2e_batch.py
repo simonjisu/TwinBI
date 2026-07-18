@@ -99,7 +99,11 @@ def main() -> int:
         predicted = _parse_answer(raw_answer)
         matched, total = _leaf_matches(gold, predicted)
         exact = total > 0 and matched == total
-        timed_out = "timeout" in raw_answer.lower() or "timed out" in raw_answer.lower()
+        timed_out = (
+            row.get("exit_code") == "124"
+            or "timeout" in raw_answer.lower()
+            or "timed out" in raw_answer.lower()
+        )
         status = "exact" if exact else "partial" if matched else "failed"
         results.append(
             {

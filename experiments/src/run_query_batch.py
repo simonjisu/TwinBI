@@ -41,6 +41,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--password", type=str, default="abc")
     parser.add_argument("--login-mode", type=str, default="dom")
     parser.add_argument("--max-steps", type=int, default=30)
+    parser.add_argument(
+        "--per-query-timeout-sec",
+        type=int,
+        default=180,
+        help="Kill a stalled runner after this many seconds and continue with the batch.",
+    )
     parser.add_argument("--viewport-width", type=int, default=1800)
     parser.add_argument("--viewport-height", type=int, default=1200)
     parser.add_argument(
@@ -186,7 +192,17 @@ def main() -> int:
         cmd.extend(args.extra_arg)
 
         print(f"[{idx}/{total}] Running {query_name}")
-        completed = subprocess.run(cmd, cwd=project_root, check=False)
+        try:
+            completed = subprocess.run(
+                cmd,
+                cwd=project_root,
+                check=False,
+                timeout=max(1, args.per_query_timeout_sec),
+            )
+            exit_code = completed.returncode
+        except subprocess.TimeoutExpired:
+            exit_code = 124
+            print(f"[{idx}/{total}] Timed out after {args.per_query_timeout_sec}s: {query_name}")
 
         latest_trace_dir = _resolve_trace_dir(per_query_trace_root)
         run_meta = _load_run_meta(latest_trace_dir) if latest_trace_dir else {}
@@ -194,7 +210,7 @@ def main() -> int:
         row = {
             "query": query_name,
             "task_file": str(query_file.relative_to(project_root)),
-            "exit_code": str(completed.returncode),
+            "exit_code": str(exit_code),
             "trace_dir": str(latest_trace_dir.relative_to(project_root)) if latest_trace_dir else "",
             "final_answer": str(run_meta.get("final_answer", "")),
             "login_success": str(run_meta.get("login_success", "")),
