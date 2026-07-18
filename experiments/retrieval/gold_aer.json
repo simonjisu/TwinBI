@@ -13,6 +13,9 @@
     "Q27-Q28": "The visible category chart omits the department category distinction required by the answer.",
     "Q30": "The structured slots require department-category detail absent from the visible charts."
   },
+  "query_result_aer_query_ids": [
+    "Q12", "Q13", "Q14", "Q15", "Q16", "Q17", "Q18", "Q19", "Q27", "Q28", "Q30"
+  ],
   "chart_inventory": {
     "1106": "Total sales by district",
     "1107": "Active days per month per store",

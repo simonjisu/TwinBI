@@ -200,5 +200,8 @@ before using the numbers in the submitted paper.
 For contextual and elliptical query variants, the prior dialogue deliberately
 does not restate the original task. The active tab, focused chart, filter, and
 interaction state are the disambiguating evidence being evaluated. The remaining
-11 seed tasks require dashboard detail not exposed by their source charts and
-are excluded until a drill/query-extension AER is added.
+11 seed tasks require dashboard detail not exposed by their source charts. The
+runner materializes them as verified query-result AERs from the existing
+three-way answer provenance (database SQL, Cube API, and TwinBI query path),
+then checks that visible-chart and query-result AERs cover all 30 tasks exactly
+once. These records validate evidence coverage, not ranking performance.
