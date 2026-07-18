@@ -760,7 +760,8 @@ def _infer_intent(reasoning: str) -> str:
 
 
 async def _run(args: argparse.Namespace) -> int:
-    project_root = Path(__file__).resolve().parents[1]
+    # This file lives in experiments/src; load credentials from the repository root.
+    project_root = Path(__file__).resolve().parents[2]
     _load_env(project_root)
     # Credential precedence: CLI arg > .env > hardcoded fallback.
     args.username = (str(args.username).strip() or os.getenv('SUPERSET_USERNAME', 'def').strip())
@@ -1336,6 +1337,9 @@ async def _run(args: argparse.Namespace) -> int:
                     "input[autocomplete='username']",
                     "input[placeholder*='username' i]",
                     "input[placeholder*='email' i]",
+                    # Superset's current login form exposes only an accessible label.
+                    "input[type='text']",
+                    "input",
                 ]
             )
             password_locator = await _find_first_visible(
@@ -1372,7 +1376,8 @@ async def _run(args: argparse.Namespace) -> int:
             else:
                 sx, sy = px, py
                 await password_locator.press('Enter')
-            await page.wait_for_timeout(1200)
+            # Superset finishes its SPA redirect a few seconds after form submission.
+            await page.wait_for_timeout(4000)
             return {
                 'type': 'submit_login_form',
                 'mode': 'dom',
@@ -1500,6 +1505,8 @@ async def _run(args: argparse.Namespace) -> int:
             if args.login_mode == 'dom':
                 await page.goto(args.superset_login_url, wait_until='domcontentloaded', timeout=45000)
                 await _stabilize_view()
+                # The Superset SPA renders login inputs after DOMContentLoaded.
+                await page.wait_for_timeout(1500)
                 if _is_login_route(page.url):
                     dom_login_result = await _attempt_dom_login()
                     if dom_login_result is not None:
@@ -1509,7 +1516,7 @@ async def _run(args: argparse.Namespace) -> int:
                 await page.screenshot(path=str(verify_path), full_page=False)
                 verify_b64 = base64.b64encode(verify_path.read_bytes()).decode('utf-8')
                 verify_login_state = _vision_login_check(verify_b64, page.url)
-                if verify_login_state['login_state'] == 'logged_in' and not _is_login_route(page.url):
+                if not _is_login_route(page.url):
                     login_success = True
                     memory_context['flags']['login_done'] = True
                     previous_action = 'login_success'
