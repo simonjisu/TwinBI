@@ -113,7 +113,6 @@ def _resolve_trace_dir(per_query_trace_root: Path) -> Path | None:
 def main() -> int:
     args = _build_parser().parse_args()
     project_root = Path(__file__).resolve().parents[2]
-    simulation_root = Path(__file__).resolve().parents[1]
     queries_dir = (project_root / args.queries_dir).resolve()
     runner_path = (project_root / _resolve_runner(args.mode, args.runner)).resolve()
     start_url = _resolve_start_url(args.mode, args.start_url)
@@ -146,7 +145,9 @@ def main() -> int:
         query_name = query_file.stem
         per_query_trace_root = batch_root / query_name
         per_query_trace_root.mkdir(parents=True, exist_ok=True)
-        relative_trace_root = per_query_trace_root.relative_to(simulation_root)
+        # Both runners accept absolute paths; this avoids coupling trace placement
+        # to their different source-directory roots.
+        trace_dir_arg = str(per_query_trace_root)
 
         cmd = [
             sys.executable,
@@ -166,7 +167,7 @@ def main() -> int:
             "--max-steps",
             str(args.max_steps),
             "--trace-dir",
-            str(relative_trace_root),
+            trace_dir_arg,
             "--trace-dir-is-run-dir",
         ]
         if args.mode == "dashboard":
