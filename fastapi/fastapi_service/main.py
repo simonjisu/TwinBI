@@ -2596,6 +2596,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "chart_click",
             "cross_filter_added",
             "cross_filter_removed",
+            "drill_to_detail",
+            "drill_by",
             # backward compatibility
             "filter_added",
             "filter_removed",

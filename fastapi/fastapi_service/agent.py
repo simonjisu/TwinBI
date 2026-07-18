@@ -291,6 +291,8 @@ def _fetch_latest_ui_event(
         "chart_click",
         "cross_filter_added",
         "cross_filter_removed",
+        "drill_to_detail",
+        "drill_by",
         "native_filter_added",
         "native_filter_removed",
         "global_filter_added",
@@ -810,6 +812,8 @@ if function_tool:
             "chart_click",
             "cross_filter_added",
             "cross_filter_removed",
+            "drill_to_detail",
+            "drill_by",
             "filter_added",
             "filter_removed",
         )
