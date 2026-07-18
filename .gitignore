@@ -218,6 +218,8 @@ superset/*
 archive
 *.duckdb
 paper/*
+experiments/retrieval/generated/
+experiments/retrieval/runs/
 !paper/6a549455b0d9b08aa493b750/
 dev_docs
 simulation

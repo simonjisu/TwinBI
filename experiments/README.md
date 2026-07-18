@@ -165,3 +165,36 @@ uv run python experiments/src/annotate_trace_clicks.py \
 - The runners in this directory are configured to use `experiments/...` paths by default.
 - [`queries/chat_templates.json`](queries/chat_templates.json) is intended to improve chat question quality, not to store final gold answers directly.
 - [`answers.json`](answers.json) is a convenience snapshot for comparison; the original execution record remains in each batch trace directory.
+# Offline AER Retrieval Evaluation
+
+`retrieval/gold_aer.json` defines the 30 task-level gold AERs. It stores the
+retrieval target (source chart, supporting chart, measure, dimensions, filters,
+hierarchy, and interaction) while the existing `queries/query_*_ans.json` files
+remain the source of truth for final answer values.
+
+Run the deterministic 90 query-session retrieval evaluation in a detachable
+`tmux` session:
+
+```bash
+tmux new-session -d -s twinbi-aer \
+  'cd /Users/soo/code/Agent4OLAP && ./experiments/scripts/run_aer_offline.sh; status=$?; echo "exit=$status"; exec zsh'
+tmux attach -t twinbi-aer
+```
+
+Inspect a detached session or terminate it after the report has been checked:
+
+```bash
+tmux capture-pane -pt twinbi-aer
+tmux kill-session -t twinbi-aer
+```
+
+The runner produces a timestamped `retrieval/runs/<timestamp>/report.json`. Its
+ three methods are query-only BM25, BM25 with dialogue history, and a dialogue-
+plus-state hybrid that adds active tab, filter, focused chart, and interaction
+context. These are source-
+chart retrieval metrics, not end-to-end answer accuracy; replay the dashboard
+before using the numbers in the submitted paper.
+
+For contextual and elliptical query variants, the prior dialogue deliberately
+does not restate the original task. The active tab, focused chart, filter, and
+interaction state are the disambiguating evidence being evaluated.
