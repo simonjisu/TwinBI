@@ -686,6 +686,8 @@ if EMBED_AUTH_MODE == "session_iframe" and SUPERSET_USERNAME.strip() and SUPERSE
         "native_filter_removed",
         "global_filter_added",
         "global_filter_removed",
+        "drill_to_detail",
+        "drill_by",
       ]);
 
       function normalizeEventType(rawType) {{
@@ -870,6 +872,10 @@ if EMBED_AUTH_MODE == "session_iframe" and SUPERSET_USERNAME.strip() and SUPERSE
                 data.tab_name || data.tabName || payload.tab_name || payload.tabName || null,
               filter: payload.filter || data.filter || null,
               filter_type: filterType,
+              chart_name: data.chart_name || data.chartName || payload.chart_name || payload.chartName || null,
+              viz_type: data.viz_type || data.vizType || payload.viz_type || payload.vizType || null,
+              drill_filters: payload.filters || data.filters || null,
+              drill_column: payload.column || data.column || null,
               legend_name: legendResolved.legend_name,
               legend_active: legendResolved.legend_active,
               selected: legendResolved.selected,
@@ -896,6 +902,10 @@ if EMBED_AUTH_MODE == "session_iframe" and SUPERSET_USERNAME.strip() and SUPERSE
                 data.tab_name || data.tabName || payload.tab_name || payload.tabName || null,
               filter: payload.filter || data.filter || null,
               filter_type: filterType,
+              chart_name: data.chart_name || data.chartName || payload.chart_name || payload.chartName || null,
+              viz_type: data.viz_type || data.vizType || payload.viz_type || payload.vizType || null,
+              drill_filters: payload.filters || data.filters || null,
+              drill_column: payload.column || data.column || null,
               legend_name: legendResolved.legend_name,
               legend_active: legendResolved.legend_active,
               selected: legendResolved.selected,
