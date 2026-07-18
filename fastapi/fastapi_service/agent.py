@@ -2164,6 +2164,16 @@ class AgentRunner:
         self._initialized = False
         self._dashboard_tools_doc: str | None = None
         self._model_name = os.getenv("AGENT_MODEL", "gpt-5-nano")
+        self._max_turns = self._positive_int_env("AGENT_MAX_TURNS", 6)
+        self._timeout_sec = self._positive_int_env("AGENT_TIMEOUT_SEC", 90)
+
+    @staticmethod
+    def _positive_int_env(name: str, default: int) -> int:
+        try:
+            value = int(os.getenv(name, str(default)))
+        except ValueError:
+            return default
+        return value if value > 0 else default
 
     @property
     def available(self) -> bool:
@@ -2368,17 +2378,12 @@ class AgentRunner:
             raise RuntimeError(_IMPORT_ERROR or "agents Runner unavailable")
         prompt = [{"role": "user", "content": payload_json}]
         active_context = _get_active_context()
-        run_sync = getattr(Runner, "run_sync", None)
-        if callable(run_sync):
-            result = await asyncio.to_thread(run_sync, agent, prompt, context=active_context)
-        else:
-            run_async = getattr(Runner, "run", None)
-            if callable(run_async):
-                result = run_async(agent, prompt, context=active_context)
-                if asyncio.iscoroutine(result):
-                    result = await result
-            else:
-                raise RuntimeError("agents Runner has no run method")
+        result = await self._run_with_limits(
+            agent,
+            prompt,
+            active_context,
+            max_turns=max(1, self._max_turns - 2),
+        )
         for attr in ("final_output", "output_text", "output"):
             value = getattr(result, attr, None)
             if isinstance(value, str) and value.strip():
@@ -2559,18 +2564,50 @@ class AgentRunner:
         if Runner is None:
             raise RuntimeError(_IMPORT_ERROR or "agents Runner unavailable")
 
-        run_sync = getattr(Runner, "run_sync", None)
-        if callable(run_sync):
-            return await asyncio.to_thread(run_sync, agent, prompt, context=context_obj)
-
         run_async = getattr(Runner, "run", None)
         if callable(run_async):
-            result = run_async(agent, prompt, context=context_obj)
-            if asyncio.iscoroutine(result):
-                return await result
-            return result
+            return await self._run_with_limits(
+                agent,
+                prompt,
+                context_obj,
+                max_turns=self._max_turns,
+            )
+
+        run_sync = getattr(Runner, "run_sync", None)
+        if callable(run_sync):
+            return await asyncio.wait_for(
+                asyncio.to_thread(
+                    run_sync,
+                    agent,
+                    prompt,
+                    context=context_obj,
+                    max_turns=self._max_turns,
+                ),
+                timeout=self._timeout_sec,
+            )
 
         raise RuntimeError("agents Runner has no run method")
+
+    async def _run_with_limits(
+        self,
+        agent: Any,
+        prompt: Any,
+        context_obj: Any | None,
+        *,
+        max_turns: int,
+    ) -> Any:
+        run_async = getattr(Runner, "run", None)
+        if not callable(run_async):
+            raise RuntimeError("agents Runner has no async run method")
+        result = run_async(
+            agent,
+            prompt,
+            context=context_obj,
+            max_turns=max_turns,
+        )
+        if asyncio.iscoroutine(result):
+            return await asyncio.wait_for(result, timeout=self._timeout_sec)
+        return result
 
     def _extract_answer(self, result: Any) -> str:
         if isinstance(result, str):
