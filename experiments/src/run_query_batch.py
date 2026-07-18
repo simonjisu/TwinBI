@@ -165,16 +165,21 @@ def main() -> int:
             args.password,
             "--max-steps",
             str(args.max_steps),
-            "--viewport-width",
-            str(args.viewport_width),
-            "--viewport-height",
-            str(args.viewport_height),
             "--trace-dir",
             str(relative_trace_root),
             "--trace-dir-is-run-dir",
         ]
         if args.mode == "dashboard":
-            cmd.extend(["--login-mode", args.login_mode])
+            cmd.extend(
+                [
+                    "--login-mode",
+                    args.login_mode,
+                    "--viewport-width",
+                    str(args.viewport_width),
+                    "--viewport-height",
+                    str(args.viewport_height),
+                ]
+            )
         if args.show_browser:
             cmd.append("--show-browser")
         cmd.extend(args.extra_arg)
