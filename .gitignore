@@ -217,7 +217,8 @@ superset/*
 .DS_Store
 archive
 *.duckdb
-paper
+paper/*
+!paper/6a549455b0d9b08aa493b750/
 dev_docs
 simulation
 *.ipynb
