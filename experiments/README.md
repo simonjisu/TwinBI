@@ -167,7 +167,8 @@ uv run python experiments/src/annotate_trace_clicks.py \
 - [`answers.json`](answers.json) is a convenience snapshot for comparison; the original execution record remains in each batch trace directory.
 # Offline AER Retrieval Evaluation
 
-`retrieval/gold_aer.json` defines the 30 task-level gold AERs. It stores the
+`retrieval/gold_aer.json` contains 30 task-level seed AERs and a live-schema
+validated 19-task evaluation subset. It stores the
 retrieval target (source chart, supporting chart, measure, dimensions, filters,
 hierarchy, and interaction) while the existing `queries/query_*_ans.json` files
 remain the source of truth for final answer values.
@@ -188,7 +189,8 @@ tmux capture-pane -pt twinbi-aer
 tmux kill-session -t twinbi-aer
 ```
 
-The runner produces a timestamped `retrieval/runs/<timestamp>/report.json`. Its
+The runner first validates gold labels against live FastAPI/Superset chart
+metadata, then produces timestamped `retrieval/runs/<timestamp>/report.json`. Its
  three methods are query-only BM25, BM25 with dialogue history, and a dialogue-
 plus-state hybrid that adds active tab, filter, focused chart, and interaction
 context. These are source-
@@ -197,4 +199,6 @@ before using the numbers in the submitted paper.
 
 For contextual and elliptical query variants, the prior dialogue deliberately
 does not restate the original task. The active tab, focused chart, filter, and
-interaction state are the disambiguating evidence being evaluated.
+interaction state are the disambiguating evidence being evaluated. The remaining
+11 seed tasks require dashboard detail not exposed by their source charts and
+are excluded until a drill/query-extension AER is added.

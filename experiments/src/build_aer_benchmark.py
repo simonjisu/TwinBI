@@ -41,8 +41,6 @@ def state_for(entry: dict) -> dict:
 
 
 def query_variants(entry: dict, explicit: str) -> list[tuple[str, str, str | None]]:
-    target = entry["target"].replace("_", " ")
-    tab = entry["tab"]
     return [
         ("explicit", explicit, None),
         (
@@ -62,11 +60,20 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--gold", type=Path, default=DEFAULT_GOLD)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--include-unvalidated-seeds",
+        action="store_true",
+        help="Include seed annotations not validated against the live chart schema.",
+    )
     args = parser.parse_args()
 
     gold = json.loads(args.gold.read_text(encoding="utf-8"))
     rows: list[dict] = []
-    for entry in gold["entries"]:
+    validated = set(gold.get("validated_query_ids", []))
+    entries = gold["entries"]
+    if not args.include_unvalidated_seeds:
+        entries = [entry for entry in entries if entry["query_id"] in validated]
+    for entry in entries:
         explicit = task_text(ROOT / "experiments/queries" / entry["task_file"])
         for variant, query, history in query_variants(entry, explicit):
             rows.append(
@@ -94,7 +101,11 @@ def main() -> None:
         "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows),
         encoding="utf-8",
     )
-    print(f"Wrote {len(rows)} query-session pairs to {args.output}")
+    print(
+        f"Wrote {len(rows)} query-session pairs "
+        f"({len(entries)} tasks; {'all seeds' if args.include_unvalidated_seeds else 'validated subset'}) "
+        f"to {args.output}"
+    )
 
 
 if __name__ == "__main__":

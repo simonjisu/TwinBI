@@ -144,16 +144,18 @@ def main() -> None:
         "benchmark": "TwinBI AER offline retrieval",
         "sessions": len(rows),
         "queries": len({row["query_id"] for row in rows}),
+        "evaluated_query_ids": sorted({row["query_id"] for row in rows}),
         "candidate_aers": len(docs),
         "methods": {
             method: metrics(rows, docs, method)
             for method in ("query_only_bm25", "history_bm25", "twinbi_dialogue_state_hybrid")
         },
         "limitations": [
+            "This report is restricted to task-to-chart mappings validated against live Superset chart schemas.",
             "Query-session variants are deterministic transformations of existing benchmark tasks.",
             "Context-dependent and elliptical variants intentionally omit the original task intent from dialogue history; the active dashboard state is the disambiguating evidence.",
             "Results measure AER source-chart retrieval, not end-to-end answer accuracy.",
-            "Validate the task-to-chart mapping by dashboard replay before submitting paper results.",
+            "Do not report these synthetic query-variant results as a user study or end-to-end agent evaluation.",
         ],
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

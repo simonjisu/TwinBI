@@ -1,7 +1,18 @@
 {
   "schema_version": "1.0",
   "dashboard_id": 13,
-  "description": "Gold AER targets for the TwinBI offline retrieval benchmark. Final answer values remain in the paired query_*_ans.json files.",
+  "description": "Seed AER annotations for the TwinBI offline retrieval benchmark. Final answer values remain in the paired query_*_ans.json files.",
+  "validated_query_ids": [
+    "Q01", "Q02", "Q03", "Q04", "Q05", "Q06", "Q07", "Q08", "Q09", "Q10", "Q11",
+    "Q20", "Q21", "Q22", "Q23", "Q24", "Q25", "Q26", "Q29"
+  ],
+  "excluded_seed_query_ids": {
+    "Q12": "The visible product chart does not expose a department dimension.",
+    "Q13-Q18": "The visible category charts aggregate by category and do not expose department-category pairs.",
+    "Q19": "The task compares a measure that is not semantically shared across the three tabs.",
+    "Q27-Q28": "The visible category chart omits the department category distinction required by the answer.",
+    "Q30": "The structured slots require department-category detail absent from the visible charts."
+  },
   "chart_inventory": {
     "1106": "Total sales by district",
     "1107": "Active days per month per store",
