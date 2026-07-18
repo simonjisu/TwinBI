@@ -204,4 +204,7 @@ interaction state are the disambiguating evidence being evaluated. The remaining
 runner materializes them as verified query-result AERs from the existing
 three-way answer provenance (database SQL, Cube API, and TwinBI query path),
 then checks that visible-chart and query-result AERs cover all 30 tasks exactly
-once. These records validate evidence coverage, not ranking performance.
+once. It also re-executes the 11 query-result tasks against the local database,
+Cube API, and Superset chart-data API, requiring each result to match the gold
+answer and the other two paths. These records validate evidence coverage and
+query-result reproducibility, not ranking performance.

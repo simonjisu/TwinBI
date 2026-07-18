@@ -9,6 +9,7 @@ REPORT="${RUN_DIR}/report.json"
 VALIDATION_REPORT="${RUN_DIR}/gold_validation.json"
 QUERY_RESULT_AERS="${RUN_DIR}/query_result_aers.jsonl"
 COVERAGE_REPORT="${RUN_DIR}/extended_coverage.json"
+QUERY_RESULT_REPLAY_REPORT="${RUN_DIR}/query_result_replay.json"
 
 mkdir -p "${RUN_DIR}"
 python3 "${ROOT}/experiments/src/validate_aer_gold.py" \
@@ -19,10 +20,12 @@ python3 "${ROOT}/experiments/src/materialize_query_result_aers.py" \
 python3 "${ROOT}/experiments/src/validate_extended_aer_coverage.py" \
   --query-result-aers "${QUERY_RESULT_AERS}" \
   --output "${COVERAGE_REPORT}"
+uv run python "${ROOT}/experiments/src/replay_query_result_aers.py" \
+  --output "${QUERY_RESULT_REPLAY_REPORT}"
 python3 "${ROOT}/experiments/src/build_aer_benchmark.py" --output "${SESSIONS}"
 python3 "${ROOT}/experiments/src/evaluate_aer_retrieval.py" \
   --sessions "${SESSIONS}" \
   --output "${REPORT}"
 
-printf '\nAER offline evaluation completed.\nValidation: %s\nCoverage: %s\nReport: %s\n' \
-  "${VALIDATION_REPORT}" "${COVERAGE_REPORT}" "${REPORT}"
+printf '\nAER offline evaluation completed.\nValidation: %s\nCoverage: %s\nQuery-result replay: %s\nReport: %s\n' \
+  "${VALIDATION_REPORT}" "${COVERAGE_REPORT}" "${QUERY_RESULT_REPLAY_REPORT}" "${REPORT}"
