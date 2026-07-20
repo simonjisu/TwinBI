@@ -25,6 +25,7 @@ uv run python "${ROOT}/experiments/src/replay_query_result_aers.py" \
 python3 "${ROOT}/experiments/src/build_aer_benchmark.py" --output "${SESSIONS}"
 python3 "${ROOT}/experiments/src/evaluate_aer_retrieval.py" \
   --sessions "${SESSIONS}" \
+  --rankings-output "${RUN_DIR}/rankings.jsonl" \
   --output "${REPORT}"
 
 printf '\nAER offline evaluation completed.\nValidation: %s\nCoverage: %s\nQuery-result replay: %s\nReport: %s\n' \

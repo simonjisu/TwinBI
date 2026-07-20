@@ -190,16 +190,22 @@ tmux kill-session -t twinbi-aer
 ```
 
 The runner first validates gold labels against live FastAPI/Superset chart
-metadata, then produces timestamped `retrieval/runs/<timestamp>/report.json`. Its
- three methods are query-only BM25, BM25 with dialogue history, and a dialogue-
-plus-state hybrid that adds active tab, filter, focused chart, and interaction
-context. These are source-
-chart retrieval metrics, not end-to-end answer accuracy; replay the dashboard
-before using the numbers in the submitted paper.
+metadata, then produces timestamped `retrieval/runs/<timestamp>/report.json` and
+`rankings.jsonl`. It evaluates query-only BM25, history BM25, state-serialized
+BM25, structured-state compatibility, the dialogue-plus-state hybrid, and a
+one-feature-removed ablation for each state signal. The report records ranking
+weights, tie-breaking, per-session rankings, query-level bootstrap confidence
+intervals, paired bootstrap comparisons, and retrieval latency. These are
+source-chart retrieval metrics, not end-to-end answer accuracy; replay the
+dashboard before using the numbers in the submitted paper.
 
-For contextual and elliptical query variants, the prior dialogue deliberately
-does not restate the original task. The active tab, focused chart, filter, and
-interaction state are the disambiguating evidence being evaluated. The remaining
+For contextual and elliptical query variants, the prior dialogue includes the
+initial explicit request so history baselines receive the same conversational
+evidence as state-aware methods. The active tab, focused chart, filter, and
+interaction state provide additional disambiguating evidence. To run synthetic
+noisy-state stress tests, add `--state-condition all` to
+`build_aer_benchmark.py`; these cases are not replacements for observed user
+traces. The remaining
 11 seed tasks require dashboard detail not exposed by their source charts. The
 runner materializes them as verified query-result AERs from the existing
 three-way answer provenance (database SQL, Cube API, and TwinBI query path),
