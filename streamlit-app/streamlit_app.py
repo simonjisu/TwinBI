@@ -525,6 +525,10 @@ def get_dashboard_uuid_by_id(
         return ""
     sess, _access_token = _api_session_with_bearer(superset_username, superset_password)
     r = sess.get(f"{SUPERSET_INTERNAL_URL}/api/v1/dashboard/{dashboard_id}", timeout=30)
+    # The interaction account can render a shared dashboard without having
+    # permission for this metadata endpoint. The iframe does not need its UUID.
+    if r.status_code in {401, 403, 404}:
+        return ""
     r.raise_for_status()
     return r.json()["result"]["uuid"]
 

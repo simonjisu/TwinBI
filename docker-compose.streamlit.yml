@@ -21,6 +21,8 @@ services:
       - SUPERSET_USERNAME=harry_potter
       - SUPERSET_PASSWORD=1234
       - SUPERSET_GUEST_AUD=superset
+      # The evaluation dashboard whose UI events are bound to each experiment session.
+      - DEFAULT_DASHBOARD_ID=13
     networks:
       - agent4olap_net
 
