@@ -7,6 +7,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter
 from typing import Any
 from urllib.error import URLError
 from urllib.parse import urlencode
@@ -113,6 +114,20 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dashboard-id", type=int, default=13)
     parser.add_argument("--max-steps", type=int, default=30)
     parser.add_argument("--chat-wait-timeout", type=int, default=45)
+    parser.add_argument(
+        "--finish-after-chat",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Treat a successful API chat response as the final task answer.",
+    )
+    parser.add_argument(
+        "--direct-chat",
+        action="store_true",
+        help=(
+            "Send the task directly to the state-aware chat API after the embedded dashboard is ready. "
+            "This bypasses the vision action planner for a reproducible direct-chat evaluation."
+        ),
+    )
     parser.add_argument("--chat-api-url", type=str, default="http://localhost:8000/chat")
     parser.add_argument("--chat-status-url", type=str, default="http://localhost:8000/chat/session_status")
     parser.add_argument("--show-browser", dest="headless", action="store_false")
@@ -726,6 +741,8 @@ def _chat_send_via_api(
     dashboard_id: int,
     message: str,
     agent_model: str,
+    timeout_sec: int,
+    debug: bool = False,
 ) -> dict[str, Any] | None:
     if not base_url or not session_id or not message.strip():
         return None
@@ -737,7 +754,7 @@ def _chat_send_via_api(
         "superset_username": username or "",
         "superset_password": password or "",
         "agent_model": agent_model or "",
-        "debug": False,
+        "debug": debug,
     }
     req = Request(
         base_url,
@@ -750,7 +767,7 @@ def _chat_send_via_api(
         method="POST",
     )
     try:
-        with urlopen(req) as resp:
+        with urlopen(req, timeout=max(1, timeout_sec)) as resp:
             body = resp.read().decode("utf-8")
             parsed = json.loads(body)
     except (URLError, TimeoutError, json.JSONDecodeError, ValueError):
@@ -911,6 +928,7 @@ async def _execute_action(
             dashboard_id=dashboard_id,
             message=text,
             agent_model=agent_model,
+            timeout_sec=chat_wait_timeout,
         )
         if isinstance(api_payload, dict):
             answer = str(api_payload.get("answer", "")).strip()
@@ -1039,6 +1057,66 @@ async def _run(args: argparse.Namespace) -> int:
                 await page.screenshot(path=str(screenshot_path), full_page=False)
                 image_b64 = base64.b64encode(screenshot_path.read_bytes()).decode("utf-8")
 
+                if args.direct_chat:
+                    action = {"type": "chat", "source": "chat", "text": task_text}
+                    chat_started = perf_counter()
+                    api_payload = await asyncio.to_thread(
+                        _chat_send_via_api,
+                        base_url=args.chat_api_url,
+                        session_id=session_id,
+                        username=username,
+                        password=password,
+                        dashboard_id=args.dashboard_id,
+                        message=task_text,
+                        agent_model=args.model,
+                        timeout_sec=args.chat_wait_timeout,
+                        debug=True,
+                    )
+                    chat_latency_ms = (perf_counter() - chat_started) * 1000
+                    last_chat_answer = str((api_payload or {}).get("answer", "")).strip()
+                    executed = {
+                        "type": "chat",
+                        "source": "chat",
+                        "text": task_text,
+                        "answer": last_chat_answer,
+                        "route": "api-direct",
+                        "latency_ms": round(chat_latency_ms, 2),
+                        "agent_debug": (api_payload or {}).get("debug", []),
+                    }
+                    previous_action = "chat(api-direct)"
+                    _update_memory_context(
+                        memory_context,
+                        ui_facts={},
+                        reasoning="Direct state-aware chat evaluation.",
+                        parsed={},
+                        self_check={},
+                        action=action,
+                        executed=executed,
+                        url=page.url,
+                        previous_action=previous_action,
+                        last_chat_answer=last_chat_answer,
+                    )
+                    memory_context_path.write_text(
+                        json.dumps(memory_context, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+                    row = {
+                        "step": step,
+                        "phase": "streamlit_direct_chat",
+                        "url": page.url,
+                        "reasoning": "Direct state-aware chat evaluation.",
+                        "self_check": {},
+                        "model_action": action,
+                        "executed": executed,
+                        "screenshot": screenshot_path.name,
+                        "candidates": [],
+                        "last_chat_answer": last_chat_answer[:800],
+                    }
+                    with steps_jsonl.open("a", encoding="utf-8") as fp:
+                        fp.write(json.dumps(row, ensure_ascii=False) + "\n")
+                    final_answer = last_chat_answer or "State-aware chat API returned no answer."
+                    break
+
                 host_candidates = await _collect_candidates(page.main_frame, "host", limit=40)
                 dashboard_frame = await _find_dashboard_frame(page)
                 dashboard_candidates = []
@@ -1159,6 +1237,7 @@ async def _run(args: argparse.Namespace) -> int:
                     memory_context["recent_targets"] = recent_target_history[-12:]
                 if executed.get("type") == "chat":
                     last_chat_answer = str(executed.get("answer", "")).strip()
+                finish_after_chat = bool(last_chat_answer) and args.finish_after_chat
                 _update_memory_context(
                     memory_context,
                     ui_facts=ui_facts,
@@ -1196,6 +1275,9 @@ async def _run(args: argparse.Namespace) -> int:
                 if str(action.get("type", "")).strip().lower() == "done":
                     final_answer = str(action.get("result", "")).strip() or "done"
                     break
+                if finish_after_chat:
+                    final_answer = last_chat_answer
+                    break
 
         await context.close()
         await browser.close()
@@ -1211,7 +1293,11 @@ async def _run(args: argparse.Namespace) -> int:
         "steps_jsonl": str(steps_jsonl),
         "memory_context": str(memory_context_path),
         "final_answer": final_answer,
+        "login_success": dashboard_frame is not None,
+        "scenario_steps_executed": global_step,
         "max_steps": args.max_steps,
+        "finish_after_chat": args.finish_after_chat,
+        "direct_chat": args.direct_chat,
         "dashboard_id": args.dashboard_id,
         "chat_wait_timeout": args.chat_wait_timeout,
         "chat_api_url": args.chat_api_url,
