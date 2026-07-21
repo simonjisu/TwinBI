@@ -2167,7 +2167,7 @@ class AgentRunner:
         self._init_error: Exception | None = None
         self._initialized = False
         self._dashboard_tools_doc: str | None = None
-        self._model_name = os.getenv("AGENT_MODEL", "gpt-5-nano")
+        self._model_name = os.getenv("AGENT_MODEL", "gpt-5-mini")
         self._max_turns = self._positive_int_env("AGENT_MAX_TURNS", 6)
         self._timeout_sec = self._positive_int_env("AGENT_TIMEOUT_SEC", 90)
 
@@ -2209,9 +2209,9 @@ class AgentRunner:
             self._initialized = True
 
     async def _ensure_model(self, model_name: str | None) -> None:
-        desired_model = (model_name or os.getenv("AGENT_MODEL", "gpt-5-nano")).strip()
+        desired_model = (model_name or os.getenv("AGENT_MODEL", "gpt-5-mini")).strip()
         if not desired_model:
-            desired_model = "gpt-5-nano"
+            desired_model = "gpt-5-mini"
         await self.startup()
         if self._orchestrator_agent is not None and self._model_name == desired_model:
             return
@@ -2238,15 +2238,19 @@ class AgentRunner:
                 "insight_seeker": None,
             }
 
-        selected_model = (model_name or os.getenv("AGENT_MODEL", "gpt-5-nano")).strip()
+        selected_model = (model_name or os.getenv("AGENT_MODEL", "gpt-5-mini")).strip()
         if not selected_model:
-            selected_model = "gpt-5-nano"
+            selected_model = "gpt-5-mini"
+
+        service_tier = os.getenv("OPENAI_SERVICE_TIER", "flex").strip()
+        extra_args = {"service_tier": service_tier} if service_tier else None
 
         model_settings = ModelSettings(
             reasoning={"effort": "medium"},
             verbosity="low",
             max_turns=100,
             response_format={"type": "json_object", "schema": Answer.model_json_schema()},
+            extra_args=extra_args,
         )
         insight_seeker_agent = Agent(
             name="InsightSeeker Agent",
