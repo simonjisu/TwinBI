@@ -169,6 +169,13 @@ def _build_parser() -> argparse.ArgumentParser:
         default='',
         help='OpenAI processing tier. If omitted, OPENAI_SERVICE_TIER is used when set.',
     )
+    parser.add_argument(
+        '--reasoning-effort',
+        type=str,
+        choices=['', 'low', 'medium', 'high'],
+        default='',
+        help='Reasoning effort for GPT-5 models. If omitted, AGENT_REASONING_EFFORT is used when set.',
+    )
     parser.add_argument('--max-steps', type=int, default=30)
     parser.add_argument(
         '--headless',
@@ -809,6 +816,9 @@ async def _run(args: argparse.Namespace) -> int:
         service_tier = (args.service_tier or os.getenv('OPENAI_SERVICE_TIER', '')).strip()
         if service_tier:
             chat_kwargs['service_tier'] = service_tier
+        reasoning_effort = (args.reasoning_effort or os.getenv('AGENT_REASONING_EFFORT', '')).strip().lower()
+        if reasoning_effort:
+            chat_kwargs['reasoning_effort'] = reasoning_effort
     if not model_name.startswith('gpt-5'):
         chat_kwargs['temperature'] = 0
     viewport_width = max(800, int(args.viewport_width))
@@ -1931,6 +1941,7 @@ async def _run(args: argparse.Namespace) -> int:
         'dashboard_url': dashboard_url,
         'model': args.model,
         'service_tier': '' if use_gemini else str(chat_kwargs.get('service_tier', '')),
+        'reasoning_effort': '' if use_gemini else str(chat_kwargs.get('reasoning_effort', '')),
         'login_max_steps': args.login_max_steps,
         'max_steps': args.max_steps,
         'skip_login': args.skip_login,

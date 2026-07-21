@@ -31,7 +31,8 @@ services:
       - CUBE_SQL_PORT=15432
       - CUBE_CONF_PATH=/cube/conf
       - CORS_ORIGINS=http://localhost:8501
-      - AGENT_MODEL=gpt-5-mini
+      - AGENT_MODEL=gpt-5.6-terra
+      - AGENT_REASONING_EFFORT=high
       - OPENAI_SERVICE_TIER=flex
     volumes:
       - ./data/logs:/logs

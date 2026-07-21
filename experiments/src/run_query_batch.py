@@ -62,6 +62,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Run only the first N query files (0 means all).",
     )
     parser.add_argument(
+        "--batch-id",
+        type=str,
+        default="",
+        help="Stable batch directory name. If omitted, use the current timestamp.",
+    )
+    parser.add_argument(
         "--show-browser",
         action="store_true",
         help="Run with visible browser windows.",
@@ -138,7 +144,7 @@ def main() -> int:
         print(f"No query files found in {queries_dir}")
         return 1
 
-    batch_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    batch_id = args.batch_id.strip() or datetime.now().strftime("%Y%m%d_%H%M%S")
     batch_root = (project_root / trace_root / batch_id).resolve()
     batch_root.mkdir(parents=True, exist_ok=True)
     summary_jsonl = batch_root / "summary.jsonl"

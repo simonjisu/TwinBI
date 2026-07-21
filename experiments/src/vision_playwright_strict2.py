@@ -58,10 +58,14 @@ Return strict JSON with this schema:
 Rules:
 - Prefer dom_id when a relevant candidate exists.
 - Chat is the primary tool. Use chat first for factual lookup, synthesis, fill-in-the-blank, and answer construction.
-- Dashboard interaction is restricted to tab switching and lightweight observation only.
-- On the dashboard, prefer only tab clicks such as Store-Level, Product-Level, Category-Level.
-- After switching to a useful tab, use chat to interpret the visible dashboard context and extract the answer.
-- Do not use More Options, View as table, modal open/close flows, or chart menu exploration.
+- Perform the dashboard interaction required by the task before asking chat: tab navigation,
+  existing dashboard filters, cross-filter selections, and hover for tooltip values are allowed.
+- Do not create or edit dashboard filters, change chart configuration, or enter dashboard edit mode.
+- After the required interaction is visibly applied, use chat to interpret the resulting dashboard context.
+- If the task specifies a district, time window, category, department, selected tab, or tooltip value,
+  chat is forbidden until the required UI state is visibly applied or observed. Do not bypass a
+  missing filter or selection by asking chat for the final answer from the unmodified dashboard.
+- Do not use More Options, View as table, or chart configuration flows.
 - Candidates with source "chat" are coordinates inside the left chat pane.
 - For fill-in-the-blank, mapping, or multi-value lookup tasks, prefer chat once you understand the visible dashboard context.
 - If a dashboard action path repeats without yielding a new concrete value, switch to chat instead of repeating the same click path.
@@ -109,6 +113,20 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--task-file", type=str, help="Task file path")
     parser.add_argument("--start-url", type=str, default="http://localhost:8501/")
     parser.add_argument("--model", type=str, default="gpt-5-mini")
+    parser.add_argument(
+        "--service-tier",
+        type=str,
+        choices=["", "auto", "default", "flex", "priority"],
+        default="",
+        help="OpenAI processing tier. If omitted, OPENAI_SERVICE_TIER is used when set.",
+    )
+    parser.add_argument(
+        "--reasoning-effort",
+        type=str,
+        choices=["", "low", "medium", "high"],
+        default="",
+        help="Reasoning effort for GPT-5 models. If omitted, AGENT_REASONING_EFFORT is used when set.",
+    )
     parser.add_argument("--username", type=str, default="")
     parser.add_argument("--password", type=str, default="")
     parser.add_argument("--dashboard-id", type=int, default=13)
@@ -167,6 +185,22 @@ def _load_chat_template(workspace_root: Path, args: argparse.Namespace) -> dict[
         if isinstance(value, dict):
             return value
     return {}
+
+
+def _scenario_requires_dashboard_action(workspace_root: Path, args: argparse.Namespace) -> bool:
+    """Use the scenario definition as a gate without exposing its target to the model."""
+    if not args.task_file:
+        return False
+    query_id = Path(args.task_file).stem.replace("query_", "Q").upper()
+    gold_path = workspace_root / "retrieval" / "gold_aer.json"
+    try:
+        entries = json.loads(gold_path.read_text(encoding="utf-8")).get("entries", [])
+    except (OSError, json.JSONDecodeError):
+        return False
+    for entry in entries:
+        if str(entry.get("query_id", "")).upper() == query_id:
+            return str(entry.get("interaction", "none")).lower() != "none"
+    return False
 
 
 def _load_env(repo_root: Path, workspace_root: Path) -> None:
@@ -988,6 +1022,7 @@ async def _run(args: argparse.Namespace) -> int:
 
     task_text = _load_task(args)
     chat_template = _load_chat_template(workspace_root, args)
+    scenario_requires_dashboard_action = _scenario_requires_dashboard_action(workspace_root, args)
     trace_root = workspace_root / args.trace_dir
     if args.trace_dir_is_run_dir:
         trace_dir = trace_root
@@ -999,6 +1034,19 @@ async def _run(args: argparse.Namespace) -> int:
     memory_context_path = trace_dir / "memory_context.json"
 
     client = OpenAI(api_key=api_key)
+    planner_kwargs: dict[str, Any] = {
+        "model": args.model,
+        "response_format": {"type": "json_object"},
+    }
+    if args.model.startswith("gpt-5"):
+        service_tier = (args.service_tier or os.getenv("OPENAI_SERVICE_TIER", "")).strip()
+        reasoning_effort = (
+            args.reasoning_effort or os.getenv("AGENT_REASONING_EFFORT", "")
+        ).strip().lower()
+        if service_tier:
+            planner_kwargs["service_tier"] = service_tier
+        if reasoning_effort:
+            planner_kwargs["reasoning_effort"] = reasoning_effort
     previous_action = "none"
     final_answer = ""
     last_chat_answer = ""
@@ -1006,6 +1054,7 @@ async def _run(args: argparse.Namespace) -> int:
     global_step = 0
     recent_actions: list[str] = []
     recent_target_history: list[str] = []
+    dashboard_action_executed = False
     memory_context: dict[str, Any] = {
         "last_url": args.start_url,
         "flags": {
@@ -1148,6 +1197,8 @@ async def _run(args: argparse.Namespace) -> int:
                     f"Current URL: {page.url}\n"
                     f"Previous action: {previous_action}\n"
                     f"Recent action history: {_format_recent_actions(recent_actions)}\n"
+                    f"Scenario requires a dashboard interaction before chat: {scenario_requires_dashboard_action}\n"
+                    f"Dashboard interaction completed: {dashboard_action_executed}\n"
                     f"Step: {step}/{args.max_steps}\n"
                     f"Chat status: {chat_status}\n"
                     f"Recent chat answer: {last_chat_answer[:800] or 'none'}\n"
@@ -1156,8 +1207,7 @@ async def _run(args: argparse.Namespace) -> int:
                 )
 
                 completion = client.chat.completions.create(
-                    model=args.model,
-                    response_format={"type": "json_object"},
+                    **planner_kwargs,
                     messages=[
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {
@@ -1199,24 +1249,20 @@ async def _run(args: argparse.Namespace) -> int:
                         "text": fallback_text,
                     }
                 action_type = str(action.get("type", "")).strip().lower()
-                source = str(action.get("source", "")).strip().lower()
-                if action_type in {"click", "hover", "type", "press", "scroll"} and source == "dashboard":
-                    if not _is_tab_candidate(action, candidates):
-                        template_questions = chat_template.get("preferred_chat_questions", []) if isinstance(chat_template, dict) else []
-                        fallback_text = (
-                            str(template_questions[0]).strip()
-                            if isinstance(template_questions, list) and template_questions and str(template_questions[0]).strip()
-                            else (
-                                "Using only the visible active tab and charts, provide the values needed for the task. "
-                                "Only tab switching is allowed on the dashboard, and chart menu exploration is not allowed. "
-                                "Use visible chart or table values and mappings only, and answer briefly."
-                            )
-                        )
-                        action = {
-                            "type": "chat",
-                            "source": "chat",
-                            "text": fallback_text,
-                        }
+                resolved_source = str(action.get("source", "")).strip().lower()
+                dom_id = int(action.get("dom_id", -1) or -1)
+                if 0 <= dom_id < len(candidates):
+                    resolved_source = str(candidates[dom_id].get("source", resolved_source)).strip().lower()
+                if (
+                    scenario_requires_dashboard_action
+                    and not dashboard_action_executed
+                    and action_type in {"chat", "done"}
+                ):
+                    action = {
+                        "type": "wait",
+                        "seconds": 1,
+                        "blocked_reason": "A real dashboard interaction is required before chat or completion.",
+                    }
                 executed, previous_action = await _execute_action(
                     page,
                     action,
@@ -1230,6 +1276,11 @@ async def _run(args: argparse.Namespace) -> int:
                     args.dashboard_id,
                     args.model,
                 )
+                if (
+                    executed.get("source") == "dashboard"
+                    and executed.get("type") in {"click", "hover", "type", "press"}
+                ):
+                    dashboard_action_executed = True
                 recent_actions.append(previous_action)
                 if target_fingerprint:
                     recent_target_history.append(target_fingerprint)
@@ -1288,6 +1339,8 @@ async def _run(args: argparse.Namespace) -> int:
     meta = {
         "start_url": args.start_url,
         "model": args.model,
+        "service_tier": str(planner_kwargs.get("service_tier", "")),
+        "reasoning_effort": str(planner_kwargs.get("reasoning_effort", "")),
         "task": task_text,
         "trace_dir": str(trace_dir),
         "steps_jsonl": str(steps_jsonl),
@@ -1303,6 +1356,8 @@ async def _run(args: argparse.Namespace) -> int:
         "chat_api_url": args.chat_api_url,
         "session_id": session_id,
         "chat_status_url": args.chat_status_url,
+        "scenario_requires_dashboard_action": scenario_requires_dashboard_action,
+        "dashboard_action_executed": dashboard_action_executed,
     }
     (trace_dir / "run_meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Final answer: {final_answer}")

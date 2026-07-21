@@ -2244,9 +2244,12 @@ class AgentRunner:
 
         service_tier = os.getenv("OPENAI_SERVICE_TIER", "flex").strip()
         extra_args = {"service_tier": service_tier} if service_tier else None
+        reasoning_effort = os.getenv("AGENT_REASONING_EFFORT", "medium").strip().lower()
+        if reasoning_effort not in {"low", "medium", "high"}:
+            reasoning_effort = "medium"
 
         model_settings = ModelSettings(
-            reasoning={"effort": "medium"},
+            reasoning={"effort": reasoning_effort},
             verbosity="low",
             max_turns=100,
             response_format={"type": "json_object", "schema": Answer.model_json_schema()},
