@@ -33,6 +33,7 @@ DEFAULT_SUPERSET_USERNAME = ""
 DEFAULT_SUPERSET_PASSWORD = ""
 DEFAULT_DASHBOARD_ID = os.getenv("DEFAULT_DASHBOARD_ID", "")
 MODEL_OPTIONS = [
+    "gpt-5.6-terra",
     "gpt-5-nano",
     "gpt-5-mini",
     "gpt-4.1-nano",

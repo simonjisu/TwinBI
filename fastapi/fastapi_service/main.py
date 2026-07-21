@@ -17,6 +17,7 @@ import os
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from openai import OpenAI
 
 from fastapi_service import db
 from fastapi_service.config import Settings, load_settings
@@ -24,6 +25,8 @@ from fastapi_service.agent import AgentRunner, AgentContext
 from fastapi_service.models import (
     ChatRequest,
     ChatResponse,
+    DashboardOnlyRequest,
+    DashboardOnlyResponse,
     EventRequest,
     StatusResponse,
     ViewSpec,
@@ -3032,6 +3035,48 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             query_plan=plan,
             data=data,
             debug=debug_items if payload.debug else None,
+        )
+
+    @app.post("/evaluation/dashboard-only", response_model=DashboardOnlyResponse)
+    async def dashboard_only_evaluation(
+        payload: DashboardOnlyRequest,
+    ) -> DashboardOnlyResponse:
+        """Answer from manually replayed visible dashboard evidence without AER/tools."""
+        model = (payload.model or os.getenv("AGENT_MODEL", "gpt-5-mini")).strip()
+        reasoning_effort = os.getenv("AGENT_REASONING_EFFORT", "medium").strip().lower()
+        if reasoning_effort not in {"low", "medium", "high"}:
+            reasoning_effort = "medium"
+        service_tier = os.getenv("OPENAI_SERVICE_TIER", "").strip()
+        request_kwargs: dict[str, Any] = {
+            "model": model,
+            "response_format": {"type": "json_object"},
+            "reasoning_effort": reasoning_effort,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a dashboard-only analyst. Answer using only the supplied visible "
+                        "dashboard evidence. You have no tools, hidden state, logs, database access, "
+                        "or prior conversation. Return only the task's requested JSON structure."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Task:\n{payload.message}\n\nVisible dashboard evidence:\n{payload.visible_evidence}",
+                },
+            ],
+        }
+        if service_tier:
+            request_kwargs["service_tier"] = service_tier
+        completion = await asyncio.to_thread(
+            OpenAI().chat.completions.create,
+            **request_kwargs,
+        )
+        answer = (completion.choices[0].message.content or "").strip()
+        return DashboardOnlyResponse(
+            answer=answer,
+            model=model,
+            reasoning_effort=reasoning_effort,
         )
 
     @app.post("/chat/stream")

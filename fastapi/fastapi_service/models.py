@@ -28,6 +28,18 @@ class ChatResponse(BaseModel):
     debug: list[dict[str, Any]] | None = None
 
 
+class DashboardOnlyRequest(BaseModel):
+    message: str
+    visible_evidence: str
+    model: str | None = None
+
+
+class DashboardOnlyResponse(BaseModel):
+    answer: str
+    model: str
+    reasoning_effort: str
+
+
 class EventRequest(BaseModel):
     ts: datetime | None = None
     session_id: str
