@@ -162,6 +162,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--task-file', type=str, help='Task file path')
     parser.add_argument('--start-url', type=str, default='http://localhost:8088')
     parser.add_argument('--model', type=str, default='gpt-4.1-mini')
+    parser.add_argument(
+        '--service-tier',
+        type=str,
+        choices=['', 'auto', 'default', 'flex', 'priority'],
+        default='',
+        help='OpenAI processing tier. If omitted, OPENAI_SERVICE_TIER is used when set.',
+    )
     parser.add_argument('--max-steps', type=int, default=30)
     parser.add_argument(
         '--headless',
@@ -799,6 +806,9 @@ async def _run(args: argparse.Namespace) -> int:
     else:
         client = OpenAI(api_key=api_key)
         chat_kwargs = {'model': model_name, 'response_format': {'type': 'json_object'}}
+        service_tier = (args.service_tier or os.getenv('OPENAI_SERVICE_TIER', '')).strip()
+        if service_tier:
+            chat_kwargs['service_tier'] = service_tier
     if not model_name.startswith('gpt-5'):
         chat_kwargs['temperature'] = 0
     viewport_width = max(800, int(args.viewport_width))
@@ -1920,6 +1930,7 @@ async def _run(args: argparse.Namespace) -> int:
         'start_url': start_url,
         'dashboard_url': dashboard_url,
         'model': args.model,
+        'service_tier': '' if use_gemini else str(chat_kwargs.get('service_tier', '')),
         'login_max_steps': args.login_max_steps,
         'max_steps': args.max_steps,
         'skip_login': args.skip_login,
