@@ -26,9 +26,11 @@ def task_text(path: Path) -> str:
 
 def state_for(entry: dict, chart_ids: list[int], tabs: list[str], condition: str) -> dict:
     supporting = entry["supporting_chart_ids"]
-    focused_chart_id = entry["primary_chart_id"]
+    focused_chart_id = None
     if entry["interaction"] == "cross_filter" and supporting:
         focused_chart_id = supporting[0]
+    elif entry["interaction"] == "hover":
+        focused_chart_id = entry["primary_chart_id"]
     state = {
         "dashboard_id": 13,
         "active_tab": entry["tab"],
@@ -56,12 +58,12 @@ def query_variants(entry: dict, explicit: str) -> list[tuple[str, str, str | Non
         (
             "context_dependent",
             "Which result answers the current dashboard request?",
-            f"{explicit}\nThe user is now reviewing the current dashboard view.",
+            "The user is reviewing the current dashboard view.",
         ),
         (
             "elliptical_followup",
             "And this one?",
-            f"{explicit}\nContinue from the dashboard element currently in focus.",
+            "Continue from the dashboard element currently in focus.",
         ),
     ]
 

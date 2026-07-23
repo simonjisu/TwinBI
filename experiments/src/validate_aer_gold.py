@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 import urllib.request
 from pathlib import Path
 
@@ -29,9 +30,21 @@ TERM_ALIASES = {
 }
 
 
-def get_json(url: str) -> dict:
-    with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310 - local endpoint supplied by CLI
-        return json.load(response)
+def get_json(url: str, attempts: int = 3) -> dict:
+    error: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(  # noqa: S310 - local endpoint supplied by CLI
+                url,
+                timeout=30,
+            ) as response:
+                return json.load(response)
+        except Exception as exc:  # noqa: BLE001 - retry the local service as a unit
+            error = exc
+            if attempt + 1 < attempts:
+                time.sleep(1)
+    assert error is not None
+    raise error
 
 
 def flattened_terms(value: object) -> str:
@@ -40,6 +53,71 @@ def flattened_terms(value: object) -> str:
 
 def normalized(value: str) -> str:
     return " ".join(value.lower().split())
+
+
+def metric_column(metric: object) -> str | None:
+    if not isinstance(metric, dict):
+        return str(metric) if metric else None
+    column = metric.get("column")
+    if isinstance(column, dict) and column.get("column_name"):
+        return str(column["column_name"])
+    if metric.get("label"):
+        return str(metric["label"])
+    return None
+
+
+def string_values(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if isinstance(item, str)]
+    if isinstance(value, str):
+        return [value]
+    return []
+
+
+def catalog_record(chart: dict, form_data: dict) -> dict:
+    measures: set[str] = set()
+    for key in ("metrics", "metric", "x", "y", "size"):
+        value = form_data.get(key)
+        values = value if isinstance(value, list) else [value]
+        for metric in values:
+            column = metric_column(metric)
+            if column:
+                measures.add(column)
+
+    dimensions: set[str] = set()
+    for key in ("x_axis", "groupby", "entity", "columns", "all_columns"):
+        dimensions.update(string_values(form_data.get(key)))
+
+    filter_fields = {
+        str(item["subject"])
+        for item in form_data.get("adhoc_filters", [])
+        if isinstance(item, dict) and item.get("subject")
+    }
+    tab = chart.get("tab", {}).get("name", "")
+    record = {
+        "chart_id": int(chart["chart_id"]),
+        "name": chart["name"].strip(),
+        "tab": tab,
+        "viz_type": chart.get("viz_type", form_data.get("viz_type", "")),
+        "datasource_id": chart.get("datasource_id"),
+        "datasource_type": chart.get("datasource_type"),
+        "measures": sorted(measures),
+        "dimensions": sorted(dimensions),
+        "filter_fields": sorted(filter_fields),
+    }
+    record["document"] = " ".join(
+        str(value)
+        for value in (
+            record["name"],
+            record["tab"],
+            record["viz_type"],
+            *record["measures"],
+            *record["dimensions"],
+            *record["filter_fields"],
+        )
+        if value
+    )
+    return record
 
 
 def main() -> None:
@@ -54,6 +132,14 @@ def main() -> None:
     dashboard_id = gold["dashboard_id"]
     inventory = get_json(f"{args.api_base}/superset/dashboards/{dashboard_id}/charts")["charts"]
     charts = {int(chart["chart_id"]): chart for chart in inventory}
+    form_data_by_chart = {
+        chart_id: get_json(f"{args.api_base}/superset/charts/{chart_id}/form-data")
+        for chart_id in sorted(charts)
+    }
+    chart_catalog = [
+        catalog_record(charts[chart_id], form_data_by_chart[chart_id])
+        for chart_id in sorted(charts)
+    ]
     validated = set(gold["validated_query_ids"])
     results: list[dict] = []
 
@@ -66,18 +152,14 @@ def main() -> None:
                 gold["chart_inventory"][str(chart_id)]
             )
             checks["tab_matches"] = chart.get("tab", {}).get("name") == entry["tab"]
-            query_payload = get_json(f"{args.api_base}/superset/charts/{chart_id}/queries")
-            chart_terms = flattened_terms(query_payload.get("queries", []))
+            chart_terms = flattened_terms(form_data_by_chart[chart_id])
             supporting_ids = entry["supporting_chart_ids"]
             supporting_exist = all(supporting_id in charts for supporting_id in supporting_ids)
             checks["supporting_charts_exist"] = supporting_exist
             for supporting_id in supporting_ids:
                 if supporting_id not in charts:
                     continue
-                supporting_payload = get_json(
-                    f"{args.api_base}/superset/charts/{supporting_id}/queries"
-                )
-                chart_terms += " " + flattened_terms(supporting_payload.get("queries", []))
+                chart_terms += " " + flattened_terms(form_data_by_chart[supporting_id])
             required_terms = [entry["measure"], *entry["dimensions"]]
             missing = [
                 term
@@ -113,6 +195,15 @@ def main() -> None:
         "seed_annotation_count": len(results),
         "validated_evaluation_count": len(included),
         "validated_evaluation_pass_count": len(passed),
+        "chart_catalog": {
+            "source": "live Superset chart inventory and saved chart form-data",
+            "excluded_fields": [
+                "gold target labels",
+                "task-specific filters",
+                "saved filter comparator values",
+            ],
+            "charts": chart_catalog,
+        },
         "results": results,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -25,6 +25,7 @@ uv run python "${ROOT}/experiments/src/replay_query_result_aers.py" \
 python3 "${ROOT}/experiments/src/build_aer_benchmark.py" --output "${SESSIONS}"
 python3 "${ROOT}/experiments/src/evaluate_aer_retrieval.py" \
   --sessions "${SESSIONS}" \
+  --catalog "${VALIDATION_REPORT}" \
   --rankings-output "${RUN_DIR}/rankings.jsonl" \
   --output "${REPORT}"
 
