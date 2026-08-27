@@ -16,6 +16,8 @@ class ChatRequest(BaseModel):
     superset_username: str | None = None
     superset_password: str | None = None
     agent_model: str | None = None
+    verified_ui_evidence: dict[str, Any] = Field(default_factory=dict)
+    mask_active_state_for_evaluation: bool = False
     debug: bool = False
 
 
@@ -26,6 +28,18 @@ class ChatResponse(BaseModel):
     query_plan: dict[str, Any]
     data: list[dict[str, Any]]
     debug: list[dict[str, Any]] | None = None
+
+
+class DashboardOnlyRequest(BaseModel):
+    message: str
+    visible_evidence: str
+    model: str | None = None
+
+
+class DashboardOnlyResponse(BaseModel):
+    answer: str
+    model: str
+    reasoning_effort: str
 
 
 class EventRequest(BaseModel):

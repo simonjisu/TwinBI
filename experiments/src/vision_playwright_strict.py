@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import base64
+import hashlib
 import json
 import os
 import platform
@@ -52,7 +53,7 @@ Return strict JSON with this schema:
 }
 
 Rules:
-- Prefer dom_id when a relevant DOM candidate exists.
+- Prefer dom_id when a relevant DOM candidate exists; the runner dispatches it to the exact DOM element.
 - If you have enough evidence to answer the task, fill `final_answer` and choose `done`.
 - Use `observed_facts` for short factual observations from the current or previous screens.
 - Use `working_hypothesis` for your current best guess about what to do or what the answer may be.
@@ -72,7 +73,9 @@ Rules:
 - Dashboard policy:
   - Allowed: tab navigation, filter clicks (global/cross filter), drill-by via right-click menu.
   - Forbidden: chart edit, chart configuration changes, dashboard structure changes.
-  - Avoid top app header/upper-right chrome controls (..., Settings area).
+  - Existing filter controls such as More filters, filter options, Clear All, and Apply are allowed
+    regardless of where they appear on screen.
+  - Do not use dashboard-authoring controls such as Edit dashboard or Menu actions.
   - Use only elements already present inside the Dashboard screen.
   - Do NOT add/create new filters (including Add/Edit Filters dialogs).
   - Filters must be applied by clicking existing dashboard elements, not by creating new filters.
@@ -162,7 +165,27 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument('--task-file', type=str, help='Task file path')
     parser.add_argument('--start-url', type=str, default='http://localhost:8088')
     parser.add_argument('--model', type=str, default='gpt-4.1-mini')
+    parser.add_argument(
+        '--service-tier',
+        type=str,
+        choices=['', 'auto', 'default', 'flex', 'priority'],
+        default='',
+        help='OpenAI processing tier. If omitted, OPENAI_SERVICE_TIER is used when set.',
+    )
+    parser.add_argument(
+        '--reasoning-effort',
+        type=str,
+        choices=['', 'low', 'medium', 'high'],
+        default='',
+        help='Reasoning effort for GPT-5 models. If omitted, AGENT_REASONING_EFFORT is used when set.',
+    )
     parser.add_argument('--max-steps', type=int, default=30)
+    parser.add_argument(
+        '--dashboard-action-budget',
+        type=int,
+        default=6,
+        help='Maximum click/hover/type/press/scroll actions during the dashboard scenario.',
+    )
     parser.add_argument(
         '--headless',
         dest='headless',
@@ -311,18 +334,109 @@ def _force_coordinate_only_action(action: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def _is_click_blocked(x: int, y: int) -> tuple[bool, str]:
-    # Top global header/chrome area
-    if y < 90:
-        return True, 'top_header'
-    # Upper-right app chrome controls (... / settings / profile)
-    if x > 1220 and y < 170:
-        return True, 'top_right_chrome'
+def _attach_coordinate_target_evidence(
+    action: dict[str, Any], candidates: list[dict[str, Any]], max_distance: int = 120
+) -> dict[str, Any]:
+    if not isinstance(action, dict):
+        return {}
+    action_type = str(action.get('type', '')).strip().lower()
+    if action_type not in {'click', 'hover', 'type'}:
+        return action
+    x = int(action.get('x', -1) or -1)
+    y = int(action.get('y', -1) or -1)
+    if x < 0 or y < 0:
+        return action
+    nearest: dict[str, Any] | None = None
+    nearest_distance = 1_000_000
+    for candidate in candidates:
+        cx = int(candidate.get('x', -1) or -1)
+        cy = int(candidate.get('y', -1) or -1)
+        if cx < 0 or cy < 0:
+            continue
+        distance = abs(cx - x) + abs(cy - y)
+        if distance < nearest_distance:
+            nearest = candidate
+            nearest_distance = distance
+    if nearest is None or nearest_distance > max_distance:
+        return action
+    out = dict(action)
+    out['coordinate_target_evidence'] = {
+        'label': str(nearest.get('label', ''))[:120],
+        'kind': str(nearest.get('kind', ''))[:40],
+        'chart_title': str(nearest.get('chart_title', ''))[:120],
+        'candidate_xy': [int(nearest.get('x', 0) or 0), int(nearest.get('y', 0) or 0)],
+        'distance': nearest_distance,
+    }
+    return out
+
+
+async def _point_target_evidence(page: Any, x: int, y: int) -> dict[str, Any]:
+    """Describe the element a human-visible pointer would actually hit."""
+    raw = await page.evaluate(
+        """
+        ({x, y}) => {
+          const clean = (value) => (value || '').replace(/\\s+/g, ' ').trim();
+          const hit = document.elementFromPoint(x, y);
+          if (!hit) return {x, y, found: false};
+          const interactive = hit.closest(
+            "button, a, input, textarea, select, [role], [aria-expanded], " +
+            ".ant-collapse-header, [tabindex], [data-test], [data-testid]"
+          ) || hit;
+          const rect = interactive.getBoundingClientRect();
+          return {
+            x,
+            y,
+            found: true,
+            tag: (interactive.tagName || '').toLowerCase(),
+            role: clean(interactive.getAttribute('role')),
+            label: clean(
+              interactive.innerText || interactive.textContent ||
+              interactive.getAttribute('aria-label') || interactive.getAttribute('title') || ''
+            ).slice(0, 160),
+            aria_expanded: clean(interactive.getAttribute('aria-expanded')),
+            dom_id: clean(interactive.getAttribute('data-codex-dom-id')),
+            bounds: [
+              Math.round(rect.left), Math.round(rect.top),
+              Math.round(rect.width), Math.round(rect.height)
+            ],
+          };
+        }
+        """,
+        {'x': int(x), 'y': int(y)},
+    )
+    return raw if isinstance(raw, dict) else {'x': int(x), 'y': int(y), 'found': False}
+
+
+async def _dom_target_hit_relation(page: Any, dom_id: int, x: int, y: int) -> dict[str, Any]:
+    """Prove whether the requested DOM target is the visible hit target at its coordinates."""
+    raw = await page.evaluate(
+        """
+        ({domId, x, y}) => {
+          const target = document.querySelector(`[data-codex-dom-id="${domId}"]`);
+          const hit = document.elementFromPoint(x, y);
+          if (!target || !hit) return {target_found: !!target, hit_found: !!hit, visible_hit: false};
+          const visibleHit = target === hit || target.contains(hit) || hit.contains(target);
+          return {target_found: true, hit_found: true, visible_hit: visibleHit};
+        }
+        """,
+        {'domId': int(dom_id), 'x': int(x), 'y': int(y)},
+    )
+    return raw if isinstance(raw, dict) else {'target_found': False, 'hit_found': False, 'visible_hit': False}
+
+
+def _is_click_blocked(point_target: dict[str, Any]) -> tuple[bool, str]:
+    """Block only explicit dashboard-authoring controls, never screen regions."""
+    label = ' '.join(str(point_target.get('label', '') or '').strip().lower().split())
+    if label in {'edit dashboard', 'menu actions trigger'}:
+        return True, f'protected_control:{label}'
     return False, ''
 
 
 def _apply_tab_hint_override(
-    action: dict[str, Any], reasoning: str, tab_hints: dict[str, dict[str, Any]]
+    action: dict[str, Any],
+    reasoning: str,
+    tab_hints: dict[str, dict[str, Any]],
+    dom_candidates: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(action, dict):
         return {}
@@ -330,9 +444,12 @@ def _apply_tab_hint_override(
     if action_type != 'click':
         return action
 
+    existing_dom_id = int(action.get('dom_id', -1) or -1)
+    if existing_dom_id >= 0:
+        return action
+
     text = ' '.join(
         [
-            str(reasoning or ''),
             str(action.get('text', '') or ''),
             str(action.get('result', '') or ''),
         ]
@@ -348,7 +465,23 @@ def _apply_tab_hint_override(
         target_key = 'store_level'
 
     if not target_key:
-        return action
+        raw_x = int(action.get('x', 0) or 0)
+        raw_y = int(action.get('y', 0) or 0)
+        nearest_key = ''
+        nearest_distance = 1_000_000
+        for key, candidate_hint in tab_hints.items():
+            tx = int(candidate_hint.get('x', 0) or 0)
+            ty = int(candidate_hint.get('y', 0) or 0)
+            if tx <= 0 or ty <= 0:
+                continue
+            distance = abs(tx - raw_x) + abs(ty - raw_y)
+            if distance < nearest_distance:
+                nearest_key = key
+                nearest_distance = distance
+        if nearest_key and nearest_distance <= 90:
+            target_key = nearest_key
+        else:
+            return action
 
     hint = tab_hints.get(target_key, {})
     hx = int(hint.get('x', 0) or 0)
@@ -360,6 +493,13 @@ def _apply_tab_hint_override(
     out['x'] = hx
     out['y'] = hy
     out['dom_id'] = -1
+    target_label = target_key.replace('_', '-').lower()
+    for candidate in dom_candidates or []:
+        label = str(candidate.get('label', '')).strip().lower().replace('_', '-')
+        role = str(candidate.get('role', '')).strip().lower()
+        if label == target_label and role == 'tab':
+            out['dom_id'] = int(candidate.get('dom_id', -1) or -1)
+            break
     return out
 
 
@@ -371,7 +511,9 @@ async def _collect_dom_candidates(page: Any, limit: int = 80) -> list[dict[str, 
             "button", "a", "input", "textarea", "select",
             "[role='button']", "[role='tab']", "[role='option']", "[role='menuitem']",
             "[role='checkbox']", "[role='radio']",
-            "[contenteditable='true']", "[data-test]", "[data-testid]"
+            "[contenteditable='true']", "[data-test]", "[data-testid]",
+            "[aria-expanded]", ".ant-collapse-header", ".ant-popover [tabindex]",
+            "[class*='popover'] [tabindex]", "[class*='Popover'] [tabindex]"
           ];
           const seen = new Set();
           const out = [];
@@ -393,6 +535,7 @@ async def _collect_dom_candidates(page: Any, limit: int = 80) -> list[dict[str, 
               const tag = (el.tagName || "").toLowerCase();
               const type = (el.getAttribute("type") || "").trim();
               const label = (txt || aria || placeholder || title || tag).slice(0, 120);
+              el.setAttribute("data-codex-dom-id", String(out.length));
               out.push({
                 tag,
                 role,
@@ -760,7 +903,8 @@ def _infer_intent(reasoning: str) -> str:
 
 
 async def _run(args: argparse.Namespace) -> int:
-    project_root = Path(__file__).resolve().parents[1]
+    # This file lives in experiments/src; load credentials from the repository root.
+    project_root = Path(__file__).resolve().parents[2]
     _load_env(project_root)
     # Credential precedence: CLI arg > .env > hardcoded fallback.
     args.username = (str(args.username).strip() or os.getenv('SUPERSET_USERNAME', 'def').strip())
@@ -798,6 +942,12 @@ async def _run(args: argparse.Namespace) -> int:
     else:
         client = OpenAI(api_key=api_key)
         chat_kwargs = {'model': model_name, 'response_format': {'type': 'json_object'}}
+        service_tier = (args.service_tier or os.getenv('OPENAI_SERVICE_TIER', '')).strip()
+        if service_tier:
+            chat_kwargs['service_tier'] = service_tier
+        reasoning_effort = (args.reasoning_effort or os.getenv('AGENT_REASONING_EFFORT', '')).strip().lower()
+        if reasoning_effort:
+            chat_kwargs['reasoning_effort'] = reasoning_effort
     if not model_name.startswith('gpt-5'):
         chat_kwargs['temperature'] = 0
     viewport_width = max(800, int(args.viewport_width))
@@ -846,6 +996,14 @@ async def _run(args: argparse.Namespace) -> int:
         scenario_steps = 0
         logged_in_streak = 0
         reflections_used = 0
+        dashboard_actions_attempted = 0
+        dashboard_actions_dispatched = 0
+        dashboard_actions_visual_change = 0
+        dashboard_actions_visible_target = 0
+        dashboard_actions_dom_dispatch = 0
+        dashboard_actions_coordinate_dispatch = 0
+        dashboard_actions_occlusion_override = 0
+        dashboard_actions_blocked = 0
         memory_context: dict[str, Any] = {
             'run_id': run_at,
             'last_url': start_url,
@@ -1336,6 +1494,9 @@ async def _run(args: argparse.Namespace) -> int:
                     "input[autocomplete='username']",
                     "input[placeholder*='username' i]",
                     "input[placeholder*='email' i]",
+                    # Superset's current login form exposes only an accessible label.
+                    "input[type='text']",
+                    "input",
                 ]
             )
             password_locator = await _find_first_visible(
@@ -1372,7 +1533,8 @@ async def _run(args: argparse.Namespace) -> int:
             else:
                 sx, sy = px, py
                 await password_locator.press('Enter')
-            await page.wait_for_timeout(1200)
+            # Superset finishes its SPA redirect a few seconds after form submission.
+            await page.wait_for_timeout(4000)
             return {
                 'type': 'submit_login_form',
                 'mode': 'dom',
@@ -1398,22 +1560,61 @@ async def _run(args: argparse.Namespace) -> int:
         ) -> tuple[dict[str, Any], str]:
             width = viewport_width
             height = viewport_height
-            raw_x = int(action.get('x', width // 2) or width // 2)
-            raw_y = int(action.get('y', height // 2) or height // 2)
+            requested_x = int(action.get('x', width // 2) or width // 2)
+            requested_y = int(action.get('y', height // 2) or height // 2)
+            raw_x = requested_x
+            raw_y = requested_y
             dom_id = _safe_int(action.get('dom_id', -1), -1)
+            selected_candidate: dict[str, Any] | None = None
             if dom_id >= 0 and action_type in {'click', 'hover', 'type'}:
                 for candidate in dom_candidates:
                     if _safe_int(candidate.get('dom_id', -1), -1) == dom_id:
+                        selected_candidate = candidate
                         raw_x = _safe_int(candidate.get('x', raw_x), raw_x)
                         raw_y = _safe_int(candidate.get('y', raw_y), raw_y)
                         break
             x = _clamp(raw_x, 0, width - 1)
             y = _clamp(raw_y, 0, height - 1)
-            executed_local = {'type': action_type}
+            target_evidence = {
+                'dom_id': dom_id,
+                'label': str((selected_candidate or {}).get('label', ''))[:120],
+                'tag': str((selected_candidate or {}).get('tag', ''))[:24],
+                'role': str((selected_candidate or {}).get('role', ''))[:32],
+                'action_requested_xy': [requested_x, requested_y],
+                'resolved_xy': [raw_x, raw_y],
+            }
+            coordinate_evidence = action.get('coordinate_target_evidence')
+            if selected_candidate is None and isinstance(coordinate_evidence, dict):
+                target_evidence.update(
+                    {
+                        'label': str(coordinate_evidence.get('label', ''))[:120],
+                        'kind': str(coordinate_evidence.get('kind', ''))[:40],
+                        'chart_title': str(coordinate_evidence.get('chart_title', ''))[:120],
+                        'candidate_xy': coordinate_evidence.get('candidate_xy', []),
+                        'candidate_distance': coordinate_evidence.get('distance'),
+                    }
+                )
+            executed_local = {'type': action_type, 'target': target_evidence}
             prev_local = previous_action
 
+            pointer_x = _clamp(requested_x, 0, width - 1)
+            pointer_y = _clamp(requested_y, 0, height - 1)
+            target_evidence['point_target_before'] = await _point_target_evidence(page, pointer_x, pointer_y)
+
+            dom_locator = None
+            dom_hit_relation: dict[str, Any] | None = None
+            if selected_candidate is not None:
+                candidate_locator = page.locator(f'[data-codex-dom-id="{dom_id}"]').first
+                try:
+                    if await candidate_locator.count() > 0 and await candidate_locator.is_visible():
+                        dom_locator = candidate_locator
+                except Exception:
+                    dom_locator = None
+                dom_hit_relation = await _dom_target_hit_relation(page, dom_id, x, y)
+                target_evidence['dom_hit_relation'] = dom_hit_relation
+
             if action_type == 'click':
-                blocked, reason = _is_click_blocked(x, y)
+                blocked, reason = _is_click_blocked(target_evidence['point_target_before'])
                 if blocked:
                     await asyncio.sleep(1)
                     executed_local = {
@@ -1423,35 +1624,79 @@ async def _run(args: argparse.Namespace) -> int:
                         'blocked_zone': reason,
                         'x': x,
                         'y': y,
+                        'target': target_evidence,
+                        'action_dispatched': False,
                     }
                     prev_local = 'wait(1)'
                     return executed_local, prev_local
-                await page.mouse.click(x, y)
+                if dom_locator is not None and bool((dom_hit_relation or {}).get('visible_hit')):
+                    try:
+                        await dom_locator.click(timeout=5000)
+                        executed_local['dispatch_mode'] = 'dom'
+                    except Exception as exc:
+                        executed_local['dom_dispatch_error'] = str(exc)[:300]
+                        # Never bypass an overlay with el.click(). A real user click must
+                        # go to the visible element at the requested pointer coordinates.
+                        await page.mouse.click(pointer_x, pointer_y)
+                        executed_local['dispatch_mode'] = 'coordinate_after_dom_actionability_failure'
+                        executed_local['coordinate_reason'] = 'dom_click_failed'
+                elif dom_locator is not None:
+                    await page.mouse.click(pointer_x, pointer_y)
+                    executed_local['dispatch_mode'] = 'coordinate_visible_hit_override'
+                    executed_local['coordinate_reason'] = 'dom_target_occluded'
+                else:
+                    await page.mouse.click(pointer_x, pointer_y)
+                    executed_local['dispatch_mode'] = 'coordinate_fallback'
                 await page.wait_for_timeout(800)
-                executed_local.update({'x': x, 'y': y})
-                prev_local = f'click({x},{y})'
+                executed_local['point_target_after'] = await _point_target_evidence(page, pointer_x, pointer_y)
+                executed_local.update({'x': pointer_x, 'y': pointer_y, 'action_dispatched': True})
+                prev_local = f'click({pointer_x},{pointer_y})'
             elif action_type == 'hover':
-                await page.mouse.move(x, y)
+                if dom_locator is not None:
+                    try:
+                        await dom_locator.hover(timeout=5000)
+                        executed_local['dispatch_mode'] = 'dom'
+                    except Exception as exc:
+                        executed_local['dom_dispatch_error'] = str(exc)[:300]
+                        await dom_locator.scroll_into_view_if_needed(timeout=3000)
+                        await page.mouse.move(x, y)
+                        executed_local['dispatch_mode'] = 'coordinate_fallback_after_dom_error'
+                else:
+                    await page.mouse.move(x, y)
+                    executed_local['dispatch_mode'] = 'coordinate_fallback'
                 await page.wait_for_timeout(900)
-                executed_local.update({'x': x, 'y': y})
+                executed_local.update({'x': x, 'y': y, 'action_dispatched': True})
                 prev_local = f'hover({x},{y})'
             elif action_type == 'type':
                 text = str(action.get('text', ''))
-                await page.mouse.click(x, y)
-                await page.keyboard.press(SELECT_ALL_SHORTCUT)
-                await page.keyboard.type(text)
+                if dom_locator is not None:
+                    try:
+                        await dom_locator.fill(text, timeout=5000)
+                        executed_local['dispatch_mode'] = 'dom_fill'
+                    except Exception as exc:
+                        executed_local['dom_dispatch_error'] = str(exc)[:300]
+                        await dom_locator.scroll_into_view_if_needed(timeout=3000)
+                        await dom_locator.click(timeout=3000)
+                        await dom_locator.press(SELECT_ALL_SHORTCUT)
+                        await dom_locator.type(text)
+                        executed_local['dispatch_mode'] = 'dom_keyboard_fallback'
+                else:
+                    await page.mouse.click(x, y)
+                    await page.keyboard.press(SELECT_ALL_SHORTCUT)
+                    await page.keyboard.type(text)
+                    executed_local['dispatch_mode'] = 'coordinate_fallback'
                 await page.wait_for_timeout(500)
-                executed_local.update({'x': x, 'y': y, 'text': text})
+                executed_local.update({'x': x, 'y': y, 'text': text, 'action_dispatched': True})
                 prev_local = f'type({x},{y},len={len(text)})'
             elif action_type == 'press':
                 key = str(action.get('key', 'Enter'))
                 await page.keyboard.press(key)
-                executed_local.update({'key': key})
+                executed_local.update({'key': key, 'dispatch_mode': 'keyboard', 'action_dispatched': True})
                 prev_local = f'press({key})'
             elif action_type == 'scroll':
                 delta_y = int(action.get('delta_y', 500) or 500)
                 await page.mouse.wheel(0, delta_y)
-                executed_local.update({'delta_y': delta_y})
+                executed_local.update({'delta_y': delta_y, 'dispatch_mode': 'wheel', 'action_dispatched': True})
                 prev_local = f'scroll({delta_y})'
             elif action_type == 'wait':
                 seconds = int(action.get('seconds', 2) or 2)
@@ -1500,6 +1745,8 @@ async def _run(args: argparse.Namespace) -> int:
             if args.login_mode == 'dom':
                 await page.goto(args.superset_login_url, wait_until='domcontentloaded', timeout=45000)
                 await _stabilize_view()
+                # The Superset SPA renders login inputs after DOMContentLoaded.
+                await page.wait_for_timeout(1500)
                 if _is_login_route(page.url):
                     dom_login_result = await _attempt_dom_login()
                     if dom_login_result is not None:
@@ -1509,7 +1756,7 @@ async def _run(args: argparse.Namespace) -> int:
                 await page.screenshot(path=str(verify_path), full_page=False)
                 verify_b64 = base64.b64encode(verify_path.read_bytes()).decode('utf-8')
                 verify_login_state = _vision_login_check(verify_b64, page.url)
-                if verify_login_state['login_state'] == 'logged_in' and not _is_login_route(page.url):
+                if not _is_login_route(page.url):
                     login_success = True
                     memory_context['flags']['login_done'] = True
                     previous_action = 'login_success'
@@ -1765,6 +2012,12 @@ async def _run(args: argparse.Namespace) -> int:
             if 'north' in selected_districts:
                 memory_context['flags']['north_filter_applied'] = True
 
+            budget_instruction = (
+                'The dashboard action budget is exhausted. Do not click, hover, type, press, or scroll; '
+                'return done now using only the evidence already observed.\n'
+                if dashboard_actions_attempted >= args.dashboard_action_budget
+                else ''
+            )
             user_prompt = (
                 f'# Task:\n{task_text}\n\n'
                 f"{_memory_prompt_block()}\n"
@@ -1779,7 +2032,9 @@ async def _run(args: argparse.Namespace) -> int:
                 f'Current URL: {page.url}\n'
                 f'Previous action: {previous_action}\n'
                 f'Scenario step: {scenario_steps}/{args.max_steps}\n\n'
-                'Decide exactly one next action using screenshot only.'
+                f'Dashboard actions used: {dashboard_actions_attempted}/{args.dashboard_action_budget}.\n'
+                f'{budget_instruction}'
+                'Decide exactly one next action using the screenshot and DOM/action candidates.'
             )
 
             completion = client.chat.completions.create(
@@ -1804,9 +2059,9 @@ async def _run(args: argparse.Namespace) -> int:
             reasoning = str(parsed.get('reasoning', '')).strip()
             self_check = parsed.get('self_check', {}) if isinstance(parsed.get('self_check'), dict) else {}
             action = parsed.get('action', {}) if isinstance(parsed.get('action'), dict) else {}
-            action = _force_coordinate_only_action(action)
-            action = _apply_tab_hint_override(action, reasoning, tab_hints)
+            action = _apply_tab_hint_override(action, reasoning, tab_hints, dom_candidates)
             action = _attach_target_signature(action, dom_candidates)
+            action = _attach_coordinate_target_evidence(action, dashboard_action_candidates)
             action_type = str(action.get('type', '')).strip().lower()
             if (
                 action_type == 'click'
@@ -1825,8 +2080,51 @@ async def _run(args: argparse.Namespace) -> int:
                 reasoning = f'{reasoning} | auto_done_on_answer=true'
                 action = {'type': 'done', 'result': final_answer_candidate}
                 action_type = 'done'
-            executed, previous_action = await _execute_one_action(action, action_type, [])
+            if (
+                action_type in {'click', 'hover', 'type', 'press', 'scroll'}
+                and dashboard_actions_attempted >= args.dashboard_action_budget
+            ):
+                rejected_action = dict(action)
+                reasoning = f'{reasoning} | dashboard_action_budget_exhausted=true'
+                action = {
+                    'type': 'done',
+                    'result': json.dumps(
+                        {'error': 'dashboard_action_budget_exhausted', 'answer': None},
+                        ensure_ascii=False,
+                    ),
+                    'budget_rejected_action': rejected_action,
+                }
+                action_type = 'done'
+            executed, previous_action = await _execute_one_action(action, action_type, dom_candidates)
             await _settle_after_action(action_type)
+            after_screenshot_path = trace_dir / f'step_{global_step:03d}_after.png'
+            await page.screenshot(path=str(after_screenshot_path), full_page=False)
+            before_hash = hashlib.sha256(screenshot_path.read_bytes()).hexdigest()
+            after_hash = hashlib.sha256(after_screenshot_path.read_bytes()).hexdigest()
+            screenshot_changed = before_hash != after_hash
+            executed['before_screenshot'] = screenshot_path.name
+            executed['after_screenshot'] = after_screenshot_path.name
+            executed['before_sha256'] = before_hash
+            executed['after_sha256'] = after_hash
+            executed['screenshot_changed'] = screenshot_changed
+            if action_type in {'click', 'hover', 'type', 'press', 'scroll'}:
+                dashboard_actions_attempted += 1
+                if bool(executed.get('action_dispatched', action_type in {'press', 'scroll'})):
+                    dashboard_actions_dispatched += 1
+                if screenshot_changed:
+                    dashboard_actions_visual_change += 1
+                point_before = (executed.get('target') or {}).get('point_target_before') or {}
+                if bool(point_before.get('found')):
+                    dashboard_actions_visible_target += 1
+                dispatch_mode = str(executed.get('dispatch_mode', ''))
+                if dispatch_mode.startswith('dom'):
+                    dashboard_actions_dom_dispatch += 1
+                if dispatch_mode.startswith('coordinate'):
+                    dashboard_actions_coordinate_dispatch += 1
+                if dispatch_mode == 'coordinate_visible_hit_override':
+                    dashboard_actions_occlusion_override += 1
+                if not bool(executed.get('action_dispatched', action_type in {'press', 'scroll'})):
+                    dashboard_actions_blocked += 1
 
             if action_type == 'done':
                 done_result = str(action.get('result', '')).strip()
@@ -1841,6 +2139,7 @@ async def _run(args: argparse.Namespace) -> int:
                     'model_action': action,
                     'executed': executed,
                     'screenshot': screenshot_path.name,
+                    'after_screenshot': after_screenshot_path.name,
                     'dom_candidates': _candidate_snapshot(dom_candidates),
                     'dashboard_action_candidates': _candidate_snapshot(dashboard_action_candidates),
                 }
@@ -1878,6 +2177,7 @@ async def _run(args: argparse.Namespace) -> int:
                 'model_action': action,
                 'executed': executed,
                 'screenshot': screenshot_path.name,
+                'after_screenshot': after_screenshot_path.name,
                 'dom_candidates': _candidate_snapshot(dom_candidates),
                 'dashboard_action_candidates': _candidate_snapshot(dashboard_action_candidates),
             }
@@ -1913,6 +2213,8 @@ async def _run(args: argparse.Namespace) -> int:
         'start_url': start_url,
         'dashboard_url': dashboard_url,
         'model': args.model,
+        'service_tier': '' if use_gemini else str(chat_kwargs.get('service_tier', '')),
+        'reasoning_effort': '' if use_gemini else str(chat_kwargs.get('reasoning_effort', '')),
         'login_max_steps': args.login_max_steps,
         'max_steps': args.max_steps,
         'skip_login': args.skip_login,
@@ -1925,6 +2227,18 @@ async def _run(args: argparse.Namespace) -> int:
         'steps_jsonl': str(steps_jsonl),
         'memory_context': str(memory_context_path),
         'reflections_used': reflections_used,
+        'dashboard_actions_attempted': dashboard_actions_attempted,
+        'dashboard_actions_dispatched': dashboard_actions_dispatched,
+        'dashboard_actions_visual_change': dashboard_actions_visual_change,
+        'dashboard_actions_no_visual_change': max(
+            0, dashboard_actions_attempted - dashboard_actions_visual_change
+        ),
+        'dashboard_actions_visible_target': dashboard_actions_visible_target,
+        'dashboard_actions_dom_dispatch': dashboard_actions_dom_dispatch,
+        'dashboard_actions_coordinate_dispatch': dashboard_actions_coordinate_dispatch,
+        'dashboard_actions_occlusion_override': dashboard_actions_occlusion_override,
+        'dashboard_actions_blocked': dashboard_actions_blocked,
+        'dashboard_action_budget': args.dashboard_action_budget,
         'final_answer': final_answer,
     }
     (trace_dir / 'run_meta.json').write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding='utf-8')

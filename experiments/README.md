@@ -165,3 +165,52 @@ uv run python experiments/src/annotate_trace_clicks.py \
 - The runners in this directory are configured to use `experiments/...` paths by default.
 - [`queries/chat_templates.json`](queries/chat_templates.json) is intended to improve chat question quality, not to store final gold answers directly.
 - [`answers.json`](answers.json) is a convenience snapshot for comparison; the original execution record remains in each batch trace directory.
+# Offline AER Retrieval Evaluation
+
+`retrieval/gold_aer.json` contains 30 task-level seed AERs and a live-schema
+validated 19-task evaluation subset. It stores the
+retrieval target (source chart, supporting chart, measure, dimensions, filters,
+hierarchy, and interaction) while the existing `queries/query_*_ans.json` files
+remain the source of truth for final answer values.
+
+Run the deterministic 90 query-session retrieval evaluation in a detachable
+`tmux` session:
+
+```bash
+tmux new-session -d -s twinbi-aer \
+  'cd /path/to/TwinBI && ./experiments/scripts/run_aer_offline.sh; status=$?; echo "exit=$status"; exec zsh'
+tmux attach -t twinbi-aer
+```
+
+Inspect a detached session or terminate it after the report has been checked:
+
+```bash
+tmux capture-pane -pt twinbi-aer
+tmux kill-session -t twinbi-aer
+```
+
+The runner first validates gold labels against live FastAPI/Superset chart
+metadata, then produces timestamped `retrieval/runs/<timestamp>/report.json` and
+`rankings.jsonl`. It evaluates query-only BM25, history BM25, state-serialized
+BM25, structured-state compatibility, the dialogue-plus-state hybrid, and a
+one-feature-removed ablation for each state signal. The report records ranking
+weights, tie-breaking, per-session rankings, query-level bootstrap confidence
+intervals, paired bootstrap comparisons, and retrieval latency. These are
+source-chart retrieval metrics, not end-to-end answer accuracy; replay the
+dashboard before using the numbers in the submitted paper.
+
+For contextual and elliptical query variants, the prior dialogue includes the
+initial explicit request so history baselines receive the same conversational
+evidence as state-aware methods. The active tab, focused chart, filter, and
+interaction state provide additional disambiguating evidence. To run synthetic
+noisy-state stress tests, add `--state-condition all` to
+`build_aer_benchmark.py`; these cases are not replacements for observed user
+traces. The remaining
+11 seed tasks require dashboard detail not exposed by their source charts. The
+runner materializes them as verified query-result AERs from the existing
+three-way answer provenance (database SQL, Cube API, and TwinBI query path),
+then checks that visible-chart and query-result AERs cover all 30 tasks exactly
+once. It also re-executes the 11 query-result tasks against the local database,
+Cube API, and Superset chart-data API, requiring each result to match the gold
+answer and the other two paths. These records validate evidence coverage and
+query-result reproducibility, not ranking performance.

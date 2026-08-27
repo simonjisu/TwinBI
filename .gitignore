@@ -217,7 +217,18 @@ superset/*
 .DS_Store
 archive
 *.duckdb
-paper
+paper/*
+
+# Generated end-to-end experiment traces and offline retrieval reports.
+experiments/logs/
+experiments/experiments/
+experiments/retrieval/runs/
+.auth/
+.playwright-cli/
+experiments/retrieval/generated/
+experiments/retrieval/runs/
+!paper/6a549455b0d9b08aa493b750/
 dev_docs
 simulation
+tmp/
 *.ipynb

@@ -265,7 +265,6 @@ if __name__ == "__main__":
         raise ValueError(f"Unsupported db_type: {args.db_type}. supported: tpcds, tutorial")
 
     proj_path = Path().resolve()
-    assert proj_path.stem.lower() == 'agent4olap', f"Unexpected project path: {proj_path}"
     # proj_path = execution_path.parent
 
     # assert execution_path.stem == "", f"Unexpected project path: {execution_path}"
