@@ -16,6 +16,8 @@ class ChatRequest(BaseModel):
     superset_username: str | None = None
     superset_password: str | None = None
     agent_model: str | None = None
+    verified_ui_evidence: dict[str, Any] = Field(default_factory=dict)
+    mask_active_state_for_evaluation: bool = False
     debug: bool = False
 
 

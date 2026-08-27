@@ -65,7 +65,6 @@ class SchemaExplorer:
         """data_path: Path to the database directory, e.g., ./data/tpcds or ./data/sales"""
         self.data_path = Path(data_path).resolve()
         self.project_root = self.data_path.parent.parent
-        assert self.project_root.name.lower() == 'agent4olap', f"Unexpected project root: {self.project_root}"
         self.db_type = "tpcds" if "tpcds" in self.data_path.parts else "sales"
         self.facts = self.tpcds_facts if self.db_type == "tpcds" else self.sales_facts
         self.snowflake, self.star = load_data(self.data_path)
@@ -609,7 +608,6 @@ if __name__ == '__main__':
 
     # execution
     proj_path = Path().resolve()
-    assert proj_path.stem.lower() == 'agent4olap', f"Unexpected project path: {proj_path}"
     data_path = proj_path / 'data' / args.db_type
 
     if args.create_graphs:

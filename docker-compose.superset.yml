@@ -40,7 +40,7 @@ services:
     volumes:
       - redis:/data
     networks:
-      - agent4olap_net
+      - twinbi_net
 
   db:
     env_file:
@@ -55,7 +55,7 @@ services:
       - db_home:/var/lib/postgresql/data
       - ./docker/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
     networks:
-      - agent4olap_net
+      - twinbi_net
 
   superset:
     env_file:
@@ -75,7 +75,7 @@ services:
         condition: service_completed_successfully
     volumes: *superset-volumes
     networks:
-      - agent4olap_net
+      - twinbi_net
 
   superset-init:
     image: *superset-image
@@ -96,7 +96,7 @@ services:
     healthcheck:
       disable: true
     networks:
-      - agent4olap_net
+      - twinbi_net
 
   superset-worker:
     image: *superset-image
@@ -120,7 +120,7 @@ services:
           "celery -A superset.tasks.celery_app:app inspect ping -d celery@$$HOSTNAME",
         ]
     networks:
-      - agent4olap_net
+      - twinbi_net
 
   superset-worker-beat:
     image: *superset-image
@@ -140,7 +140,7 @@ services:
     healthcheck:
       disable: true
     networks:
-      - agent4olap_net
+      - twinbi_net
 
 volumes:
   superset_home:
@@ -151,6 +151,6 @@ volumes:
     external: false
 
 networks:
-  agent4olap_net:
-    name: agent4olap_net
+  twinbi_net:
+    name: twinbi_net
     external: true

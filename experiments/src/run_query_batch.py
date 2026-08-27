@@ -5,8 +5,11 @@ import csv
 import json
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
+from urllib.error import URLError
+from urllib.request import urlopen
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -45,7 +48,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--per-query-timeout-sec",
         type=int,
         default=180,
-        help="Kill a stalled runner after this many seconds and continue with the batch.",
+        help="Kill a stalled runner after this many seconds; 0 disables the timeout.",
     )
     parser.add_argument("--viewport-width", type=int, default=1800)
     parser.add_argument("--viewport-height", type=int, default=1200)
@@ -71,6 +74,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--show-browser",
         action="store_true",
         help="Run with visible browser windows.",
+    )
+    parser.add_argument(
+        "--restart-container",
+        type=str,
+        default="",
+        help="Restart this Docker container before every query and wait for start-url readiness.",
     )
     parser.add_argument(
         "--extra-arg",
@@ -198,12 +207,32 @@ def main() -> int:
         cmd.extend(args.extra_arg)
 
         print(f"[{idx}/{total}] Running {query_name}")
+        if args.restart_container.strip():
+            restart = subprocess.run(
+                ["docker", "restart", args.restart_container.strip()],
+                cwd=project_root,
+                check=False,
+            )
+            if restart.returncode != 0:
+                print(f"[{idx}/{total}] Container restart failed: {args.restart_container}")
+            ready = False
+            for _ in range(30):
+                try:
+                    with urlopen(start_url, timeout=3) as response:
+                        ready = response.status < 500
+                except (URLError, TimeoutError, OSError):
+                    ready = False
+                if ready:
+                    break
+                time.sleep(1)
+            if not ready:
+                print(f"[{idx}/{total}] Start URL not ready after container restart: {start_url}")
         try:
             completed = subprocess.run(
                 cmd,
                 cwd=project_root,
                 check=False,
-                timeout=max(1, args.per_query_timeout_sec),
+                timeout=None if args.per_query_timeout_sec <= 0 else max(1, args.per_query_timeout_sec),
             )
             exit_code = completed.returncode
         except subprocess.TimeoutExpired:
@@ -221,6 +250,34 @@ def main() -> int:
             "final_answer": str(run_meta.get("final_answer", "")),
             "login_success": str(run_meta.get("login_success", "")),
             "scenario_steps_executed": str(run_meta.get("scenario_steps_executed", "")),
+            "dashboard_action_executed": str(run_meta.get("dashboard_action_executed", "")),
+            "dashboard_action_verified": str(run_meta.get("dashboard_action_verified", "")),
+            "dashboard_actions_used": str(run_meta.get("dashboard_actions_used", "")),
+            "dashboard_action_budget": str(run_meta.get("dashboard_action_budget", "")),
+            "dashboard_actions_attempted": str(run_meta.get("dashboard_actions_attempted", "")),
+            "dashboard_actions_dispatched": str(run_meta.get("dashboard_actions_dispatched", "")),
+            "dashboard_actions_visual_change": str(run_meta.get("dashboard_actions_visual_change", "")),
+            "dashboard_actions_no_visual_change": str(
+                run_meta.get("dashboard_actions_no_visual_change", "")
+            ),
+            "dashboard_actions_visible_target": str(
+                run_meta.get("dashboard_actions_visible_target", "")
+            ),
+            "dashboard_actions_dom_dispatch": str(
+                run_meta.get("dashboard_actions_dom_dispatch", "")
+            ),
+            "dashboard_actions_coordinate_dispatch": str(
+                run_meta.get("dashboard_actions_coordinate_dispatch", "")
+            ),
+            "dashboard_actions_occlusion_override": str(
+                run_meta.get("dashboard_actions_occlusion_override", "")
+            ),
+            "dashboard_actions_blocked": str(run_meta.get("dashboard_actions_blocked", "")),
+            "tab_history": json.dumps(run_meta.get("tab_history", []), ensure_ascii=False),
+            "streamlit_model_verified": str(
+                (run_meta.get("streamlit_model_evidence") or {}).get("verified", "")
+            ),
+            "apply_meta_clicked": str(run_meta.get("apply_meta_clicked", "")),
             "model": args.model,
             "mode": args.mode,
         }
@@ -239,6 +296,22 @@ def main() -> int:
                 "final_answer",
                 "login_success",
                 "scenario_steps_executed",
+                "dashboard_action_executed",
+                "dashboard_action_verified",
+                "dashboard_actions_used",
+                "dashboard_action_budget",
+                "dashboard_actions_attempted",
+                "dashboard_actions_dispatched",
+                "dashboard_actions_visual_change",
+                "dashboard_actions_no_visual_change",
+                "dashboard_actions_visible_target",
+                "dashboard_actions_dom_dispatch",
+                "dashboard_actions_coordinate_dispatch",
+                "dashboard_actions_occlusion_override",
+                "dashboard_actions_blocked",
+                "tab_history",
+                "streamlit_model_verified",
+                "apply_meta_clicked",
                 "model",
                 "mode",
             ],

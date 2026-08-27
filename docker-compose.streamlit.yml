@@ -24,9 +24,9 @@ services:
       # The evaluation dashboard whose UI events are bound to each experiment session.
       - DEFAULT_DASHBOARD_ID=13
     networks:
-      - agent4olap_net
+      - twinbi_net
 
 networks:
-  agent4olap_net:
-    name: agent4olap_net
+  twinbi_net:
+    name: twinbi_net
     external: true

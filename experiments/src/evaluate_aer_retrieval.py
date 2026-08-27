@@ -21,13 +21,6 @@ BM25_B = 0.75
 LINKED_CHART_IDS = {
     1106: [1108],
 }
-RANKING_WEIGHTS = {
-    "state_text_bm25": 1.5,
-    "active_tab": 1.0,
-    "filter_compatibility": 1.0,
-    "focused_chart": 5.0,
-    "linked_chart": 5.5,
-}
 METHODS = (
     "query_only_bm25",
     "history_bm25",
@@ -36,7 +29,7 @@ METHODS = (
     "state_hybrid",
     "state_hybrid_no_active_tab",
     "state_hybrid_no_filters",
-    "state_hybrid_no_focus_link",
+    "state_hybrid_no_link",
 )
 
 
@@ -89,16 +82,12 @@ def bm25_scores(query: str, docs: dict[int, str]) -> dict[int, float]:
     return scores
 
 
-def normalized_bm25_scores(
-    query: str,
-    docs: dict[int, str],
-    weight: float = 1.0,
-) -> dict[int, float]:
+def normalized_bm25_scores(query: str, docs: dict[int, str]) -> dict[int, float]:
     scores = bm25_scores(query, docs)
     maximum = max(scores.values(), default=0.0)
     if maximum <= 0:
         return scores
-    return {chart_id: weight * score / maximum for chart_id, score in scores.items()}
+    return {chart_id: score / maximum for chart_id, score in scores.items()}
 
 
 def state_text(state: dict) -> str:
@@ -115,22 +104,16 @@ def compatibility_scores(state: dict, catalog: dict[int, dict], enabled: set[str
     filter_terms = set(tokens(text_for_values(state.get("filters", {}))))
     for chart_id, metadata in catalog.items():
         if "active_tab" in enabled and state.get("active_tab") in metadata["tabs"]:
-            scores["active_tab"][chart_id] = RANKING_WEIGHTS["active_tab"]
+            scores["active_tab"][chart_id] = 1.0
         if "filters" in enabled and filter_terms:
             overlap = filter_terms & metadata["filter_terms"]
             if overlap:
-                scores["filters"][chart_id] = (
-                    RANKING_WEIGHTS["filter_compatibility"]
-                    * len(overlap)
-                    / len(filter_terms)
-                )
-        if "focus_link" in enabled:
-            focused_chart = state.get("focused_chart_id")
-            linked_charts = LINKED_CHART_IDS.get(focused_chart, [])
-            if chart_id == focused_chart and not linked_charts:
-                scores["focus_link"][chart_id] = RANKING_WEIGHTS["focused_chart"]
+                scores["filters"][chart_id] = len(overlap) / len(filter_terms)
+        if "link" in enabled:
+            interaction_source = state.get("focused_chart_id")
+            linked_charts = LINKED_CHART_IDS.get(interaction_source, [])
             if chart_id in linked_charts:
-                scores["focus_link"][chart_id] = RANKING_WEIGHTS["linked_chart"]
+                scores["link"][chart_id] = 1.0
     return scores
 
 
@@ -138,13 +121,13 @@ def method_features(method: str) -> set[str]:
     if method == "structured_state_compatibility":
         return {"active_tab", "filters"}
     if method.startswith("state_hybrid"):
-        features = {"active_tab", "filters", "focus_link"}
+        features = {"active_tab", "filters", "link"}
         if method == "state_hybrid_no_active_tab":
             features.remove("active_tab")
         elif method == "state_hybrid_no_filters":
             features.remove("filters")
-        elif method == "state_hybrid_no_focus_link":
-            features.remove("focus_link")
+        elif method == "state_hybrid_no_link":
+            features.remove("link")
         return features
     return set()
 
@@ -154,27 +137,86 @@ def rank_for(row: dict, catalog: dict[int, dict], method: str) -> dict:
     query = row["query"]
     if method != "query_only_bm25" and row.get("dialogue_history"):
         query = f"{row['dialogue_history']} {query}"
+    if method == "state_serialized_bm25":
+        query = f"{query} {state_text(row['state'])}"
     contributions: dict[str, dict[int, float]] = {
         "text_bm25": normalized_bm25_scores(query, docs)
     }
-    if method in {"state_serialized_bm25", "state_hybrid"} or method.startswith("state_hybrid_no_"):
-        contributions["state_text_bm25"] = normalized_bm25_scores(
-            state_text(row["state"]),
-            docs,
-            RANKING_WEIGHTS["state_text_bm25"],
-        )
-    for feature, values in compatibility_scores(row["state"], catalog, method_features(method)).items():
+    enabled = method_features(method)
+    for feature, values in compatibility_scores(row["state"], catalog, enabled).items():
         contributions[feature] = values
-    scores = {
-        chart_id: sum(values[chart_id] for values in contributions.values())
+
+    text_scores = contributions["text_bm25"]
+    if method in {"query_only_bm25", "history_bm25", "state_serialized_bm25"}:
+        ranking = [
+            chart_id
+            for chart_id, score in sorted(
+                text_scores.items(), key=lambda item: (-item[1], item[0])
+            )
+            if score > 0
+        ]
+        priority_keys = {
+            chart_id: [round(text_scores[chart_id], 6)]
+            for chart_id in catalog
+        }
+        return {
+            "ranking": ranking,
+            "scores": text_scores,
+            "priority_keys": priority_keys,
+            "contributions": contributions,
+        }
+
+    # State-aware methods use an explicit priority protocol rather than a
+    # weighted sum. The active tab restricts the eligible AER set, an
+    # interaction link creates the highest-priority tier, BM25 orders AERs
+    # within a tier, and filter compatibility is a deterministic tie-break.
+    eligible = set(catalog)
+    if "active_tab" in enabled:
+        tab_candidates = {
+            chart_id
+            for chart_id, compatible in contributions["active_tab"].items()
+            if compatible > 0
+        }
+        if tab_candidates:
+            eligible = tab_candidates
+
+    link_scores = contributions.get("link", {chart_id: 0.0 for chart_id in catalog})
+    filter_scores = contributions.get(
+        "filters", {chart_id: 0.0 for chart_id in catalog}
+    )
+    candidates = [
+        chart_id
+        for chart_id in eligible
+        if (
+            text_scores[chart_id] > 0
+            or link_scores[chart_id] > 0
+            or filter_scores[chart_id] > 0
+            or "active_tab" in enabled
+        )
+    ]
+    priority_keys = {
+        chart_id: [
+            link_scores[chart_id],
+            text_scores[chart_id],
+            filter_scores[chart_id],
+        ]
         for chart_id in catalog
     }
-    ranking = [
-        chart_id
-        for chart_id, score in sorted(scores.items(), key=lambda item: (-item[1], item[0]))
-        if score > 0
-    ]
-    return {"ranking": ranking, "scores": scores, "contributions": contributions}
+    ranking = sorted(
+        candidates,
+        key=lambda chart_id: (
+            -link_scores[chart_id],
+            -text_scores[chart_id],
+            -filter_scores[chart_id],
+            chart_id,
+        ),
+    )
+    return {
+        "ranking": ranking,
+        "scores": text_scores,
+        "priority_keys": priority_keys,
+        "contributions": contributions,
+    }
 
 
 def rank_outcomes(rows: list[dict], catalog: dict[int, dict], method: str) -> list[dict]:
@@ -198,6 +240,10 @@ def rank_outcomes(rows: list[dict], catalog: dict[int, dict], method: str) -> li
                 "rank": position,
                 "ranking": result["ranking"],
                 "scores": {str(chart_id): round(score, 6) for chart_id, score in result["scores"].items()},
+                "priority_keys": {
+                    str(chart_id): [round(value, 6) for value in values]
+                    for chart_id, values in result["priority_keys"].items()
+                },
                 "feature_contributions": {
                     feature: {str(chart_id): round(score, 6) for chart_id, score in values.items()}
                     for feature, values in result["contributions"].items()
@@ -329,16 +375,20 @@ def main() -> None:
     )
     report = {
         "benchmark": "AER offline retrieval audit",
+        "evaluation_target": (
+            "Context Manager ranking signals over an already constructed "
+            "existing-chart AER collection"
+        ),
         "sessions": len(rows),
         "queries": len({row["query_id"] for row in rows}),
         "evaluated_query_ids": sorted({row["query_id"] for row in rows}),
         "candidate_aers": len(catalog),
         "benchmark_protocol": {
             "state_condition": "oracle state reconstructed from annotated interactions",
-            "focused_chart_policy": {
-                "cross_filter": "observed control chart, routed through the control-to-result link",
-                "hover": "observed hovered chart",
-                "all_other_interactions": "no focused chart supplied",
+            "interaction_link_policy": {
+                "cross_filter": "interaction source chart routed through the control-to-result link",
+                "hover": "retained in reference state but receives no direct ranking bonus",
+                "all_other_interactions": "no interaction link supplied",
             },
             "query_variants": {
                 "explicit": "full task query without dialogue history",
@@ -357,10 +407,39 @@ def main() -> None:
                 "b": BM25_B,
                 "score_normalization": "divide by maximum candidate score per query",
             },
-            "weights": RANKING_WEIGHTS,
+            "state_serialized_bm25": (
+                "dialogue-conditioned query concatenated with active-tab and "
+                "filter text before BM25; no manual feature weights"
+            ),
+            "full_state_priority_protocol": {
+                "candidate_scope": "AERs on the active tab when the tab signal is enabled",
+                "priority_order": [
+                    "interaction-linked tier",
+                    "BM25 text similarity within tier",
+                    "filter compatibility as tie-break",
+                    "ascending chart id as final deterministic tie-break",
+                ],
+                "manual_feature_weights": "none",
+            },
             "linked_chart_ids": LINKED_CHART_IDS,
-            "zero_score_policy": "not retrieved",
-            "positive_score_tie_break": "ascending chart id",
+            "full_state_features": [
+                "dialogue-conditioned query text",
+                "active tab",
+                "filter compatibility",
+                "interaction link",
+            ],
+            "direct_focus_bonus": "disabled",
+            "candidate_inclusion": (
+                "all active-tab AERs when tab scope is enabled; otherwise an "
+                "AER requires positive text, link, or filter compatibility"
+            ),
+            "final_tie_break": "ascending chart id",
+        },
+        "method_definitions": {
+            "state_hybrid": "tab scope, then linked tier, text rank, and filter tie-break",
+            "state_hybrid_no_active_tab": "linked tier, text rank, and filter tie-break over all AERs",
+            "state_hybrid_no_filters": "tab scope, then linked tier and text rank",
+            "state_hybrid_no_link": "tab scope, then text rank and filter tie-break",
         },
         "methods": {
             method: summarize(outcomes, args.bootstrap_samples, args.seed)

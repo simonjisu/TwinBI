@@ -22,6 +22,7 @@ from openai import OpenAI
 from fastapi_service import db
 from fastapi_service.config import Settings, load_settings
 from fastapi_service.agent import AgentRunner, AgentContext
+from fastapi_service.context_manager import AERStore
 from fastapi_service.models import (
     ChatRequest,
     ChatResponse,
@@ -640,13 +641,21 @@ def _summarize_chart_log(log: dict[str, Any] | None) -> dict[str, Any]:
     form_data = payload.get("form_data") if isinstance(payload, dict) else None
     queries = payload.get("queries") if isinstance(payload, dict) else None
     datasource = payload.get("datasource") if isinstance(payload, dict) else None
+    result = None
+    if isinstance(payload, dict) and (
+        payload.get("data") is not None or payload.get("result") is not None
+    ):
+        result = _summarize_chart_data(payload)
     return {
         "superset_log_id": log.get("superset_log_id"),
         "slice_id": log.get("slice_id"),
         "dashboard_id": log.get("dashboard_id"),
+        "action": log.get("action"),
+        "observed_at": log.get("dttm"),
         "form_data": form_data,
         "queries": queries,
         "datasource": datasource,
+        "result": result,
     }
 
 
@@ -961,6 +970,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
     app.state.agent_runner = AgentRunner()
+    app.state.aer_store = AERStore()
     app.state.last_chat_context = None
     app.state.last_chat_debug = None
     app.state.context_cleared = False
@@ -2936,6 +2946,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             dashboard_id=payload.dashboard_id,
             session_id=payload.session_id,
         )
+        if payload.mask_active_state_for_evaluation:
+            active_context = {
+                "dashboard_id": payload.dashboard_id,
+                "session_id": payload.session_id,
+                "active_tab": None,
+                "active_charts": [],
+                "state_masked_for_evaluation": True,
+            }
 
         plan = {
             "measures": [],
@@ -2949,6 +2967,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             dashboard_id=payload.dashboard_id,
             limit=80,
         )
+        if payload.mask_active_state_for_evaluation:
+            trace_logs = []
         agent_runner = app.state.agent_runner
         await agent_runner.startup()
         request_history = _normalize_request_history(payload.history, limit=20)
@@ -2958,11 +2978,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         active_charts_context = _build_active_charts_prompt_context(
             conn, active_context, limit=8
         )
+        aer_candidates = app.state.aer_store.refresh_snapshot(
+            active_context, active_charts_context
+        )
         chart_context = json.dumps(
             {
                 "active_context": active_context,
                 "active_charts_context": active_charts_context,
+                "aer_candidates": aer_candidates,
                 "trace_logs": trace_logs,
+                "verified_ui_evidence": (
+                    {} if payload.mask_active_state_for_evaluation else payload.verified_ui_evidence
+                ),
             },
             ensure_ascii=False,
         )
@@ -2971,10 +2998,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             conn=conn,
             trace_logs=trace_logs,
             active_chart=active_context,
+            aer_candidates=aer_candidates,
+            mask_active_state_for_evaluation=payload.mask_active_state_for_evaluation,
         )
         app.state.last_chat_context = {
             "active_context": active_context,
             "active_charts_context": active_charts_context,
+            "aer_candidates": aer_candidates,
+            "verified_ui_evidence": (
+                {} if payload.mask_active_state_for_evaluation else payload.verified_ui_evidence
+            ),
         }
         app.state.context_cleared = False
         debug_items: list[dict[str, Any]] = []
@@ -2984,6 +3017,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "type": "context",
                     "active_context": active_context,
                     "active_charts_context": active_charts_context,
+                    "aer_candidates": aer_candidates,
+                    "active_state_masked_for_evaluation": payload.mask_active_state_for_evaluation,
                 }
             )
         answer, agent_debug_items, raw_output = await agent_runner.respond(
@@ -3101,20 +3136,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             dashboard_id=payload.dashboard_id,
             session_id=payload.session_id,
         )
+        if payload.mask_active_state_for_evaluation:
+            active_context = {
+                "dashboard_id": payload.dashboard_id,
+                "session_id": payload.session_id,
+                "active_tab": None,
+                "active_charts": [],
+                "state_masked_for_evaluation": True,
+            }
         trace_logs = _load_recent_trace_logs(
             conn,
             session_id=payload.session_id,
             dashboard_id=payload.dashboard_id,
             limit=80,
         )
+        if payload.mask_active_state_for_evaluation:
+            trace_logs = []
         active_charts_context = _build_active_charts_prompt_context(
             conn, active_context, limit=8
+        )
+        aer_candidates = app.state.aer_store.refresh_snapshot(
+            active_context, active_charts_context
         )
         chart_context = json.dumps(
             {
                 "active_context": active_context,
                 "active_charts_context": active_charts_context,
+                "aer_candidates": aer_candidates,
                 "trace_logs": trace_logs,
+                "verified_ui_evidence": (
+                    {} if payload.mask_active_state_for_evaluation else payload.verified_ui_evidence
+                ),
             },
             ensure_ascii=False,
         )
@@ -3123,10 +3175,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             conn=conn,
             trace_logs=trace_logs,
             active_chart=active_context,
+            aer_candidates=aer_candidates,
+            mask_active_state_for_evaluation=payload.mask_active_state_for_evaluation,
         )
         app.state.last_chat_context = {
             "active_context": active_context,
             "active_charts_context": active_charts_context,
+            "aer_candidates": aer_candidates,
+            "verified_ui_evidence": (
+                {} if payload.mask_active_state_for_evaluation else payload.verified_ui_evidence
+            ),
         }
         app.state.context_cleared = False
 
@@ -3196,10 +3254,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         active_charts_context = _build_active_charts_prompt_context(
             conn, fallback_active_context, limit=8
         )
+        aer_candidates = app.state.aer_store.refresh_snapshot(
+            fallback_active_context, active_charts_context
+        )
         return {
             "context": {
                 "active_context": fallback_active_context,
                 "active_charts_context": active_charts_context,
+                "aer_candidates": aer_candidates,
             }
         }
 
@@ -3414,6 +3476,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.delete("/chat/context")
     def clear_chat_context() -> StatusResponse:
         app.state.last_chat_context = None
+        app.state.aer_store.clear()
         app.state.context_cleared = True
         return StatusResponse(status="cleared")
 

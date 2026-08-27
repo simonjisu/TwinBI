@@ -98,7 +98,17 @@ def main() -> int:
         raw_answer = str(metadata.get("final_answer", row.get("final_answer", "")))
         predicted = _parse_answer(raw_answer)
         matched, total = _leaf_matches(gold, predicted)
-        exact = total > 0 and matched == total
+        required_state = bool(metadata.get("scenario_requires_dashboard_action", False))
+        state_verified = bool(metadata.get("dashboard_action_verified", False))
+        invalid_state = required_state and not state_verified
+        model_evidence = metadata.get("streamlit_model_evidence")
+        model_verified = not isinstance(model_evidence, dict) or bool(model_evidence.get("verified"))
+        apply_meta_present = "apply_meta_clicked" in metadata
+        apply_meta_clicked = bool(metadata.get("apply_meta_clicked")) if apply_meta_present else True
+        invalid_setup = not model_verified or not apply_meta_clicked
+        if invalid_state or invalid_setup:
+            matched = 0
+        exact = total > 0 and matched == total and not invalid_state and not invalid_setup
         timed_out = (
             row.get("exit_code") == "124"
             or "timeout" in raw_answer.lower()
@@ -112,6 +122,12 @@ def main() -> int:
                 "matched_leaves": matched,
                 "gold_leaves": total,
                 "timed_out": timed_out,
+                "required_state": required_state,
+                "state_verified": state_verified,
+                "invalid_state": invalid_state,
+                "model_verified": model_verified,
+                "apply_meta_clicked": apply_meta_clicked,
+                "invalid_setup": invalid_setup,
                 "scenario_steps": int(metadata.get("scenario_steps_executed") or 0),
                 "login_success": bool(metadata.get("login_success")),
                 "gold": gold,
@@ -133,6 +149,8 @@ def main() -> int:
         "partial_or_exact_rate": round((exact_count + partial_count) / count, 4) if count else 0.0,
         "mean_scenario_steps": round(sum(item["scenario_steps"] for item in results) / count, 2) if count else 0.0,
         "timeout_count": sum(item["timed_out"] for item in results),
+        "invalid_state_count": sum(item["invalid_state"] for item in results),
+        "invalid_setup_count": sum(item["invalid_setup"] for item in results),
         "login_success_count": sum(item["login_success"] for item in results),
         "results": results,
     }

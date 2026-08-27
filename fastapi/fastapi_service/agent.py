@@ -40,6 +40,11 @@ from fastapi_service.semantic import (
     log_unified_event,
 )
 from fastapi_service.superset import lookup_user_id
+from fastapi_service.context_manager import (
+    attach_aer_records,
+    build_answer_evidence_payload,
+    refresh_aer_store,
+)
 from fastapi_service.superset_client import (
     _api_session_with_bearer,
     _ensure_csrf,
@@ -82,7 +87,9 @@ class AgentContext:
     conn: Any
     trace_logs: list[dict[str, Any]] | None = None
     active_chart: dict[str, Any] | None = None
+    aer_candidates: list[dict[str, Any]] | None = None
     messages: list[dict[str, str]] | None = None
+    mask_active_state_for_evaluation: bool = False
 
 
 _ACTIVE_CONTEXT_VAR: ContextVar[AgentContext | None] = ContextVar(
@@ -92,6 +99,10 @@ _ACTIVE_CONTEXT_VAR: ContextVar[AgentContext | None] = ContextVar(
 
 def _get_active_context() -> AgentContext | None:
     return _ACTIVE_CONTEXT_VAR.get()
+
+
+def _active_state_masked(context: AgentContext | None) -> bool:
+    return bool(context and context.mask_active_state_for_evaluation)
 
 
 def _get_active_settings() -> tuple[Any | None, dict[str, Any] | None]:
@@ -634,6 +645,8 @@ if function_tool:
         context = _get_active_context()
         if context is None:
             return {"error": "active context not set"}
+        if _active_state_masked(context):
+            return {"error": "active dashboard state is masked for evaluation"}
         chart = _pick_context_chart(context)
         chart_id = _pick_context_chart_id(context)
         if chart_id is None:
@@ -661,6 +674,8 @@ if function_tool:
         context = _get_active_context()
         if context is None:
             return {"error": "active context not set"}
+        if _active_state_masked(context):
+            return {"error": "active dashboard state is masked for evaluation"}
         chart = _pick_context_chart(context)
         chart_id = _pick_context_chart_id(context)
         if chart_id is None:
@@ -691,6 +706,8 @@ if function_tool:
         context = _get_active_context()
         if context is None:
             return {"error": "active context not set"}
+        if _active_state_masked(context):
+            return {"error": "active dashboard state is masked for evaluation"}
         chart = _pick_context_chart(context)
         chart_id = _pick_context_chart_id(context)
         if chart_id is None:
@@ -779,6 +796,8 @@ if function_tool:
         context = _get_active_context()
         if context is None:
             return {"error": "active context not set"}
+        if _active_state_masked(context):
+            return {"error": "active dashboard state is masked for evaluation"}
         active_context = context.active_chart if isinstance(context.active_chart, dict) else {}
         if isinstance(active_context, dict) and active_context.get("active_charts") is not None:
             return active_context
@@ -937,6 +956,8 @@ if function_tool:
         context = _get_active_context()
         if context is None:
             return {"error": "active context not set"}
+        if _active_state_masked(context):
+            return {"error": "active dashboard state is masked for evaluation"}
         payload = _fetch_latest_chart_log_payload(context.conn, chart_id)
         if not payload:
             return {"error": "no chart log payload found"}
@@ -2158,6 +2179,7 @@ Example query_json
 class AgentRunner:
     def __init__(self) -> None:
         self._orchestrator_agent = None
+        self._context_resolver_agent = None
         self._chart_manager_agent = None
         self._schema_explorer_agent = None
         self._answer_composer_agent = None
@@ -2192,6 +2214,7 @@ class AgentRunner:
             try:
                 agents = self._build_agents(model_name=self._model_name)
                 self._orchestrator_agent = agents.get("orchestrator")
+                self._context_resolver_agent = agents.get("context_resolver")
                 self._chart_manager_agent = agents.get("chart_manager")
                 self._schema_explorer_agent = agents.get("schema_explorer")
                 self._answer_composer_agent = agents.get("answer_composer")
@@ -2200,6 +2223,7 @@ class AgentRunner:
                 self._dashboard_tools_doc = self._load_dashboard_tools_doc()
             except Exception as exc:  # pragma: no cover - defensive init guard
                 self._orchestrator_agent = None
+                self._context_resolver_agent = None
                 self._chart_manager_agent = None
                 self._schema_explorer_agent = None
                 self._answer_composer_agent = None
@@ -2220,6 +2244,7 @@ class AgentRunner:
                 return
             agents = self._build_agents(model_name=desired_model)
             self._orchestrator_agent = agents.get("orchestrator")
+            self._context_resolver_agent = agents.get("context_resolver")
             self._chart_manager_agent = agents.get("chart_manager")
             self._schema_explorer_agent = agents.get("schema_explorer")
             self._answer_composer_agent = agents.get("answer_composer")
@@ -2231,6 +2256,7 @@ class AgentRunner:
         if Agent is None or ModelSettings is None:
             return {
                 "orchestrator": None,
+                "context_resolver": None,
                 "chart_manager": None,
                 "schema_explorer": None,
                 "answer_composer": None,
@@ -2261,6 +2287,14 @@ class AgentRunner:
             tools=[],
             model_settings=model_settings,
             instructions=prompts.INSIGHT_SEEKER_AGENT,
+        )
+
+        context_resolver_agent = Agent(
+            name="Context Resolver Agent",
+            model=selected_model,
+            tools=[],
+            model_settings=model_settings,
+            instructions=prompts.CONTEXT_RESOLVER_AGENT,
         )
 
         chart_manager_agent = Agent(
@@ -2336,9 +2370,33 @@ class AgentRunner:
 
         if function_tool:
             @function_tool
+            async def run_context_resolver_agent(payload_json: str) -> str:
+                """Resolve the question against Live State and AER candidates."""
+                enriched_payload = self._build_context_resolver_payload(payload_json)
+                return await self._run_subagent(context_resolver_agent, enriched_payload)
+
+            @function_tool
             async def run_chart_manager_agent(payload_json: str) -> str:
                 """Run ChartManager Agent with a JSON payload; returns JSON string."""
-                return await self._run_subagent(chart_manager_agent, payload_json)
+                output = await self._run_subagent(chart_manager_agent, payload_json)
+                active_context = _get_active_context()
+                records = (
+                    active_context.aer_candidates
+                    if active_context is not None
+                    and isinstance(active_context.aer_candidates, list)
+                    else []
+                )
+                refreshed = refresh_aer_store(
+                    records,
+                    output,
+                    chart_manager_request=payload_json,
+                    live_state=(
+                        active_context.active_chart
+                        if active_context is not None
+                        else None
+                    ),
+                )
+                return attach_aer_records(output, refreshed)
 
             @function_tool
             async def run_schema_explorer_agent(payload_json: str) -> str:
@@ -2348,13 +2406,26 @@ class AgentRunner:
             @function_tool
             async def run_answer_composer_agent(payload_json: str) -> str:
                 """Run Answer Composer Agent with a JSON payload; returns JSON string."""
-                return await self._run_subagent(answer_composer_agent, payload_json)
+                active_context = _get_active_context()
+                records = (
+                    active_context.aer_candidates
+                    if active_context is not None
+                    and isinstance(active_context.aer_candidates, list)
+                    else []
+                )
+                enriched_payload = build_answer_evidence_payload(
+                    payload_json, records
+                )
+                return await self._run_subagent(
+                    answer_composer_agent, enriched_payload
+                )
 
             @function_tool
             async def run_docs_retriever_agent(payload_json: str) -> str:
                 """Run DocsRetriever Agent with a JSON payload; returns JSON string."""
                 return await self._run_subagent(docs_retriever_agent, payload_json)
         else:
+            run_context_resolver_agent = None
             run_chart_manager_agent = None
             run_schema_explorer_agent = None
             run_answer_composer_agent = None
@@ -2364,6 +2435,7 @@ class AgentRunner:
             name="Orchestrator Agent",
             model=selected_model,
             tools=[
+                run_context_resolver_agent,
                 run_chart_manager_agent,
                 run_schema_explorer_agent,
                 run_answer_composer_agent,
@@ -2377,12 +2449,33 @@ class AgentRunner:
 
         return {
             "orchestrator": orchestrator_agent,
+            "context_resolver": context_resolver_agent,
             "chart_manager": chart_manager_agent,
             "schema_explorer": schema_explorer_agent,
             "answer_composer": answer_composer_agent,
             "docs_retriever": docs_retriever_agent,
             "insight_seeker": insight_seeker_agent,
         }
+
+    @staticmethod
+    def _build_context_resolver_payload(payload_json: str) -> str:
+        try:
+            payload = json.loads(payload_json)
+        except (TypeError, json.JSONDecodeError):
+            payload = {"user_question": str(payload_json)}
+        if not isinstance(payload, dict):
+            payload = {"user_question": str(payload_json)}
+
+        active_context = _get_active_context()
+        if active_context is not None:
+            payload["live_state"] = active_context.active_chart or {}
+            payload["aer_candidates"] = active_context.aer_candidates or []
+            payload["trace_logs"] = active_context.trace_logs or []
+        else:
+            payload.setdefault("live_state", {})
+            payload.setdefault("aer_candidates", [])
+            payload.setdefault("trace_logs", [])
+        return json.dumps(payload, ensure_ascii=False, default=str)
 
     async def _run_subagent(self, agent: Any, payload_json: str) -> str:
         if Runner is None:

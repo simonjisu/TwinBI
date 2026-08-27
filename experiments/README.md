@@ -178,7 +178,7 @@ Run the deterministic 90 query-session retrieval evaluation in a detachable
 
 ```bash
 tmux new-session -d -s twinbi-aer \
-  'cd /Users/soo/code/Agent4OLAP && ./experiments/scripts/run_aer_offline.sh; status=$?; echo "exit=$status"; exec zsh'
+  'cd /path/to/TwinBI && ./experiments/scripts/run_aer_offline.sh; status=$?; echo "exit=$status"; exec zsh'
 tmux attach -t twinbi-aer
 ```
 
