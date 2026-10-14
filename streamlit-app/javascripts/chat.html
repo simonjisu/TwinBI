@@ -424,9 +424,11 @@
   const supersetUsername = "{{SUPERSET_USERNAME}}";
   const supersetPassword = "{{SUPERSET_PASSWORD}}";
   const agentModel = "{{AGENT_MODEL}}";
+  // The dashboard event bridge and chat must share this ID. Including it in
+  // browser storage keys also prevents an old experiment from replaying.
   const chatScopeKey = dashboardId
-    ? `chat_scope_${dashboardId}_${userId || "anon"}`
-    : `chat_scope_default_${userId || "anon"}`;
+    ? `chat_scope_${dashboardId}_${userId || "anon"}_${sessionId}`
+    : `chat_scope_default_${userId || "anon"}_${sessionId}`;
   const storageKey = `${chatScopeKey}_messages`;
   const chatThreadStorageKey = `${chatScopeKey}_thread`;
   const chatSessionBaseKey = `${chatScopeKey}_base`;
@@ -444,7 +446,7 @@
   let pendingAutoRefresh = false;
 
   function getChatSessionId() {
-    return `${chatSessionBaseId}::chat::${chatThreadId}`;
+    return sessionId || `${chatSessionBaseId}::chat::${chatThreadId}`;
   }
 
   function setStatus(text) {
@@ -452,10 +454,9 @@
   }
 
   function authHeaders(extra = {}) {
-    const headers = { ...extra };
-    if (supersetUsername) headers["X-Superset-Username"] = supersetUsername;
-    if (supersetPassword) headers["X-Superset-Password"] = supersetPassword;
-    return headers;
+    // Chat uses the API service account for metadata and chart retrieval.
+    // The dashboard iframe retains the interactive user's own session.
+    return { ...extra };
   }
 
   function setStreamingState(nextState) {
@@ -825,10 +826,9 @@
         body: JSON.stringify({
           session_id: getChatSessionId(),
           user_id: userId,
+          dashboard_id: dashboardId ? Number(dashboardId) : null,
           message: text,
           history: history,
-          superset_username: supersetUsername || null,
-          superset_password: supersetPassword || null,
           agent_model: agentModel || null,
           debug: true,
         }),

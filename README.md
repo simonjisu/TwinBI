@@ -110,7 +110,7 @@ docker-compose
 ### Setup: create Docker network
 
 ```bash
-docker network create agent4olap_net
+docker network create twinbi_net
 ```
 
 ### Setup: sales DB and Cube.js

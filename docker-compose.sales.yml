@@ -20,9 +20,9 @@ services:
       - ./data/sales/database:/cube/data
       - ./data/sales/cube_conf:/cube/conf
     networks:
-      - agent4olap_net
+      - twinbi_net
 
 networks:
-  agent4olap_net:
-    name: agent4olap_net
+  twinbi_net:
+    name: twinbi_net
     external: true

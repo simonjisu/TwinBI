@@ -33,6 +33,7 @@ DEFAULT_SUPERSET_USERNAME = ""
 DEFAULT_SUPERSET_PASSWORD = ""
 DEFAULT_DASHBOARD_ID = os.getenv("DEFAULT_DASHBOARD_ID", "")
 MODEL_OPTIONS = [
+    "gpt-5.6-terra",
     "gpt-5-nano",
     "gpt-5-mini",
     "gpt-4.1-nano",
@@ -524,6 +525,10 @@ def get_dashboard_uuid_by_id(
         return ""
     sess, _access_token = _api_session_with_bearer(superset_username, superset_password)
     r = sess.get(f"{SUPERSET_INTERNAL_URL}/api/v1/dashboard/{dashboard_id}", timeout=30)
+    # The interaction account can render a shared dashboard without having
+    # permission for this metadata endpoint. The iframe does not need its UUID.
+    if r.status_code in {401, 403, 404}:
+        return ""
     r.raise_for_status()
     return r.json()["result"]["uuid"]
 
@@ -686,6 +691,8 @@ if EMBED_AUTH_MODE == "session_iframe" and SUPERSET_USERNAME.strip() and SUPERSE
         "native_filter_removed",
         "global_filter_added",
         "global_filter_removed",
+        "drill_to_detail",
+        "drill_by",
       ]);
 
       function normalizeEventType(rawType) {{
@@ -870,6 +877,10 @@ if EMBED_AUTH_MODE == "session_iframe" and SUPERSET_USERNAME.strip() and SUPERSE
                 data.tab_name || data.tabName || payload.tab_name || payload.tabName || null,
               filter: payload.filter || data.filter || null,
               filter_type: filterType,
+              chart_name: data.chart_name || data.chartName || payload.chart_name || payload.chartName || null,
+              viz_type: data.viz_type || data.vizType || payload.viz_type || payload.vizType || null,
+              drill_filters: payload.filters || data.filters || null,
+              drill_column: payload.column || data.column || null,
               legend_name: legendResolved.legend_name,
               legend_active: legendResolved.legend_active,
               selected: legendResolved.selected,
@@ -896,6 +907,10 @@ if EMBED_AUTH_MODE == "session_iframe" and SUPERSET_USERNAME.strip() and SUPERSE
                 data.tab_name || data.tabName || payload.tab_name || payload.tabName || null,
               filter: payload.filter || data.filter || null,
               filter_type: filterType,
+              chart_name: data.chart_name || data.chartName || payload.chart_name || payload.chartName || null,
+              viz_type: data.viz_type || data.vizType || payload.viz_type || payload.vizType || null,
+              drill_filters: payload.filters || data.filters || null,
+              drill_column: payload.column || data.column || null,
               legend_name: legendResolved.legend_name,
               legend_active: legendResolved.legend_active,
               selected: legendResolved.selected,

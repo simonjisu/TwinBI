@@ -13,11 +13,15 @@ services:
       - SUPERSET_META_DB_URI=postgresql://superset:superset@superset_db:5432/superset
       - SUPERSET_POLL_INTERVAL_SEC=2
       - SUPERSET_BATCH_SIZE=200
-      - SUPERSET_INGEST_ALLOW_ACTIONS=ChartDataRestApi.data
+      # Capture chart queries and semantic dashboard interactions. Generic
+      # Superset "log" rows are normalized to their event_name by the poller.
+      - SUPERSET_INGEST_ALLOW_ACTIONS=ChartDataRestApi.data,log
       - SUPERSET_PUBLIC_URL=http://localhost:8088
       - SUPERSET_INTERNAL_URL=http://superset_app:8088
-      - SUPERSET_USERNAME=harry_potter
-      - SUPERSET_PASSWORD=1234
+      # The bundled Superset initialization creates this local admin account.
+      # Allow deployment environments to override it without editing compose.
+      - SUPERSET_USERNAME=${SUPERSET_USERNAME:-admin}
+      - SUPERSET_PASSWORD=${SUPERSET_PASSWORD:-admin}
       - SUPERSET_GUEST_AUD=superset
       # Keep empty to ingest logs across dashboards (12/13/...)
       - SUPERSET_LOG_DASHBOARD_ID=
@@ -27,14 +31,17 @@ services:
       - CUBE_SQL_PORT=15432
       - CUBE_CONF_PATH=/cube/conf
       - CORS_ORIGINS=http://localhost:8501
+      - AGENT_MODEL=gpt-5.6-terra
+      - AGENT_REASONING_EFFORT=high
+      - OPENAI_SERVICE_TIER=flex
     volumes:
       - ./data/logs:/logs
       - ./data/sales:/app/cube_data:ro
       - ./src:/app/src:ro
       - ./data/sales/cube_conf:/cube/conf
     networks:
-      - agent4olap_net
+      - twinbi_net
 
 networks:
-  agent4olap_net:
+  twinbi_net:
     external: true
