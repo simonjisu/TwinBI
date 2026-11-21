@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""Offline component checks only; application integration tests are documented gaps."""
+from copy import deepcopy
+import json
+from pathlib import Path
+import socket
+import sqlite3
+import sys
+from types import SimpleNamespace
+import unittest
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "runtime/api"))
+import cost_baseline as bootstrap
+
+OLD = "00000000-0000-4000-8000-000000000001"
+NEW = "00000000-0000-4000-8000-000000000002"
+
+
+class AppCursor:
+    """Run mutation SQL against SQLite FK/unique oracle; mock PG lock primitives."""
+    def __init__(self, connection, fail_restore=False):
+        self.connection = connection
+        self.fail_restore = fail_restore
+        self.rowcount = 0
+        self.result = None
+        self.queries = []
+
+    def execute(self, query, parameters=()):
+        self.queries.append(query)
+        if "pg_try_advisory_xact_lock" in query:
+            self.result = (True,)
+            return
+        if self.fail_restore and query.startswith("UPDATE workspace_dashboards SET kind='cost'"):
+            raise RuntimeError("synthetic rollback failure")
+        result = self.connection.execute(query.replace("%s", "?").replace("::jsonb", "")
+                                         .replace(" FOR UPDATE", ""), parameters)
+        self.rowcount = result.rowcount
+        self.result = result.fetchone()
+
+    def fetchone(self):
+        if self.result and len(self.result) == 3:
+            return (*self.result[:2], json.loads(self.result[2]))
+        return self.result
+
+
+class BaselineChecks(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(patch.stopall)
+        patch("socket.socket", side_effect=AssertionError("network forbidden")).start()
+        self.dns = patch("socket.getaddrinfo", return_value=[
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.20.0.4", 5432))]).start()
+        self.old_binding = {"source_id": "synthetic-old-source", "dataset_id": OLD,
+                            "schema_fingerprint": "sha256:" + "a" * 64}
+        self.current = (OLD, 101, self.old_binding)
+        self.expected = bootstrap.binding_digest(self.old_binding)
+        self.old = dict(source_id="synthetic-old-source", workspace="synthetic-workspace",
+            schema="public", table="twinbi_invoiced_product_cost_v1", fingerprint="sha256:" + "a"*64,
+            columns=[{"name": "synthetic-column"}], source_kind="odoo19", status="ready",
+            host="odoo-cost-db", hostaddr="172.20.0.10", port=5432, database="synthetic-db",
+            username="synthetic-reader", principal="synthetic-reader", sslmode="disable",
+            mapping="invoiced_product_cost_v1", mapping_status="validated", company_id=1,
+            company_name=bootstrap.COMPANY, scope="database_rls", schema_hash="sha256:" + "b"*64,
+            module_hash="sha256:" + "c"*64, view_equivalent=True,
+            visible_scope={"companies": [1], "moves": [1], "lines": [1]},
+            bi_dataset_id=11, bi_database_id=12, recent=False)
+        self.new = {**deepcopy(self.old), "source_id": "synthetic-new-source", "hostaddr": "172.20.0.4",
+                    "bi_dataset_id": 21, "bi_database_id": 22, "recent": True}
+        patch.object(bootstrap, "baseline_registration",
+            side_effect=lambda cursor, dataset: self.old if dataset == OLD else self.new).start()
+
+    def preflight(self, **changes):
+        args = dict(cursor=None, workspace="synthetic-workspace", current=self.current, dataset_id=NEW,
+                    adopt_from=OLD, expected_binding=self.expected,
+                    expected_source=bootstrap.registration_digest(self.old), decision_ref="synthetic-user-decision")
+        args.update(changes)
+        return bootstrap.adoption_preflight(**args)
+
+    def database(self, *, installed=True):
+        connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
+        connection.execute("PRAGMA foreign_keys=ON")
+        connection.execute("""CREATE TABLE workspace_dashboards(workspace_id TEXT,kind TEXT,
+            superset_dashboard_id INTEGER UNIQUE,dataset_id TEXT,binding_json TEXT,
+            PRIMARY KEY(workspace_id,kind))""")
+        connection.execute("""CREATE TABLE history(dashboard_id INTEGER REFERENCES
+            workspace_dashboards(superset_dashboard_id),kind TEXT,original_json TEXT)""")
+        baseline = self.preflight()
+        new_binding = {"source_id": self.new["source_id"], "dataset_id": NEW, "baseline": baseline}
+        connection.execute("INSERT INTO workspace_dashboards VALUES(?,?,?,?,?)",
+            ("synthetic-workspace", bootstrap.archived_kind(101) if installed else "cost", 101,
+             OLD, json.dumps(self.old_binding)))
+        connection.execute("INSERT INTO history VALUES(?,?,?)", (101, "AER/run/approval", "synthetic-original"))
+        if installed:
+            connection.execute("INSERT INTO workspace_dashboards VALUES(?,?,?,?,?)",
+                ("synthetic-workspace", "cost", 202, NEW, json.dumps(new_binding)))
+            connection.execute("INSERT INTO history VALUES(?,?,?)", (202, "new-AER", "synthetic-new"))
+        connection.commit()
+        return connection, new_binding
+
+    def test_new_basis_has_new_lineage_and_immutable_inputs(self):
+        original = deepcopy((self.old, self.new, self.current))
+        plan = self.preflight()
+        self.assertEqual(plan["identity_continuity"], "unproven")
+        self.assertEqual(plan["previous_dataset_id"], OLD)
+        self.assertEqual(plan["target"]["hostaddr"], "172.20.0.4")
+        self.assertEqual(original, (self.old, self.new, self.current))
+
+    def test_reader_contract_owner_and_identity_pins(self):
+        for key in self.old.keys() - {"source_id", "hostaddr", "bi_dataset_id", "bi_database_id", "recent"}:
+            original = self.new[key]
+            self.new[key] = None
+            with self.subTest(pin=key), self.assertRaises(RuntimeError):
+                self.preflight()
+            self.new[key] = original
+        for key in ("source_id", "bi_dataset_id", "bi_database_id"):
+            original = self.new[key]
+            self.new[key] = self.old[key]
+            with self.subTest(identity=key), self.assertRaises(RuntimeError):
+                self.preflight()
+            self.new[key] = original
+
+    def test_stale_approval_source_or_target_is_rejected(self):
+        for changes in ({"expected_binding": "sha256:" + "d" * 64}, {"decision_ref": None},
+                        {"expected_source": "sha256:" + "d" * 64},
+                        {"decision_ref": "not an operator reference"}, {"current": None},
+                        {"adopt_from": NEW}, {"workspace": "other-workspace"}):
+            with self.subTest(changes=changes), self.assertRaises(RuntimeError):
+                self.preflight(**changes)
+        self.new["recent"] = False
+        with self.assertRaisesRegex(RuntimeError, "fresh"):
+            self.preflight()
+        self.new["recent"] = True
+        self.dns.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.20.0.5", 5432))]
+        with self.assertRaisesRegex(RuntimeError, "address changed"):
+            self.preflight()
+
+    def test_old_source_mutation_cannot_reuse_approved_binding_snapshot(self):
+        approved_source = bootstrap.registration_digest(self.old)
+        self.old["username"] = self.new["username"] = "synthetic-other-reader"
+        self.old["principal"] = self.new["principal"] = "synthetic-other-reader"
+        with self.assertRaisesRegex(RuntimeError, "original registration changed"):
+            self.preflight(expected_source=approved_source)
+
+    def test_partial_app_adoption_rolls_back_and_preserves_fk_history(self):
+        connection, _ = self.database(installed=False)
+        cursor = AppCursor(connection)
+        with self.assertRaises(sqlite3.IntegrityError):
+            with connection:
+                bootstrap.archive_current(cursor, "synthetic-workspace", self.current)
+                # Simulate a conflicting/stale BI dashboard ID at final insert.
+                connection.execute("INSERT INTO workspace_dashboards VALUES(?,?,?,?,?)",
+                    ("synthetic-workspace", "cost", 101, NEW, "{}"))
+        self.assertEqual(connection.execute("SELECT kind FROM workspace_dashboards").fetchall(), [("cost",)])
+        self.assertEqual(connection.execute("SELECT original_json FROM history").fetchall(), [("synthetic-original",)])
+
+    def test_binding_cas_and_busy_operation(self):
+        connection, _ = self.database(installed=False)
+        cursor = AppCursor(connection)
+        with self.assertRaisesRegex(RuntimeError, "race"):
+            with connection:
+                bootstrap.archive_current(cursor, "synthetic-workspace", (OLD, 101, {"changed": True}))
+        busy = SimpleNamespace(execute=lambda *args: None, fetchone=lambda: (False,))
+        with self.assertRaisesRegex(RuntimeError, "busy"):
+            bootstrap.lock_cost_binding(busy, "synthetic-workspace")
+
+    def test_rollback_archives_new_history_and_restores_old_binding_only(self):
+        connection, new_binding = self.database()
+        before = connection.execute("SELECT * FROM history ORDER BY dashboard_id").fetchall()
+        cursor = AppCursor(connection)
+        with connection:
+            result = bootstrap.rollback_baseline(cursor, "synthetic-workspace", NEW, OLD,
+                                                 bootstrap.binding_digest(new_binding))
+        self.assertEqual(result["status"], "configuration_restored_live_read_unverified")
+        self.assertEqual(connection.execute("SELECT kind FROM workspace_dashboards WHERE superset_dashboard_id=101").fetchone(), ("cost",))
+        self.assertEqual(connection.execute("SELECT kind FROM workspace_dashboards WHERE superset_dashboard_id=202").fetchone(), (bootstrap.archived_kind(202),))
+        self.assertEqual(before, connection.execute("SELECT * FROM history ORDER BY dashboard_id").fetchall())
+        self.assertFalse(any("data_sources" in query or "DELETE" in query for query in cursor.queries))
+        self.assertEqual(self.old["hostaddr"], "172.20.0.10")
+
+    def test_rollback_failure_or_stale_snapshot_preserves_both_original_rows(self):
+        for fail, digest in ((True, None), (False, "sha256:" + "0" * 64)):
+            connection, new_binding = self.database()
+            before = connection.execute("SELECT * FROM workspace_dashboards ORDER BY superset_dashboard_id").fetchall()
+            with self.assertRaises(RuntimeError):
+                with connection:
+                    bootstrap.rollback_baseline(AppCursor(connection, fail_restore=fail), "synthetic-workspace",
+                        NEW, OLD, digest or bootstrap.binding_digest(new_binding))
+            self.assertEqual(before, connection.execute("SELECT * FROM workspace_dashboards ORDER BY superset_dashboard_id").fetchall())
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
