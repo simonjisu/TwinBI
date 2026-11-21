@@ -1,0 +1,52 @@
+{
+  "id": "invoiced_product_cost_v1",
+  "module_sha256": "sha256:11eeadc19cdfa5cf3ab03ac18d96a37cf4865abc211f6920dedc470b3426f282",
+  "schema_sha256": "sha256:88c35dab163a92995342bf1e096b429ca6975f9e5cd177c5d8ab5f1af3724157",
+  "view_sha256": "sha256:6bf8d892703cc0c71c5c8370433adeedc8b53d5db7751e342d49a1e026dab497",
+  "accounts": [187,80],
+  "account_policy": [[80,"112101","asset_current"],[187,"510001","expense_direct_cost"]],
+  "defaults": [
+    ["product.category","property_account_expense_categ_id",1,null,"187"],
+    ["product.category","property_cost_method",1,null,"\"fifo\""],
+    ["product.category","property_cost_method",null,null,"\"standard\""],
+    ["product.category","property_stock_valuation_account_id",1,null,"80"],
+    ["product.category","property_valuation",1,null,"\"real_time\""],
+    ["product.category","property_valuation",null,null,"\"periodic\""]
+  ],
+  "columns": {
+    "account_move": ["id","company_id","currency_id","state","move_type","date","invoice_date"],
+    "account_move_line": ["id","move_id","company_id","currency_id","display_type","balance","product_id","product_uom_id","quantity","cogs_origin_id","account_id","purchase_line_id"],
+    "res_company": ["id","name","currency_id","cost_method","inventory_valuation","inventory_period","chart_template","hard_lock_date","expense_account_id","account_stock_valuation_id"],
+    "res_currency": ["id","name"],
+    "product_product": ["id","default_code","product_tmpl_id"],
+    "product_template": ["id","company_id","categ_id","is_storable","uom_id","property_account_expense_id"],
+    "product_category": ["id","property_cost_method","property_valuation","property_account_expense_categ_id","property_stock_valuation_account_id"],
+    "stock_move": ["id","company_id","date","state","product_id","product_uom","quantity","location_id","location_dest_id","purchase_line_id","sale_line_id"],
+    "stock_location": ["id","usage"],
+    "sale_order_line_invoice_rel": ["invoice_line_id","order_line_id"],
+    "uom_uom": ["id","relative_factor","relative_uom_id"],
+    "account_account": ["id","code_store","account_type"],
+    "ir_default": ["field_id","company_id","user_id","json_value"],
+    "ir_model_fields": ["id","model","name"],
+    "ir_module_module": ["name","latest_version","state"]
+  },
+  "rls": {
+    "account_move":"company_id=1", "account_move_line":"company_id=1", "res_company":"id=1",
+    "product_template":"company_id=1", "stock_move":"company_id=1",
+    "product_product":"EXISTS (SELECT 1 FROM product_template t WHERE t.id=product_product.product_tmpl_id AND t.company_id=1)",
+    "product_category":"EXISTS (SELECT 1 FROM product_template t WHERE t.categ_id=product_category.id AND t.company_id=1)",
+    "sale_order_line_invoice_rel":"EXISTS (SELECT 1 FROM account_move_line l WHERE l.id=sale_order_line_invoice_rel.invoice_line_id AND l.company_id=1)",
+    "ir_default":"(company_id IS NULL OR company_id=1) AND EXISTS (SELECT 1 FROM ir_model_fields f WHERE f.id=ir_default.field_id AND ((f.model='product.category' AND f.name IN ('property_cost_method','property_valuation','property_account_expense_categ_id','property_stock_valuation_account_id')) OR (f.model='product.template' AND f.name='property_account_expense_id')))"
+  },
+  "policies": [
+    ["account_move","r",true,"(company_id = 1)",null],
+    ["account_move_line","r",true,"(company_id = 1)",null],
+    ["ir_default","r",true,"(((company_id IS NULL) OR (company_id = 1)) AND (EXISTS ( SELECT 1\n   FROM ir_model_fields f\n  WHERE ((f.id = ir_default.field_id) AND ((((f.model)::text = 'product.category'::text) AND ((f.name)::text = ANY ((ARRAY['property_cost_method'::character varying, 'property_valuation'::character varying, 'property_account_expense_categ_id'::character varying, 'property_stock_valuation_account_id'::character varying])::text[]))) OR (((f.model)::text = 'product.template'::text) AND ((f.name)::text = 'property_account_expense_id'::text)))))))",null],
+    ["product_category","r",true,"(EXISTS ( SELECT 1\n   FROM product_template t\n  WHERE ((t.categ_id = product_category.id) AND (t.company_id = 1))))",null],
+    ["product_product","r",true,"(EXISTS ( SELECT 1\n   FROM product_template t\n  WHERE ((t.id = product_product.product_tmpl_id) AND (t.company_id = 1))))",null],
+    ["product_template","r",true,"(company_id = 1)",null],
+    ["res_company","r",true,"(id = 1)",null],
+    ["sale_order_line_invoice_rel","r",true,"(EXISTS ( SELECT 1\n   FROM account_move_line l\n  WHERE ((l.id = sale_order_line_invoice_rel.invoice_line_id) AND (l.company_id = 1))))",null],
+    ["stock_move","r",true,"(company_id = 1)",null]
+  ]
+}

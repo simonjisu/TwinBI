@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""Pure endpoint boundary check; never reads the operator's policy or secrets."""
+import json
+import os
+from pathlib import Path
+import socket
+import sys
+import tempfile
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "runtime/api"))
+from source_policy import SourceRejected, source_target
+
+
+def main():
+    with tempfile.TemporaryDirectory(prefix="twinbi-policy-") as directory:
+        path = Path(directory)
+        (path / "ca.pem").write_text("test CA identity")
+        entry = {"host": "db.example.test", "port": 5432, "networks": ["10.2.0.0/16"], "ca_file": "ca.pem"}
+        def policy(value):
+            (path / "endpoints.json").write_text(json.dumps(value))
+        def dns(*addresses):
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (value, 5432)) for value in addresses]
+        def reject(reason, host="db.example.test", port=5432, mode="verify-full"):
+            try:
+                source_target(host, port, mode)
+            except SourceRejected as error:
+                assert error.reason == reason, (error.reason, reason)
+            else:
+                raise AssertionError("policy allowed rejected case")
+        with patch.dict(os.environ, {"TWINBI_SOURCE_POLICY_DIR": directory}), patch("socket.getaddrinfo", return_value=dns("10.2.0.4")) as lookup:
+            policy([entry])
+            target, certificate = source_target(entry["host"], 5432, "verify-full")
+            assert target == {"hostaddr": "10.2.0.4", "sslmode": "verify-full", "sslrootcert": str(path / "ca.pem")}
+            reject("host_not_allowed", host="other.test")
+            reject("host_not_allowed", port=5433)
+            reject("tls_verify_full_required", mode="disable")
+            reject("tls_verify_full_required", mode="require")
+            for address in ("127.0.0.1", "169.254.169.254", "100.100.100.200", "224.0.0.1", "0.0.0.0", "240.0.0.1", "::1", "fe80::1", "ff02::1", "::", "::ffff:10.2.0.4", "fd00:ec2::254"):
+                policy([{**entry, "networks": ["0.0.0.0/0", "::/0"]}])
+                lookup.return_value = dns(address)
+                reject("reserved_address")
+            policy([entry])
+            lookup.return_value = dns("10.2.0.4", "10.3.0.4")
+            reject("address_not_allowed")
+            lookup.return_value = dns("10.2.0.4")
+            for change in ({"host": "*.test"}, {"host": "db,other"}, {"host": "db -p 1"}, {"host": "-db.test"}, {"port": True}, {"port": 0}, {"networks": []}, {"networks": [1]}, {"networks": ["10.2.0.4/16"]}, {"ca_file": "../ca.pem"}, {"sslmode": "disable"}):
+                policy([{**entry, **change}])
+                reject("source_policy_invalid")
+            policy([entry, entry])
+            reject("source_policy_invalid")
+            (path / "endpoints.json").write_text('[{"host":"a","host":"b"}]')
+            reject("source_policy_invalid")
+            (path / "link.pem").symlink_to(path / "ca.pem")
+            policy([{**entry, "ca_file": "link.pem"}])
+            reject("source_policy_invalid")
+            policy([])
+            reject("host_not_allowed")
+            assert source_target("fixture-db", 5432, "disable")[0]["hostaddr"] == "10.2.0.4"
+            reject("host_not_allowed", host="fixture-db", port=5433)
+            policy([entry])
+            (path / "ca.pem").write_text("changed CA identity")
+            assert source_target(entry["host"], 5432, "verify-full")[1] != certificate
+            policy([{**entry, "networks": ["fd12::/16"]}])
+            lookup.return_value = dns("fd12::4")
+            assert source_target(entry["host"], 5432, "verify-full")[0]["hostaddr"] == "fd12::4"
+    print("M6.1 endpoint/TLS policy, DNS pin, revocation and CA identity checks passed")
+
+
+if __name__ == "__main__":
+    main()
