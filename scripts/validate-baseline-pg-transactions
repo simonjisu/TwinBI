@@ -1,0 +1,418 @@
+#!/usr/bin/env python3
+"""Test-only rollback probe. Default self-check is offline and does not test #18 helpers."""
+import argparse
+from contextlib import contextmanager
+from copy import deepcopy
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import sys
+from types import ModuleType, SimpleNamespace
+import unittest
+from unittest.mock import Mock, patch
+
+ROOT = Path(__file__).resolve().parents[1]
+COMPONENT = ROOT / "runtime/api/cost_baseline.py"
+COMPONENT_SHA256 = "5d3c4761c7de2178e6933531c4585be68c85d98ff6e47aff22a7b95a517b84bb"
+baseline = None
+
+
+class MissingDependency(RuntimeError):
+    pass
+
+
+class SafeArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(2, "invalid arguments; use --help and keep credentials in environment only\n")
+
+
+def load_component(path=COMPONENT):
+    if not path.is_file():
+        raise MissingDependency("PR #18 component is missing")
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != COMPONENT_SHA256:
+        raise MissingDependency("PR #18 component checksum differs")
+    module = ModuleType("reviewed_public_cost_baseline")
+    module.__file__ = str(path)
+    previous = list(sys.path)
+    sys.path.insert(0, str(path.parent))
+    try:
+        exec(compile(raw, str(path), "exec"), module.__dict__)
+    finally:
+        sys.path[:] = previous
+    return module
+
+
+def active_cost_row(cursor, workspace):
+    cursor.execute("SELECT to_jsonb(d) FROM workspace_dashboards d WHERE workspace_id=%s AND kind='cost'", (workspace,))
+    row = cursor.fetchone()
+    if row is None:
+        raise RuntimeError("active cost binding missing")
+    return row[0]
+
+
+def real_adapter(database, user):
+    component = load_component()  # Must fail before importing driver or reading credentials.
+    try:
+        import psycopg
+    except ImportError:
+        raise MissingDependency("real mode requires externally provided psycopg 3") from None
+    def connect():
+        dsn = os.environ.get("TWINBI_BASELINE_PROBE_DSN")
+        if dsn:
+            return psycopg.connect(dsn, autocommit=False, connect_timeout=5)
+        return psycopg.connect(host=os.environ["DB_HOST"], dbname=os.environ["DB_NAME"],
+            user=os.environ["DB_USER"], password=os.environ["DB_PASSWORD"], autocommit=False, connect_timeout=5)
+    sql = " ".join(next(value for value in component.baseline_registration.__code__.co_consts
+                         if isinstance(value, str) and "s.created_at >" in value).split())
+    match = re.search(r"s\.created_at > clock_timestamp\(\)-interval '5 minutes' AND s\.created_at <= clock_timestamp\(\)", sql)
+    if match is None:
+        raise MissingDependency("reviewed registration freshness expression missing")
+    return SimpleNamespace(**{name: getattr(component, name) for name in
+        ("binding_digest", "archived_kind", "lock_cost_binding", "archive_current")},
+        active_cost_row=active_cost_row, connect_app=connect, psycopg2=psycopg,
+        REGISTRATION_FRESH_SQL=match.group(), expected_database=database, expected_user=user)
+
+
+class InjectedArchiveFailure(RuntimeError):
+    pass
+
+
+@contextmanager
+def rollback_only(connection):
+    try:
+        yield
+    finally:
+        connection.rollback()
+
+
+def limits(cursor):
+    cursor.execute("SET LOCAL statement_timeout='3s'")
+    cursor.execute("SET LOCAL lock_timeout='200ms'")
+
+
+def pinned_row(cursor, workspace, source_id, dataset_id, dashboard_id, expected_row):
+    row = baseline.active_cost_row(cursor, workspace)
+    cursor.execute("SELECT source_id::text,workspace_id FROM source_datasets WHERE dataset_id=%s", (dataset_id,))
+    owner = cursor.fetchone()
+    if (row["dataset_id"] != dataset_id or row["superset_dashboard_id"] != dashboard_id
+            or row["binding_json"].get("source_id") != source_id
+            or owner != (source_id, workspace) or baseline.binding_digest(row) != expected_row):
+        raise RuntimeError("active row pins changed; no archive permitted")
+    return row
+
+
+def freshness_cases(cursor):
+    # Freeze only the fixture clock, not any stored source timestamp.
+    expression = baseline.REGISTRATION_FRESH_SQL.replace("clock_timestamp()", "sample_now")
+    cursor.execute(f"""WITH observation AS MATERIALIZED (SELECT clock_timestamp() AS sample_now),
+        cases(created_at,decision_at,query_at,expected) AS (
+          SELECT sample_now-interval '299 seconds',sample_now,sample_now,true FROM observation UNION ALL
+          SELECT sample_now-interval '300 seconds',sample_now,sample_now,false FROM observation UNION ALL
+          SELECT sample_now-interval '301 seconds',sample_now,sample_now,false FROM observation UNION ALL
+          SELECT sample_now+interval '1 second',sample_now,sample_now,false FROM observation UNION ALL
+          SELECT sample_now-interval '1 second',sample_now-interval '1 year',sample_now+interval '1 year',true FROM observation
+        ) SELECT ({expression}),expected FROM cases s CROSS JOIN observation""")
+    rows = cursor.fetchall()
+    if len(rows) != 5 or any(observed is not expected for observed, expected in rows):
+        raise RuntimeError("registration created_at freshness boundary failed")
+    return {"status": "PASS", "cases": len(rows), "stored_timestamp_writes": 0}
+
+
+def run_checks(workspace, source_id, dataset_id, dashboard_id, expected_row):
+    connections, report = [], {"status": "PASS", "data_commits": 0, "deletes": 0}
+    try:
+        for _ in range(2):
+            connection = baseline.connect_app()
+            connections.append(connection)
+            if connection.autocommit:
+                raise RuntimeError("rollback-only check requires autocommit disabled")
+        first, second = connections
+        a, b = first.cursor(), second.cursor()
+        identities = []
+        for cursor in (a, b):
+            limits(cursor)
+            cursor.execute("SELECT current_database(),current_user,pg_backend_pid()")
+            identities.append(cursor.fetchone())
+        if any(row[:2] != (baseline.expected_database, baseline.expected_user) for row in identities) or identities[0][2] == identities[1][2]:
+            raise RuntimeError("two distinct normal app sessions required")
+        original = pinned_row(a, workspace, source_id, dataset_id, dashboard_id, expected_row)
+        pinned_row(b, workspace, source_id, dataset_id, dashboard_id, expected_row)
+        current = baseline.lock_cost_binding(a, workspace)
+        try:
+            baseline.lock_cost_binding(b, workspace)
+        except RuntimeError as error:
+            if str(error) != "cost baseline operation busy":
+                raise
+        else:
+            raise RuntimeError("second session acquired the occupied advisory lock")
+        second.rollback()
+        limits(b)
+        try:
+            b.execute("SELECT 1 FROM workspace_dashboards WHERE workspace_id=%s AND kind='cost' FOR UPDATE NOWAIT", (workspace,))
+        except baseline.psycopg2.Error as error:
+            if getattr(error, "sqlstate", getattr(error, "pgcode", None)) != "55P03":
+                raise RuntimeError("unexpected row-lock failure") from None
+        else:
+            raise RuntimeError("second session acquired the occupied row lock")
+        second.rollback()
+        first.rollback()
+        limits(b)
+        baseline.lock_cost_binding(b, workspace)
+        second.rollback()
+        report["two_session_contention"] = {"status": "PASS", "advisory_busy": True,
+                                             "row_nowait_sqlstate": "55P03", "released_lock_reacquired": True}
+        try:
+            with rollback_only(first):
+                limits(a)
+                current = baseline.lock_cost_binding(a, workspace)
+                pinned_row(a, workspace, source_id, dataset_id, dashboard_id, expected_row)
+                # Prevent trigger/rule DDL racing the safety check before UPDATE.
+                a.execute("LOCK TABLE workspace_dashboards IN ROW EXCLUSIVE MODE")
+                a.execute("SELECT count(*) FROM pg_trigger WHERE tgrelid='workspace_dashboards'::regclass AND NOT tgisinternal")
+                triggers = a.fetchone()[0]
+                a.execute("SELECT count(*) FROM pg_rewrite WHERE ev_class='workspace_dashboards'::regclass AND rulename<>'_RETURN'")
+                rules = a.fetchone()[0]
+                a.execute("SELECT relkind FROM pg_class WHERE oid='workspace_dashboards'::regclass")
+                ordinary = a.fetchone() == ("r",)
+                if triggers or rules or not ordinary:
+                    report.update(status="BLOCKED", archive_failure_rollback={"status": "BLOCKED",
+                        "noninternal_triggers": triggers, "rewrite_rules": rules, "ordinary_table": ordinary})
+                    raise InjectedArchiveFailure
+                baseline.archive_current(a, workspace, current)
+                a.execute("SELECT kind FROM workspace_dashboards WHERE workspace_id=%s AND superset_dashboard_id=%s",
+                          (workspace, dashboard_id))
+                if a.fetchone() != (baseline.archived_kind(dashboard_id),):
+                    raise RuntimeError("archive was not visible in owner transaction")
+                limits(b)
+                if pinned_row(b, workspace, source_id, dataset_id, dashboard_id, expected_row) != original:
+                    raise RuntimeError("session B observed uncommitted archive")
+                second.rollback()
+                report["archive_failure_rollback"] = {"status": "PASS", "session_b_saw_committed_only": True,
+                    "injection": "after_archive_before_insert", "noninternal_triggers": 0}
+                raise InjectedArchiveFailure
+        except InjectedArchiveFailure:
+            pass
+        finally:
+            first.rollback()
+        limits(b)
+        restored = pinned_row(b, workspace, source_id, dataset_id, dashboard_id, expected_row)
+        if restored != original:
+            raise RuntimeError("archive rollback did not restore original full row")
+        report["original_full_row_restored"] = baseline.binding_digest(restored) == expected_row
+        report["created_at_freshness"] = freshness_cases(b)
+        second.rollback()
+        return report
+    finally:
+        cleanup_failed = False
+        for connection in reversed(connections):
+            try:
+                connection.rollback()
+            except Exception:
+                cleanup_failed = True
+            finally:
+                try:
+                    connection.close()
+                except Exception:
+                    cleanup_failed = True
+        if cleanup_failed:
+            raise RuntimeError("rollback or close outcome uncertain; independent state check required") from None
+
+
+class DriverError(Exception):
+    sqlstate = "55P03"
+
+
+class FakeStore:
+    def __init__(self):
+        self.row = {"workspace_id": "synthetic", "kind": "cost", "dataset_id": "synthetic-dataset",
+            "superset_dashboard_id": 3, "binding_json": {"source_id": "synthetic-source"}}
+        self.connections = []
+        self.advisory = self.row_lock = None
+        self.triggers = self.writes = self.commits = 0
+        self.fail_rollback = False
+
+    def connect(self):
+        store = self
+        class Connection:
+            autocommit = False
+            pending = None
+            closed = False
+            def cursor(self):
+                return Cursor(self)
+            def commit(self):
+                store.commits += 1
+                raise AssertionError("commit forbidden")
+            def rollback(self):
+                if self.pending and store.fail_rollback:
+                    raise DriverError("synthetic credential canary")
+                self.pending = None
+                if store.advisory is self:
+                    store.advisory = None
+                if store.row_lock is self:
+                    store.row_lock = None
+            def close(self):
+                self.pending = None
+                self.closed = True
+        class Cursor:
+            def __init__(self, connection):
+                self.connection = connection
+                self.result = None
+            def execute(self, query, parameters=()):
+                connection = self.connection
+                if query.startswith(("SET ", "LOCK TABLE")):
+                    return
+                if "current_database()" in query:
+                    self.result = ("synthetic-db", "synthetic-user", id(connection))
+                elif query.startswith("SELECT to_jsonb"):
+                    row = connection.pending if connection.pending is not None else store.row
+                    self.result = (deepcopy(row),) if row["kind"] == "cost" else None
+                elif query.startswith("SELECT source_id::text"):
+                    self.result = ("synthetic-source", "synthetic")
+                elif "FOR UPDATE NOWAIT" in query:
+                    if store.row_lock is not None and store.row_lock is not connection:
+                        raise DriverError("synthetic contention")
+                    self.result = (1,)
+                elif "FROM pg_trigger" in query:
+                    self.result = (store.triggers,)
+                elif "FROM pg_rewrite" in query:
+                    self.result = (0,)
+                elif "SELECT relkind" in query:
+                    self.result = ("r",)
+                elif query.startswith("SELECT kind"):
+                    self.result = (connection.pending["kind"],)
+                elif query.startswith("WITH observation"):
+                    self.result = [(True, True), (False, False), (False, False), (False, False), (True, True)]
+                else:
+                    raise AssertionError("unexpected synthetic query")
+            def fetchone(self):
+                return self.result
+            def fetchall(self):
+                return self.result
+        connection = Connection()
+        self.connections.append(connection)
+        return connection
+
+    def adapter(self):
+        # Test doubles model orchestration only; these are not public-helper implementations.
+        def fence(cursor, workspace):
+            if self.advisory not in (None, cursor.connection):
+                raise RuntimeError("cost baseline operation busy")
+            self.advisory = self.row_lock = cursor.connection
+            return (self.row["dataset_id"], 3, self.row["binding_json"])
+        def stage(cursor, workspace, current):
+            self.writes += 1
+            cursor.connection.pending = deepcopy(self.row)
+            cursor.connection.pending["kind"] = "synthetic-archive"
+        return SimpleNamespace(binding_digest=Mock(side_effect=lambda value: "synthetic-digest" if value == self.row else "changed"),
+            archived_kind=Mock(return_value="synthetic-archive"), lock_cost_binding=Mock(side_effect=fence),
+            archive_current=Mock(side_effect=stage), active_cost_row=active_cost_row,
+            connect_app=self.connect, psycopg2=SimpleNamespace(Error=DriverError),
+            expected_database="synthetic-db", expected_user="synthetic-user",
+            REGISTRATION_FRESH_SQL="s.created_at > clock_timestamp()-interval '5 minutes' AND s.created_at <= clock_timestamp()")
+
+
+class OfflineChecks(unittest.TestCase):
+    def setUp(self):
+        global baseline
+        self.store = FakeStore()
+        baseline = self.store.adapter()
+    def run_probe(self, digest="synthetic-digest"):
+        return run_checks("synthetic", "synthetic-source", "synthetic-dataset", 3, digest)
+    def test_control_flow_rolls_back_and_closes_two_fake_sessions(self):
+        before = deepcopy(self.store.row)
+        result = self.run_probe()
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(self.store.row, before)
+        self.assertEqual((self.store.writes, self.store.commits), (1, 0))
+        self.assertTrue(all(c.closed for c in self.store.connections))
+    def test_noninternal_trigger_blocks_writing(self):
+        self.store.triggers = 1
+        self.assertEqual(self.run_probe()["status"], "BLOCKED")
+        self.assertEqual(self.store.writes, 0)
+    def test_bad_pin_cannot_write(self):
+        with self.assertRaises(RuntimeError):
+            self.run_probe("changed")
+        self.assertEqual(self.store.writes, 0)
+    def test_rollback_failure_is_uncertain_and_closes_both(self):
+        self.store.fail_rollback = True
+        with self.assertRaisesRegex(RuntimeError, "outcome uncertain"):
+            self.run_probe()
+        self.assertTrue(all(c.closed for c in self.store.connections))
+    def test_missing_component_does_not_use_sys_modules_or_read_dsn(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory, patch.dict(sys.modules, {"cost_baseline": object()}):
+            with self.assertRaises(MissingDependency):
+                load_component(Path(directory) / "missing.py")
+    def test_component_hash_is_checked_before_execution(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "module.py"
+            path.write_text("raise AssertionError('must not execute')")
+            with self.assertRaises(MissingDependency):
+                load_component(path)
+    def test_invalid_cli_never_echoes_values(self):
+        import io
+        canary = "SYNTHETIC_DSN_SECRET_CANARY"
+        for arguments in (["--real", "--dsn", "postgresql://test:" + canary + "@invalid/db"],
+                          ["--real", "--dashboard-id", canary]):
+            with self.subTest(arguments=arguments), patch.object(sys, "argv", ["probe", *arguments]):
+                output = io.StringIO()
+                with patch.object(sys, "stderr", output), self.assertRaises(SystemExit) as caught:
+                    main()
+                self.assertEqual(caught.exception.code, 2)
+                self.assertNotIn(canary, output.getvalue())
+
+
+def main():
+    global baseline
+    parser = SafeArgumentParser(prog="validate-baseline-pg-transactions", description=__doc__)
+    parser.add_argument("--real", action="store_true")
+    parser.add_argument("--rollback-only", action="store_true")
+    parser.add_argument("--database")
+    parser.add_argument("--db-user")
+    parser.add_argument("--workspace")
+    parser.add_argument("--source-id")
+    parser.add_argument("--dataset-id")
+    parser.add_argument("--dashboard-id", type=int)
+    parser.add_argument("--expected-row")
+    args = parser.parse_args()
+    if not args.real:
+        if any((args.rollback_only, args.database, args.db_user, args.workspace, args.source_id,
+                args.dataset_id, args.dashboard_id, args.expected_row)):
+            parser.error("real-mode options require explicit --real")
+        result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(OfflineChecks))
+        print(json.dumps({"status": "OFFLINE_SELF_CHECKS_PASS" if result.wasSuccessful() else "FAILED",
+            "tests": result.testsRun, "real_pg_executed": False, "public_component_tested": False,
+            "dependency_present": COMPONENT.is_file()}))
+        return 0 if result.wasSuccessful() else 1
+    if not all((args.rollback_only, args.database, args.db_user, args.workspace, args.source_id,
+                args.dataset_id, args.dashboard_id, args.expected_row)):
+        parser.error("--real requires --rollback-only and all DB/user/workspace/source/dataset/dashboard/full-row pins")
+    from uuid import UUID
+    try:
+        if str(UUID(args.source_id)) != args.source_id or str(UUID(args.dataset_id)) != args.dataset_id:
+            raise ValueError
+        if args.dashboard_id <= 0 or not re.fullmatch(r"sha256:[0-9a-f]{64}", args.expected_row):
+            raise ValueError
+    except ValueError:
+        parser.error("canonical UUIDs, positive dashboard ID and sha256 full-row pin required")
+    try:
+        baseline = real_adapter(args.database, args.db_user)
+    except MissingDependency:
+        print(json.dumps({"status": "BLOCKED_DEPENDENCY", "reason": "reviewed PR #18 component and psycopg 3 required", "connections_opened": 0}))
+        return 2
+    try:
+        result = run_checks(args.workspace, args.source_id, args.dataset_id, args.dashboard_id, args.expected_row)
+    except (RuntimeError, baseline.psycopg2.Error, KeyError, ValueError, TypeError, OSError):
+        result = {"status": "FAILED_OR_UNCERTAIN", "reason": "probe failed; inspect original pins before retry",
+                  "retry_allowed": False, "data_commits": 0, "deletes": 0}
+    print(json.dumps(result, sort_keys=True))
+    return 0 if result["status"] == "PASS" else 2 if result["status"] == "BLOCKED" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
