@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+"""Offline admission checks: synthetic metadata, no secrets, DB, DNS or network."""
+from copy import deepcopy
+from dataclasses import replace
+from pathlib import Path
+import socket
+import sys
+from types import ModuleType, SimpleNamespace
+import unittest
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "runtime/api"))
+# Deliberately use a driver stub even when psycopg is installed; no live fallback.
+driver = ModuleType("psycopg")
+driver.Error = type("DriverError", (Exception,), {})
+driver.sql = ModuleType("psycopg.sql")
+driver.connect = lambda **kwargs: (_ for _ in ()).throw(AssertionError("real DB access forbidden"))
+sys.modules["psycopg"] = driver
+sys.modules["psycopg.sql"] = driver.sql
+
+import odoo_cost_mapping as mapping
+from odoo_cost_guard import COMPANY, MAPPING, VIEW
+from odoo_cost_reconnect import ProviderTargetBinding, inspect_cost_reconnect
+from postgres_source import connect_postgresql, superset_database_payload
+from scoped_query import source_connection
+from source_policy import SourceRejected
+
+
+class Connection:
+    def __init__(self):
+        self.identity = ("cost_reader", "cost_database", "on")
+        self.roles = [("cost_reader", False, False, False, False, False)]
+        self.database_privileges = (False, False, False)
+        self.schema_privileges = (False, False)
+        self.closed = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def close(self):
+        self.closed = True
+
+    def cursor(self):
+        return self
+
+    def execute(self, query, parameters=()):
+        if "SELECT current_user" in query:
+            value = self.identity
+        elif "FROM pg_roles" in query:
+            value = self.roles
+        elif "FROM pg_database" in query:
+            value = self.database_privileges
+        elif "FROM pg_namespace" in query:
+            value = self.schema_privileges
+        elif query == f"SELECT count(*) FROM {VIEW}":
+            value = (4,)
+        elif query.startswith(("SET TRANSACTION READ ONLY", "SET LOCAL")):
+            value = None
+        else:
+            raise AssertionError("unexpected SQL: " + query)
+        return SimpleNamespace(fetchone=lambda: value, fetchall=lambda: value)
+
+
+class ReconnectChecks(unittest.TestCase):
+    def setUp(self):
+        self.config = SimpleNamespace(host="odoo-cost-db", port=5432, database="cost_database",
+            username="cost_reader", password="synthetic-never-return", sslmode="disable",
+            mapping_id=MAPPING, schema_name="public", table_name=VIEW,
+            company_id=1, company_name=COMPANY, scope_proof="database_rls")
+        self.columns = [{"name": "product", "type": "text", "nullable": False, "position": 1}]
+        self.spec = {"schema_sha256": "sha256:" + "a" * 64,
+                     "module_sha256": "sha256:" + "b" * 64}
+        self.registered = dict(source_id="synthetic-source", source_kind="odoo19", status="ready",
+            host=self.config.host, port=5432, hostaddr="172.20.0.10", database_name=self.config.database,
+            username=self.config.username, query_principal=self.config.username, sslmode="disable",
+            mapping_id=MAPPING, mapping_status="validated", company_id=1, company_name=COMPANY,
+            scope_proof="database_rls", schema_name="public", table_name=VIEW,
+            schema_hash=self.spec["schema_sha256"], module_hash=self.spec["module_sha256"],
+            schema_fingerprint=mapping.digest(mapping.json.dumps(self.columns, separators=(",", ":"))),
+            columns_json=self.columns, view_equivalent=True,
+            visible_scope_json={"companies": [1], "moves": [1], "lines": [1]},
+            provider_database_identity="synthetic-provider-volume-receipt")
+        self.binding = ProviderTargetBinding("synthetic-source", "synthetic-provider-volume-receipt",
+            self.config.host, 5432, self.config.database, self.config.username, "disable", "172.20.0.4")
+        self.connection = Connection()
+        self.addCleanup(patch.stopall)
+        patch("socket.socket", side_effect=AssertionError("network forbidden")).start()
+        self.lookup = patch("socket.getaddrinfo", return_value=[
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.20.0.4", 5432))]).start()
+        self.connect = patch.object(driver, "connect", return_value=self.connection).start()
+        patch.object(mapping, "contract", return_value=self.spec).start()
+        patch.object(mapping, "dataset_columns", return_value=self.columns).start()
+        self.cost_check = patch.object(mapping, "check_cost", return_value={"relation_bytes": 128}).start()
+
+    def run_inspection(self):
+        return inspect_cost_reconnect(self.config, self.registered, provider_target=self.binding)
+
+    def rejects(self, reason, action=None, *, before_connection=False):
+        self.connect.reset_mock()
+        with self.assertRaises(SourceRejected) as caught:
+            (action or self.run_inspection)()
+        self.assertEqual(caught.exception.reason, reason)
+        self.assertNotIn(self.config.password, str(caught.exception))
+        if before_connection:
+            self.connect.assert_not_called()
+
+    def test_explicit_trusted_binding_full_inspection_and_immutable_inputs(self):
+        originals = deepcopy((vars(self.config), self.registered, self.binding))
+        result = self.run_inspection()
+        self.assertEqual((result["status"], result["hostaddr"], result["principal"]),
+                         ("validated", "172.20.0.4", "cost_reader"))
+        self.cost_check.assert_called_once()
+        self.assertTrue(self.connection.closed)
+        self.assertEqual(self.connect.call_args.kwargs["hostaddr"], self.binding.hostaddr)
+        self.assertEqual(originals, (vars(self.config), self.registered, self.binding))
+        self.assertNotIn(self.config.password, repr(result))
+
+    def test_missing_or_untrusted_proof_rejects_before_dns(self):
+        for proof in (None, True, vars(self.binding), SimpleNamespace(**vars(self.binding))):
+            with self.subTest(proof=type(proof).__name__):
+                self.rejects("odoo_cost_reconnect_provider_identity_required",
+                    lambda: inspect_cost_reconnect(self.config, self.registered, provider_target=proof),
+                    before_connection=True)
+        del self.registered["provider_database_identity"]
+        self.rejects("odoo_cost_reconnect_provider_identity_required", before_connection=True)
+        self.lookup.assert_not_called()
+
+    def test_identity_and_endpoint_changes_reject_before_connection(self):
+        for field in ("source_id", "database_identity"):
+            original = self.binding
+            self.binding = replace(original, **{field: "different"})
+            self.rejects("odoo_cost_reconnect_provider_identity_mismatch", before_connection=True)
+            self.binding = original
+        for field in ("host", "port", "database", "username", "sslmode"):
+            original = self.binding
+            self.binding = replace(original, **{field: "different"})
+            self.rejects("odoo_cost_reconnect_endpoint_changed", before_connection=True)
+            self.binding = original
+        self.registered["query_principal"] = "other_reader"
+        self.rejects("odoo_cost_reconnect_principal_changed", before_connection=True)
+
+    def test_absent_endpoint_fields_cannot_match_none(self):
+        for field, stored in (("host", "host"), ("port", "port"), ("database", "database_name"),
+                              ("username", "username"), ("sslmode", "sslmode")):
+            original = deepcopy((self.config, self.registered, self.binding))
+            setattr(self.config, field, None)
+            self.registered.pop(stored)
+            self.binding = replace(self.binding, **{field: None})
+            self.rejects("odoo_cost_reconnect_endpoint_changed", before_connection=True)
+            self.config, self.registered, self.binding = original
+        self.config.mapping_id = "other"
+        self.rejects("odoo_cost_reconnect_mapping_required", before_connection=True)
+
+    def test_missing_weaker_or_changed_pins_reject(self):
+        changes = {"mapping_id": ("other", "mapping_required"),
+            "status": ("catalog_only", "validated_source_required"),
+            "mapping_status": ("catalog_only", "validated_source_required"),
+            "schema_name": ("other", "dataset_changed"), "table_name": ("other", "dataset_changed"),
+            "company_id": (2, "scope_changed"), "company_name": ("other", "scope_changed"),
+            "scope_proof": ("extract", "scope_changed"),
+            "schema_hash": ("unverified", "verified_pins_required"),
+            "module_hash": (None, "verified_pins_required"),
+            "schema_fingerprint": (None, "verified_pins_required"),
+            "columns_json": ([], "verified_pins_required"),
+            "visible_scope_json": ({}, "verified_pins_required"),
+            "view_equivalent": (False, "verified_pins_required")}
+        original = deepcopy(self.registered)
+        for field, (value, reason) in changes.items():
+            with self.subTest(field=field):
+                self.registered = {**original, field: value}
+                self.rejects("odoo_cost_reconnect_" + reason, before_connection=True)
+        for field in ("schema_hash", "module_hash", "schema_fingerprint"):
+            self.registered = {**original, field: "sha256:" + "c" * 64}
+            self.rejects("odoo_cost_reconnect_contract_changed")
+        self.registered = {**original, "columns_json": [{"name": "other"}]}
+        self.rejects("odoo_cost_reconnect_contract_changed")
+
+    def test_fresh_principal_database_and_privileges(self):
+        for identity, reason in ((("other", "cost_database", "on"), "principal_mismatch"),
+                                 (("cost_reader", "other", "on"), "database_mismatch"),
+                                 (("cost_reader", "cost_database", "off"), "principal_mismatch")):
+            self.connection.identity = identity
+            self.rejects(reason)
+        self.connection.identity = ("cost_reader", "cost_database", "on")
+        self.connection.roles = [("cost_reader", True, False, False, False, False)]
+        self.rejects("privileged_role")
+        self.connection.roles = []
+        self.connection.database_privileges = (False, True, False)
+        self.rejects("database_write_capability")
+        self.connection.database_privileges = (False, False, False)
+        self.connection.schema_privileges = (False, True)
+        self.rejects("schema_write_capability")
+
+    def test_cost_guard_failures_never_admit_catalog_only(self):
+        for reason in ("odoo_cost_rls_policy_changed", "odoo_cost_column_policy_changed",
+                       "odoo_cost_module_fingerprint_changed", "odoo_cost_schema_fingerprint_changed",
+                       "odoo_cost_privileged_role", "odoo_cost_write_privilege", "odoo_cost_read_only_required"):
+            self.cost_check.side_effect = SourceRejected(reason)
+            expected = reason if reason in {"odoo_cost_privileged_role", "odoo_cost_write_privilege",
+                       "odoo_cost_read_only_required"} else "odoo_cost_reconnect_contract_unverified"
+            self.rejects(expected)
+        self.cost_check.side_effect = driver.Error("synthetic-never-return")
+        self.rejects("odoo_cost_reconnect_contract_unverified")
+
+    def test_dns_change_blocks_before_connect_and_existing_guards_remain(self):
+        self.lookup.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.20.0.5", 5432))]
+        self.rejects("source_address_changed", before_connection=True)
+        self.lookup.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.20.0.4", 5432))]
+        self.rejects("source_address_changed", lambda: source_connection(self.registered), before_connection=True)
+        self.rejects("source_address_changed",
+            lambda: superset_database_payload(self.config, self.registered["hostaddr"], "synthetic"),
+            before_connection=True)
+        self.lookup.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 5432))]
+        self.rejects("reserved_address", before_connection=True)
+
+    def test_existing_connection_callers_and_error_sanitization(self):
+        self.assertEqual(connect_postgresql(self.config)[0], "172.20.0.4")
+        self.connect.side_effect = driver.Error(self.config.password)
+        self.rejects("connection_failed")
+
+    def test_principal_and_transaction_exit_driver_errors_are_sanitized(self):
+        canaries = self.config.password + " " + self.binding.database_identity
+        for method in ("execute", "__exit__"):
+            with self.subTest(method=method), patch.object(Connection, method,
+                    side_effect=driver.Error(canaries)):
+                with self.assertRaises(SourceRejected) as caught:
+                    self.run_inspection()
+                self.assertEqual(caught.exception.reason, "odoo_cost_reconnect_inspection_failed")
+                self.assertTrue(caught.exception.__suppress_context__)
+                self.assertNotIn(self.config.password, str(caught.exception))
+                self.assertNotIn(self.binding.database_identity, str(caught.exception))
+
+    def test_unreadable_contract_rejects_before_connect_without_secret_details(self):
+        for error_type in (OSError, ValueError, KeyError):
+            canaries = self.config.password + " " + self.binding.database_identity
+            with self.subTest(error=error_type.__name__), patch.object(mapping, "contract",
+                    side_effect=error_type(canaries)):
+                self.rejects("odoo_cost_reconnect_inspection_failed", before_connection=True)
+                self.lookup.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
